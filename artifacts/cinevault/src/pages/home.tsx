@@ -6,6 +6,7 @@ import { MovieCarousel } from "@/components/movie/MovieCarousel";
 import { PageTransition } from "@/components/layout/PageTransition";
 import { Play, Info, Star } from "lucide-react";
 import { useLocalStorage } from "@/hooks/use-local-storage";
+import { getSettings, getMovies, LocalMovie } from "@/lib/admin-db";
 
 export default function Home() {
   const [recentMovies, setRecentMovies] = useLocalStorage<RecentlyWatchedMovie[]>("cv_recently_watched", []);
@@ -15,13 +16,64 @@ export default function Home() {
   const { data: fourKData, loading: fourKLoading } = useMovieList({ quality: "2160p", limit: 20 });
 
   const [heroMovie, setHeroMovie] = useState<Movie | null>(null);
+  const [localMovies, setLocalMovies] = useState<LocalMovie[]>([]);
+
+  // Load local DB movies
+  useEffect(() => {
+    const settings = getSettings();
+    if (settings.show_local_movies) {
+      setLocalMovies(getMovies());
+    }
+  }, []);
 
   useEffect(() => {
-    if (latestData?.movies && latestData.movies.length > 0 && !heroMovie) {
+    if (heroMovie) return;
+
+    // Check if admin has set a featured movie
+    const settings = getSettings();
+    if (settings.featured_movie_id) {
+      const featuredLocal = getMovies().find(
+        m => m.imdb_id === settings.featured_movie_id || m.id === settings.featured_movie_id
+      );
+      if (featuredLocal) {
+        // Convert local movie to hero-compatible shape
+        setHeroMovie({
+          id: 0,
+          imdb_code: featuredLocal.imdb_id,
+          title: featuredLocal.title,
+          year: featuredLocal.year,
+          rating: featuredLocal.rating,
+          runtime: featuredLocal.runtime,
+          genres: featuredLocal.genres,
+          synopsis: featuredLocal.synopsis,
+          summary: featuredLocal.synopsis,
+          description_full: featuredLocal.synopsis,
+          slug: featuredLocal.slug,
+          background_image: featuredLocal.background_url,
+          background_image_original: featuredLocal.background_url,
+          medium_cover_image: featuredLocal.poster_url,
+          large_cover_image: featuredLocal.poster_url,
+          small_cover_image: featuredLocal.poster_url,
+          language: featuredLocal.language,
+          mpa_rating: featuredLocal.mpa_rating,
+          yt_trailer_code: featuredLocal.yt_trailer_code,
+          torrents: [],
+          url: "", title_english: featuredLocal.title, title_long: featuredLocal.title,
+          state: "ok", date_uploaded: "", date_uploaded_unix: 0,
+        } as unknown as Movie);
+        return;
+      }
+      // Try to find featured in YTS API results
+    }
+
+    if (latestData?.movies && latestData.movies.length > 0) {
+      // Check for featured movies first
+      const featured = localMovies.find(m => m.featured);
+      if (featured) return; // handled above via admin fetch
       const randomIdx = Math.floor(Math.random() * Math.min(5, latestData.movies.length));
       setHeroMovie(latestData.movies[randomIdx]);
     }
-  }, [latestData, heroMovie]);
+  }, [latestData, heroMovie, localMovies]);
 
   const handleSaveRecent = (movie: RecentlyWatchedMovie) => {
     setRecentMovies(prev => {

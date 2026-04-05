@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useMovieDetails, useMovieSuggestions, getMagnetUrl, getBestQuality, RecentlyWatchedMovie } from "@/lib/yts";
+import { getMovieByImdb, incrementViews } from "@/lib/admin-db";
 import { PageTransition } from "@/components/layout/PageTransition";
 import { MovieCard } from "@/components/movie/MovieCard";
 import { MovieCarousel } from "@/components/movie/MovieCarousel";
@@ -26,7 +27,7 @@ interface MovieDetailProps {
   params: { id: string };
 }
 
-const VIDEO_SERVERS = [
+const DEFAULT_VIDEO_SERVERS = [
   { name: "Server 1", label: "vidsrc.net", getUrl: (imdb: string) => `https://vidsrc.net/embed/movie/${imdb}` },
   { name: "Server 2", label: "multiembed", getUrl: (imdb: string) => `https://multiembed.mov/embed/imdb/${imdb}` },
   { name: "Server 3", label: "2embed", getUrl: (imdb: string) => `https://www.2embed.cc/embed/${imdb}` },
@@ -64,6 +65,11 @@ export default function MovieDetail({ params }: MovieDetailProps) {
     if (data?.movie) {
       const movie = data.movie;
       document.title = `${movie.title} (${movie.year}) — CineVault`;
+      // Track view in local DB if movie exists there
+      if (movie.imdb_code) {
+        const local = getMovieByImdb(movie.imdb_code);
+        if (local) incrementViews(movie.imdb_code);
+      }
 
       let metaDesc = document.querySelector('meta[name="description"]');
       if (!metaDesc) {
@@ -114,7 +120,17 @@ export default function MovieDetail({ params }: MovieDetailProps) {
   }
 
   const { movie } = data;
-  const backdropUrl = `https://yts.mx/assets/images/movies/${movie.slug}/background.jpg`;
+
+  // Check local DB for this movie (by IMDb code) — use its custom video sources if present
+  const localMovie = movie.imdb_code ? getMovieByImdb(movie.imdb_code) : undefined;
+  const VIDEO_SERVERS = localMovie?.video_sources && localMovie.video_sources.length > 0
+    ? localMovie.video_sources
+        .filter(s => s.active)
+        .map(s => ({ name: s.name, label: s.name, getUrl: () => s.url }))
+    : DEFAULT_VIDEO_SERVERS;
+
+  const backdropUrl = localMovie?.background_url
+    || `https://yts.mx/assets/images/movies/${movie.slug}/background.jpg`;
   const screenshots = [1, 2, 3].map(n => ({
     medium: `https://yts.mx/assets/images/movies/${movie.slug}/medium-screenshot${n}.jpg`,
     large: `https://yts.mx/assets/images/movies/${movie.slug}/large-screenshot${n}.jpg`,

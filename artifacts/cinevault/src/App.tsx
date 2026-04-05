@@ -16,11 +16,12 @@ import SearchPage from "@/pages/search";
 import MovieDetail from "@/pages/movie-detail";
 import Favorites from "@/pages/favorites";
 import Series from "@/pages/series";
+import AdminApp from "@/pages/admin/AdminApp";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
 
-function Router() {
+function PublicRouter() {
   const [location] = useLocation();
 
   return (
@@ -38,6 +39,31 @@ function Router() {
   );
 }
 
+function PublicSite() {
+  return (
+    <div className="min-h-[100dvh] bg-background text-foreground flex flex-col relative font-sans">
+      <Navbar />
+      <main className="flex-1 w-full relative">
+        <PublicRouter />
+      </main>
+      <footer className="border-t border-border bg-card py-8 mt-auto">
+        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
+          <p className="text-muted-foreground text-sm font-medium">
+            © {new Date().getFullYear()} CineVault. Powered by YTS API.
+          </p>
+          <div className="flex items-center gap-6 text-sm font-bold uppercase tracking-wider text-muted-foreground">
+            <a href="#" className="hover:text-primary transition-colors">Terms</a>
+            <a href="#" className="hover:text-primary transition-colors">Privacy</a>
+            <a href="#" className="hover:text-primary transition-colors">DMCA</a>
+          </div>
+        </div>
+      </footer>
+      <BackToTop />
+      <KonamiEasterEgg />
+    </div>
+  );
+}
+
 function App() {
   useEffect(() => {
     document.documentElement.classList.add("dark");
@@ -47,28 +73,13 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <div className="min-h-[100dvh] bg-background text-foreground flex flex-col relative font-sans">
-            <Navbar />
-            <main className="flex-1 w-full relative">
-              <Router />
-            </main>
-
-            <footer className="border-t border-border bg-card py-8 mt-auto">
-              <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
-                <p className="text-muted-foreground text-sm font-medium">
-                  © {new Date().getFullYear()} CineVault. Powered by YTS API.
-                </p>
-                <div className="flex items-center gap-6 text-sm font-bold uppercase tracking-wider text-muted-foreground">
-                  <a href="#" className="hover:text-primary transition-colors">Terms</a>
-                  <a href="#" className="hover:text-primary transition-colors">Privacy</a>
-                  <a href="#" className="hover:text-primary transition-colors">DMCA</a>
-                </div>
-              </div>
-            </footer>
-
-            <BackToTop />
-            <KonamiEasterEgg />
-          </div>
+          <Switch>
+            <Route path="/admin" component={AdminApp} />
+            <Route path="/admin/:rest*" component={AdminApp} />
+            <Route>
+              <PublicSite />
+            </Route>
+          </Switch>
         </WouterRouter>
         <Toaster />
         <SonnerToaster theme="dark" position="bottom-right" className="font-sans" />

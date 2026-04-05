@@ -1,0 +1,137 @@
+Add a complete Admin Panel to the CineVault website with the following features:
+
+## ACCESS
+- Admin panel accessible at: /#admin
+- Password protection: show a login form before entering
+- Default password: "admin123" (stored in localStorage, changeable from settings)
+- If not authenticated, redirect to login form
+- "Logout" button in admin navbar
+
+## ADMIN LAYOUT
+- Separate dark sidebar navigation with links:
+  * Dashboard
+  * Add Movie
+  * Manage Movies
+  * Video Servers
+  * Settings
+- Top bar showing: "CineVault Admin" + logged user + logout button
+- Completely separate visual style from public site (dark navy #0d1117 theme)
+
+## DASHBOARD PAGE
+- Stats cards showing:
+  * Total movies in local DB
+  * Total YTS movies (from API count)
+  * Most watched movie (from localStorage views counter)
+  * Last movie added
+- Recent activity log (last 10 actions saved in localStorage)
+
+## ADD MOVIE PAGE (most important)
+Two modes with tabs:
+
+### TAB 1 - "Import from YTS/IMDb"
+- Input field: paste an IMDb ID (example: tt0072610) or YTS movie URL
+- Button: "Fetch Movie Data"
+- Automatically fetches from YTS API:
+  GET https://yts.mx/api/v2/list_movies.json?query_term=IMDB_ID
+- Auto-fills ALL fields below with the data found
+- Shows a preview of the movie poster on the right
+
+### TAB 2 - "Add Manually"  
+Complete form with these fields:
+  * Title (text input)
+  * Year (number)
+  * IMDb ID (text - used for embed)
+  * IMDb Rating (number 0-10)
+  * Runtime in minutes (number)
+  * Genres (multi-select or comma-separated tags)
+  * Language (text)
+  * Synopsis/Description (textarea)
+  * Director (text)
+  * Cast (textarea, one name per line)
+  * Poster URL (text input + preview image)
+  * Background/Banner URL (text input + preview)
+  * YouTube Trailer Code (text, just the video ID)
+  * MPA Rating (select: G, PG, PG-13, R, NR)
+
+### VIDEO SOURCES SECTION (inside Add Movie form)
+- Dynamic list of video embed URLs for this movie
+- Default auto-filled: 
+  * vidsrc.net/embed/movie/IMDB_ID
+  * multiembed.mov/embed/imdb/IMDB_ID
+  * www.2embed.cc/embed/IMDB_ID
+- "Test Embed" button next to each URL: opens a small modal with the iframe to verify it works
+- Add/remove custom embed URLs
+- Drag to reorder (first = default server shown to users)
+
+### TORRENT LINKS SECTION (inside Add Movie form)
+- Dynamic list to add torrent qualities:
+  * Quality (select: 720p, 1080p, 2160p, 3D)
+  * Source (select: BluRay, WEB, WEBRip, HDTS)
+  * File size (text: "1.65 GB")
+  * Torrent file URL or Magnet link (textarea)
+  * Add/remove rows dynamically
+
+- "Save Movie" button → saves to localStorage database (key: "cinevault_movies")
+- "Save & Preview" button → saves and opens the public movie page in new tab
+
+## MANAGE MOVIES PAGE
+- Table listing all locally saved movies with columns:
+  * Poster thumbnail
+  * Title + Year
+  * IMDb ID
+  * Date Added
+  * Views count
+  * Actions: Edit | Delete | Preview | Toggle Featured
+- Search/filter bar above the table
+- Bulk delete option with checkboxes
+- "Featured" toggle → featured movies appear in hero section on homepage
+- Edit opens the same form as Add Movie, pre-filled with existing data
+- Pagination: 20 movies per page
+
+## VIDEO SERVERS PAGE
+- Global list of video server templates used across all movies
+- Each server has: Name, URL pattern (using {IMDB_ID} placeholder), Status (active/inactive)
+- Default servers pre-loaded:
+  * VidSrc: https://vidsrc.net/embed/movie/{IMDB_ID}/
+  * MultiEmbed: https://multiembed.mov/embed/imdb/{IMDB_ID}
+  * 2Embed: https://www.2embed.cc/embed/{IMDB_ID}
+  * embedsu: https://embed.su/embed/movie/{IMDB_ID}
+- "Test All Servers" button with a movie IMDb ID to check which ones load
+- Drag to reorder global priority
+- Toggle active/inactive per server
+
+## SETTINGS PAGE
+- Change admin password
+- Site name (default: CineVault)
+- Site logo URL
+- Toggle: Show YTS movies on public site (yes/no)
+- Toggle: Show local DB movies on public site (yes/no)  
+- Toggle: Merge both sources in catalog (yes/no)
+- Default sort order for homepage
+- Featured movie (manual select from local DB or IMDb ID)
+- "Export Database" button → downloads cinevault_movies as JSON file
+- "Import Database" button → upload JSON file to restore
+
+## DATA STORAGE
+- Use localStorage keys:
+  * cinevault_movies → array of movie objects
+  * cinevault_settings → site settings object
+  * cinevault_servers → video server list
+  * cinevault_auth → authentication state
+  * cinevault_activity → recent activity log array
+
+## INTEGRATION WITH PUBLIC SITE
+- When loading catalog/search on public site, MERGE results:
+  1. First show locally saved movies (from localStorage)
+  2. Then YTS API results
+  3. If a movie exists in both, use local data (overrides YTS)
+- Homepage hero section: if a movie is marked "Featured" in admin, show it as hero
+- Movie detail page: if movie exists in local DB, use local embed URLs list
+  showing server selector buttons to user
+
+## DESIGN
+- Clean dark admin aesthetic: background #0d1117, cards #161b22, accent #238636 (GitHub-style)
+- Font: monospace for IDs/codes, sans-serif for content
+- Toast notifications for all save/delete/import actions
+- Confirmation modal before deleting any movie
+- Loading spinner on all API fetch operations
