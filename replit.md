@@ -16,6 +16,16 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
 
+## Artifacts
+
+### CineVault (`artifacts/cinevault`)
+- **Type**: react-vite, served at `/`
+- **Purpose**: Premium movie streaming discovery site
+- **Data source**: YTS API (https://yts.mx/api/v2/) — no backend needed, pure frontend
+- **Pages**: Home (hero + carousels), Browse (filterable catalog), Search, Movie Detail (with vidsrc embed)
+- **Features**: Debounced search, genre/quality/rating filters, load-more pagination, recently watched (localStorage), back-to-top, toast notifications, Konami code easter egg, page transitions (framer-motion)
+- **Theme**: Ultra-dark cinematic (#0a0a0f bg, #00d4ff cyan accent), Bebas Neue headings, DM Sans body
+
 ## Key Commands
 
 - `pnpm run typecheck` — full typecheck across all packages

@@ -1,0 +1,107 @@
+Build a full movie streaming website called "CineVault" using HTML, CSS, and JavaScript (vanilla, no frameworks needed). The site must be modern, dark-themed, and visually stunning — inspired by YTS but more premium.
+
+## TECH STACK
+- Single HTML file with embedded CSS and JS (or separate files if preferred)
+- Use the YTS API (https://yts.mx/api/v2/) for all movie data — it's free and requires no API key
+- No backend needed — pure frontend
+
+---
+
+## PAGES & FEATURES
+
+### 1. HOME PAGE
+- Hero section with a featured/random movie (big backdrop, title, genre, rating, "Watch Now" button)
+- Section: "Latest Movies" — fetch from YTS API: https://yts.mx/api/v2/list_movies.json?sort_by=date_added&limit=20
+- Section: "Top Rated" — fetch from: https://yts.mx/api/v2/list_movies.json?sort_by=rating&limit=20
+- Section: "4K Movies" — fetch from: https://yts.mx/api/v2/list_movies.json?quality=2160p&limit=20
+- Each movie shown as a card with: poster image, title, year, rating, genre badge, hover effect showing description
+
+### 2. SEARCH
+- Sticky top navigation bar with a live search input
+- As the user types, fetch results from: https://yts.mx/api/v2/list_movies.json?query_term=QUERY&limit=20
+- Show results in a grid below, updating in real-time (debounce 400ms)
+
+### 3. BROWSE / CATALOG PAGE
+- Full grid catalog of movies
+- Filters sidebar or top bar with:
+  - Genre (action, drama, comedy, horror, sci-fi, etc.)
+  - Quality (720p, 1080p, 2160p)
+  - Rating (1–9+)
+  - Sort by: Latest, Rating, Year, Alphabetical
+- Pagination: "Load More" button that appends next 20 results
+- API: https://yts.mx/api/v2/list_movies.json?genre=GENRE&quality=QUALITY&minimum_rating=RATING&sort_by=SORT&page=PAGE&limit=20
+
+### 4. MOVIE DETAIL PAGE (single page app routing with #hash or dynamic section)
+- Full backdrop/banner image at top (use: https://yts.mx/assets/images/movies/MOVIE_SLUG/background.jpg)
+- Movie poster on the left
+- On the right: Title, Year, Runtime, Rating (IMDb stars), Genres, Language, Description/Synopsis
+- Cast list with names
+- Download torrent links (list all available qualities)
+- **VIDEO PLAYER SECTION** (below all info):
+  - Embed iframe using vidsrc: <iframe src="https://vidsrc.net/embed/movie/IMDB_ID/" width="100%" height="500px" allowfullscreen frameborder="0"></iframe>
+  - The IMDB ID comes from the movie data in the YTS API (field: imdb_code)
+- Similar movies section below the player (use movie_id suggestions or same genre)
+
+---
+
+## DESIGN REQUIREMENTS
+
+### Visual Style
+- Theme: Ultra-dark cinematic — near-black backgrounds (#0a0a0f), deep navy accents
+- Primary accent color: Electric cyan (#00d4ff) or neon gold (#ffd700) — pick one and commit
+- Font: Use Google Fonts — "Bebas Neue" for titles/headings, "DM Sans" for body text
+- Movie cards: rounded corners, smooth hover scale + glow shadow effect
+- Glassmorphism panels for movie detail info box (backdrop-filter: blur)
+- Animated gradient background on hero section
+- Smooth CSS transitions everywhere (0.3s ease)
+
+### Navigation
+- Fixed top navbar: Logo "🎬 CineVault" on left, nav links (Home, Browse, Search) in center, a genre dropdown on right
+- Mobile responsive hamburger menu
+
+### Movie Cards
+- Show poster image (from YTS: https://yts.mx/assets/images/movies/MOVIE_SLUG/medium-cover.jpg)
+- On hover: overlay appears with rating, year, and "Watch Now" button
+- Genre badge on top-left corner of card
+- IMDb rating badge on top-right
+
+### Loading States
+- Skeleton loader cards while fetching data
+- Spinner for search results
+
+---
+
+## ROUTING (Single Page App)
+Use window.location.hash for routing:
+- #home → Home page
+- #browse → Catalog page  
+- #movie/MOVIE_ID → Movie detail page
+- #search/QUERY → Search results
+
+---
+
+## API REFERENCE (YTS)
+Base URL: https://yts.mx/api/v2/
+
+Key endpoints:
+- List movies: list_movies.json?sort_by=date_added&limit=20&page=1
+- Movie details: movie_details.json?movie_id=ID&with_cast=true
+- Movie suggestions: movie_suggestions.json?movie_id=ID
+
+Movie image URLs (replace SLUG with movie.slug):
+- Poster medium: https://yts.mx/assets/images/movies/SLUG/medium-cover.jpg
+- Poster large: https://yts.mx/assets/images/movies/SLUG/large-cover.jpg  
+- Background: https://yts.mx/assets/images/movies/SLUG/background.jpg
+
+Video embed (replace with movie.imdb_code):
+- https://vidsrc.net/embed/movie/IMDB_CODE/
+
+---
+
+## EXTRA POLISH
+- Add a "Back to top" floating button
+- Smooth scroll behavior
+- Page transitions (fade in/out between sections)
+- Local storage: remember last visited movies as "Recently Watched" section on home
+- Toast notification when clicking download: "Opening torrent..."
+- Easter egg: Konami code unlocks a secret dark/light mode toggle
