@@ -1,0 +1,58 @@
+Improve the existing CineVault movie website with these upgrades:
+
+## MOVIE DETAIL PAGE IMPROVEMENTS
+1. Add full-width background banner using: https://yts.mx/assets/images/movies/SLUG/background.jpg
+   with a dark gradient overlay (linear-gradient from transparent to #0a0a0f)
+
+2. Add 3 screenshot images below the player:
+   https://yts.mx/assets/images/movies/SLUG/medium-screenshot1.jpg (2 and 3 too)
+   Each clickable to open fullsize in a lightbox modal
+
+3. Add YouTube trailer button - open in modal:
+   Use movie.yt_trailer_code field from YTS API
+   <iframe src="https://www.youtube.com/embed/YT_CODE?autoplay=1">
+
+4. Show ALL available torrent qualities as separate download buttons
+   (720p BluRay, 1080p BluRay, 2160p, 720p WEB, etc.)
+   Each showing: quality badge, source (BluRay/WEB), file size, Download + Magnet buttons
+
+5. Full tech specs section: file size, resolution, language, FPS, runtime, MPA rating
+   Tabs to switch between different quality specs
+
+6. Add cast with real photos using TMDb API (free key required):
+   GET https://api.themoviedb.org/3/find/IMDB_ID?external_source=imdb_id
+   Show actor photo + name cards
+
+7. Multiple video server buttons above the player:
+   - Server 1: vidsrc.net/embed/movie/IMDB_ID
+   - Server 2: multiembed.mov/embed/imdb/IMDB_ID  
+   - Server 3: www.2embed.cc/embed/IMDB_ID
+   Clicking each changes the iframe src
+
+## HOME PAGE IMPROVEMENTS  
+8. Add "Recently Watched" section using localStorage
+   Store last 10 movies watched with timestamp
+   Show as horizontal scrollable row with poster + title + "Resume" button
+
+9. Add "My Favorites" heart button on every movie card
+   Toggle saves to localStorage
+   Add "My List" page showing all favorited movies
+
+10. Add quality badges on poster cards: 
+    "4K" in gold, "HD" in blue, "CAM" in red
+    Position: top-right corner of poster image
+
+## PERFORMANCE
+11. Implement intersection observer for lazy loading images
+12. Add skeleton loader cards (animated grey pulse) while fetching
+13. Cache API responses in sessionStorage for 10 minutes to reduce API calls
+
+## SEO
+14. Dynamically update <title>, <meta description>, and Open Graph tags 
+    when navigating to a movie detail page
+
+## TV SHOWS SECTION (bonus)
+15. Add a "Series" nav link
+    Use vidsrc for TV: https://vidsrc.net/embed/tv/IMDB_ID/1/1
+    Allow user to select Season and Episode with dropdowns
+    Fetch series data from TMDb API search

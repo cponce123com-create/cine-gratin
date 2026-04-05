@@ -5,17 +5,17 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AnimatePresence } from "framer-motion";
 import { useEffect } from "react";
 
-// Components
 import { Navbar } from "@/components/layout/Navbar";
 import { BackToTop } from "@/components/layout/BackToTop";
 import { KonamiEasterEgg } from "@/components/layout/KonamiEasterEgg";
 import { Toaster as SonnerToaster } from "sonner";
 
-// Pages
 import Home from "@/pages/home";
 import Browse from "@/pages/browse";
 import SearchPage from "@/pages/search";
 import MovieDetail from "@/pages/movie-detail";
+import Favorites from "@/pages/favorites";
+import Series from "@/pages/series";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -30,6 +30,8 @@ function Router() {
         <Route path="/browse" component={Browse} />
         <Route path="/search/:query" component={SearchPage} />
         <Route path="/movie/:id" component={MovieDetail} />
+        <Route path="/favorites" component={Favorites} />
+        <Route path="/series" component={Series} />
         <Route component={NotFound} />
       </Switch>
     </AnimatePresence>
@@ -38,7 +40,6 @@ function Router() {
 
 function App() {
   useEffect(() => {
-    // Force dark mode
     document.documentElement.classList.add("dark");
   }, []);
 
@@ -51,8 +52,7 @@ function App() {
             <main className="flex-1 w-full relative">
               <Router />
             </main>
-            
-            {/* Footer */}
+
             <footer className="border-t border-border bg-card py-8 mt-auto">
               <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
                 <p className="text-muted-foreground text-sm font-medium">
