@@ -4,6 +4,22 @@ import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 const MAX_SEASONS = 20;
 const MAX_EPISODES = 50;
 
+interface Server {
+  label: string;
+  url: (imdbId: string, season: number, episode: number) => string;
+}
+
+const SERVERS: Server[] = [
+  {
+    label: "Servidor 1",
+    url: (id, s, e) => `https://vidsrc.net/embed/tv/${id}/${s}/${e}/`,
+  },
+  {
+    label: "Servidor 2",
+    url: (id, s, e) => `https://vidsrc.mov/embed/tv/${id}/${s}/${e}`,
+  },
+];
+
 export default function SeriesPlayer() {
   const { imdbId } = useParams<{ imdbId: string }>();
   const [searchParams] = useSearchParams();
@@ -15,32 +31,22 @@ export default function SeriesPlayer() {
 
   const [season, setSeason] = useState(initSeason);
   const [episode, setEpisode] = useState(initEpisode);
+  const [activeServer, setActiveServer] = useState(0);
   const [controlsVisible, setControlsVisible] = useState(true);
-  const [iframeSrc, setIframeSrc] = useState(
-    `https://vidsrc.mov/embed/tv/${imdbId}/${initSeason}/${initEpisode}`
-  );
   const [showSelectors, setShowSelectors] = useState(false);
 
-  // Update iframe src when season/episode changes
-  useEffect(() => {
-    setIframeSrc(`https://vidsrc.mov/embed/tv/${imdbId}/${season}/${episode}`);
-  }, [imdbId, season, episode]);
+  // Derived iframe src — changes whenever server, season or episode changes
+  const iframeSrc = SERVERS[activeServer].url(imdbId!, season, episode);
 
-  // Auto-hide controls after 5 s of no interaction
+  // Auto-hide controls after 5 s (paused while selectors panel is open)
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>;
-    if (controlsVisible && !showSelectors) {
-      timer = setTimeout(() => setControlsVisible(false), 5000);
-    }
+    if (!controlsVisible || showSelectors) return;
+    const timer = setTimeout(() => setControlsVisible(false), 5000);
     return () => clearTimeout(timer);
   }, [controlsVisible, showSelectors]);
 
   const seasonOptions = Array.from({ length: MAX_SEASONS }, (_, i) => i + 1);
   const episodeOptions = Array.from({ length: MAX_EPISODES }, (_, i) => i + 1);
-
-  const handleApply = () => {
-    setShowSelectors(false);
-  };
 
   return (
     <div
@@ -50,11 +56,11 @@ export default function SeriesPlayer() {
       {/* Top controls bar */}
       <div
         className={`absolute top-0 inset-x-0 z-20 bg-gradient-to-b from-black/85 via-black/40 to-transparent pb-8 transition-opacity duration-300 ${
-          controlsVisible ? "opacity-100" : "opacity-0"
+          controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none"
         }`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center gap-3 px-4 pt-3 pb-0">
+        <div className="flex items-center gap-3 px-4 pt-3 flex-wrap">
           {/* Back */}
           <button
             onClick={() => navigate(-1)}
@@ -65,14 +71,31 @@ export default function SeriesPlayer() {
           </button>
 
           {/* Title */}
-          <h1 className="text-white/90 font-bold text-sm sm:text-base truncate flex-1">
+          <h1 className="text-white/90 font-bold text-sm sm:text-base truncate flex-1 min-w-0">
             {title}
             <span className="text-white/50 font-normal ml-2 text-xs">
               T{season} · E{episode}
             </span>
           </h1>
 
-          {/* Selector toggle */}
+          {/* Server buttons */}
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {SERVERS.map((srv, idx) => (
+              <button
+                key={idx}
+                onClick={() => setActiveServer(idx)}
+                className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
+                  activeServer === idx
+                    ? "bg-white/15 border-white/25 text-white"
+                    : "bg-transparent border-white/10 text-white/50 hover:text-white/80 hover:border-white/20"
+                }`}
+              >
+                {srv.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Episodes panel toggle */}
           <button
             onClick={() => setShowSelectors((v) => !v)}
             className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 border border-white/10 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors flex-shrink-0"
@@ -127,14 +150,14 @@ export default function SeriesPlayer() {
               </div>
 
               <button
-                onClick={handleApply}
+                onClick={() => setShowSelectors(false)}
                 className="bg-brand-red hover:bg-red-700 text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors"
               >
                 Reproducir
               </button>
             </div>
 
-            {/* Episode quick-navigation arrows */}
+            {/* Prev / next episode quick nav */}
             <div className="flex items-center gap-3 mt-4 pt-3 border-t border-white/10">
               <button
                 onClick={() => setEpisode((e) => Math.max(1, e - 1))}
@@ -160,7 +183,7 @@ export default function SeriesPlayer() {
         )}
       </div>
 
-      {/* Fullscreen iframe */}
+      {/* Fullscreen iframe — key forces reload when any dependency changes */}
       <iframe
         key={iframeSrc}
         src={iframeSrc}
