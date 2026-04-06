@@ -55,7 +55,7 @@ export function Navbar() {
             <Film className="w-5 h-5 text-primary-foreground" />
           </div>
           <span className="font-heading text-3xl tracking-wider text-foreground group-hover:text-primary transition-colors">
-            CineVault
+            Cine Gratín
           </span>
         </Link>
 

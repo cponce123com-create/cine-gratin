@@ -33,7 +33,7 @@ export function AdminLogin({ onLogin }: AdminLoginProps) {
           <div className="w-16 h-16 rounded-2xl bg-[#238636] flex items-center justify-center mx-auto mb-4 shadow-[0_0_30px_rgba(35,134,54,0.4)]">
             <Film className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-wider font-mono">CINEVAULT</h1>
+          <h1 className="text-2xl font-bold text-white tracking-wider font-mono">CINE GRATÍN</h1>
           <p className="text-[#8b949e] text-sm mt-1">Panel de Administración</p>
         </div>
 
@@ -85,7 +85,7 @@ export function AdminLogin({ onLogin }: AdminLoginProps) {
         </form>
 
         <p className="text-center text-[#484f58] text-xs mt-6 font-mono">
-          CineVault Panel de Admin v2.0
+          Cine Gratín Panel de Admin v2.0
         </p>
       </div>
     </div>

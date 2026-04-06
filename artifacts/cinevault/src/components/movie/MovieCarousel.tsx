@@ -5,9 +5,10 @@ interface MovieCarouselProps {
   title: string;
   children: React.ReactNode;
   viewAllLink?: string;
+  titleIcon?: React.ReactNode;
 }
 
-export function MovieCarousel({ title, children, viewAllLink }: MovieCarouselProps) {
+export function MovieCarousel({ title, children, viewAllLink, titleIcon }: MovieCarouselProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const scroll = (direction: "left" | "right") => {
@@ -26,6 +27,7 @@ export function MovieCarousel({ title, children, viewAllLink }: MovieCarouselPro
       <div className="flex items-end justify-between px-6 md:px-10 mb-4">
         <h2 className="text-3xl font-heading text-foreground tracking-wide flex items-center gap-3">
           <span className="w-1.5 h-6 bg-primary block rounded-full"></span>
+          {titleIcon && <span className="opacity-70">{titleIcon}</span>}
           {title}
         </h2>
         {viewAllLink && (

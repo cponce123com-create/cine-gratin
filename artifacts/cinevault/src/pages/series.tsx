@@ -255,6 +255,42 @@ export default function Series() {
     try { localStorage.setItem("cv_autoplay", String(autoPlay)); } catch {}
   }, [autoPlay]);
 
+  // ─── Persist player state to sessionStorage (survive back navigation) ──────
+  useEffect(() => {
+    if (mode === "catalog" && currentSeries) {
+      try {
+        sessionStorage.setItem("cv_series_state", JSON.stringify({
+          seriesId: currentSeries.id,
+          season,
+          episode,
+          activeServer,
+        }));
+      } catch {}
+    }
+  }, [mode, currentSeries, season, episode, activeServer]);
+
+  // ─── Restore player state after DB loads ──────────────────────────────────
+  useEffect(() => {
+    if (loadingDb || dbSeries.length === 0 || mode !== null) return;
+    try {
+      const raw = sessionStorage.getItem("cv_series_state");
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      if (saved.seriesId) {
+        const found = dbSeries.find(s => s.id === saved.seriesId);
+        if (found) {
+          setCurrentSeries(found);
+          setSeason(saved.season ?? 1);
+          setEpisode(saved.episode ?? 1);
+          setActiveServer(saved.activeServer ?? 0);
+          setMode("catalog");
+          setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 50);
+        }
+      }
+    } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadingDb, dbSeries]);
+
   // Reset countdown when episode changes
   useEffect(() => {
     cancelCountdown();

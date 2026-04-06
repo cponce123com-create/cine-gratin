@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { LocalMovie } from "@/lib/admin-db";
-import { apiGetMovies, apiGetSettings } from "@/lib/api-client";
+import { apiGetMovies, apiGetSettings, apiGetSeries, type LocalSeries } from "@/lib/api-client";
 import { MovieCard } from "@/components/movie/MovieCard";
 import { MovieCarousel } from "@/components/movie/MovieCarousel";
 import { PageTransition } from "@/components/layout/PageTransition";
-import { Play, Info, Star, Film, ChevronLeft, ChevronRight, Pause } from "lucide-react";
+import { Play, Info, Star, Film, ChevronLeft, ChevronRight, Pause, Tv } from "lucide-react";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 
 interface WatchedEntry {
@@ -15,8 +15,70 @@ interface WatchedEntry {
 
 const SLIDE_INTERVAL = 10000; // 10 seconds
 
+// ─── Series card for home page ────────────────────────────────────────────────
+function SeriesCard({ series, onOpen }: { series: LocalSeries; onOpen: () => void }) {
+  const poster = series.poster_url || "https://placehold.co/400x600/12121a/333333?text=Sin+Poster";
+  const statusColors: Record<string, string> = {
+    "Returning Series": "bg-green-500/80",
+    "Ended": "bg-gray-500/80",
+    "Canceled": "bg-red-500/80",
+  };
+  const statusBadge = statusColors[series.status] ?? "bg-blue-500/80";
+  const statusText: Record<string, string> = {
+    "Returning Series": "En emisión",
+    "Ended": "Finalizada",
+    "Canceled": "Cancelada",
+  };
+
+  return (
+    <button
+      onClick={onOpen}
+      className="group relative block w-full aspect-[2/3] rounded-xl overflow-hidden bg-card border border-border shadow-md transition-all duration-300 hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(0,212,255,0.3)] hover:z-10 text-left"
+    >
+      <img
+        src={poster}
+        alt={series.title}
+        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+        loading="lazy"
+        onError={(e) => { (e.target as HTMLImageElement).src = "https://placehold.co/400x600/12121a/333333?text=Sin+Poster"; }}
+      />
+      {/* Status badge */}
+      {series.status && (
+        <div className={`absolute top-2 left-2 text-white text-[9px] font-bold px-1.5 py-0.5 rounded ${statusBadge}`}>
+          {statusText[series.status] ?? series.status}
+        </div>
+      )}
+      {/* TV icon badge */}
+      <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm rounded-md p-1">
+        <Tv className="w-3 h-3 text-primary" />
+      </div>
+      {/* Hover overlay */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-3 gap-1">
+        <div className="flex items-center justify-center mb-1">
+          <div className="w-10 h-10 rounded-full bg-primary/90 flex items-center justify-center shadow-lg">
+            <Play className="w-4 h-4 text-black fill-black ml-0.5" />
+          </div>
+        </div>
+        <p className="text-white font-bold text-xs line-clamp-2 text-center leading-tight">{series.title}</p>
+        <div className="flex items-center justify-center gap-2 text-[10px] text-white/70">
+          {series.rating > 0 && (
+            <span className="flex items-center gap-0.5 text-yellow-400">
+              <Star className="w-2.5 h-2.5 fill-current" />{series.rating.toFixed(1)}
+            </span>
+          )}
+          {series.total_seasons > 0 && (
+            <span>{series.total_seasons} temp.</span>
+          )}
+        </div>
+      </div>
+    </button>
+  );
+}
+
 export default function Home() {
+  const [, setLocation] = useLocation();
   const [movies, setMovies] = useState<LocalMovie[]>([]);
+  const [series, setSeries] = useState<LocalSeries[]>([]);
   const [watched, setWatched] = useLocalStorage<WatchedEntry[]>("cv_recently_watched", []);
   const [heroIndex, setHeroIndex] = useState(0);
   const [prevIndex, setPrevIndex] = useState<number | null>(null);
@@ -26,10 +88,24 @@ export default function Home() {
 
   useEffect(() => {
     apiGetMovies().then(setMovies).catch(() => setMovies([]));
+    apiGetSeries().then(setSeries).catch(() => setSeries([]));
     apiGetSettings()
       .then(s => { document.title = `${s.site_name} — Streaming de Películas Premium`; })
       .catch(() => {});
   }, []);
+
+  // Open a series in the series page (restoring via sessionStorage)
+  const openSeries = (s: LocalSeries) => {
+    try {
+      sessionStorage.setItem("cv_series_state", JSON.stringify({
+        seriesId: s.id,
+        season: 1,
+        episode: 1,
+        activeServer: 0,
+      }));
+    } catch {}
+    setLocation("/series");
+  };
 
   // Hero movies: featured first, then top-rated, max 8
   const heroMovies = (() => {
@@ -317,7 +393,7 @@ export default function Home() {
 
           {movies.length > 0 && (
             <>
-              <MovieCarousel title="Últimas Incorporaciones" viewAllLink="/browse">
+              <MovieCarousel title="Últimas Películas" viewAllLink="/browse">
                 {latestMovies.slice(0, 20).map(m => (
                   <div key={m.id} className="w-[160px] md:w-[200px] lg:w-[240px] flex-none">
                     <MovieCard movie={m} onSaveRecent={() => handleSaveRecent(m.id)} />
@@ -326,7 +402,7 @@ export default function Home() {
               </MovieCarousel>
 
               {topRated.length > 0 && (
-                <MovieCarousel title="Mejor Calificadas" viewAllLink="/browse?sort=rating">
+                <MovieCarousel title="Películas Mejor Calificadas" viewAllLink="/browse?sort=rating">
                   {topRated.slice(0, 20).map(m => (
                     <div key={m.id} className="w-[160px] md:w-[200px] lg:w-[240px] flex-none">
                       <MovieCard movie={m} onSaveRecent={() => handleSaveRecent(m.id)} />
@@ -344,6 +420,40 @@ export default function Home() {
                   ))}
                 </MovieCarousel>
               )}
+            </>
+          )}
+
+          {/* === SERIES === */}
+          {series.length > 0 && (
+            <>
+              {series.filter(s => s.featured).length > 0 && (
+                <MovieCarousel
+                  title="Series Destacadas"
+                  viewAllLink="/series"
+                  titleIcon={<Tv className="w-5 h-5 text-primary" />}
+                >
+                  {series.filter(s => s.featured).slice(0, 20).map(s => (
+                    <div key={s.id} className="w-[160px] md:w-[200px] lg:w-[240px] flex-none">
+                      <SeriesCard series={s} onOpen={() => openSeries(s)} />
+                    </div>
+                  ))}
+                </MovieCarousel>
+              )}
+
+              <MovieCarousel
+                title="Últimas Series"
+                viewAllLink="/series"
+                titleIcon={<Tv className="w-5 h-5 text-primary" />}
+              >
+                {[...series]
+                  .sort((a, b) => new Date(b.date_added || 0).getTime() - new Date(a.date_added || 0).getTime())
+                  .slice(0, 20)
+                  .map(s => (
+                    <div key={s.id} className="w-[160px] md:w-[200px] lg:w-[240px] flex-none">
+                      <SeriesCard series={s} onOpen={() => openSeries(s)} />
+                    </div>
+                  ))}
+              </MovieCarousel>
             </>
           )}
         </div>

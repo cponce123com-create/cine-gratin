@@ -71,7 +71,7 @@ export function AdminLayout({
               <Film className="w-4 h-4 text-white" />
             </div>
             <div>
-              <p className="text-white font-bold text-sm tracking-wider font-mono">CINEVAULT</p>
+              <p className="text-white font-bold text-sm tracking-wider font-mono">CINE GRATÍN</p>
               <p className="text-[#8b949e] text-[10px] font-mono uppercase tracking-wider">Panel Admin</p>
             </div>
           </div>
