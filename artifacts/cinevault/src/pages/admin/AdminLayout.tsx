@@ -1,8 +1,8 @@
 import { type ReactNode } from "react";
-import { LayoutDashboard, PlusCircle, Film, Server, Settings, LogOut, Menu, X, ChevronRight } from "lucide-react";
+import { LayoutDashboard, PlusCircle, Film, Server, Settings, LogOut, Menu, X, ChevronRight, Layers } from "lucide-react";
 import { logout } from "@/lib/admin-db";
 
-export type AdminPage = "dashboard" | "add-movie" | "manage-movies" | "video-servers" | "settings";
+export type AdminPage = "dashboard" | "add-movie" | "manage-movies" | "video-servers" | "settings" | "bulk-import";
 
 interface AdminLayoutProps {
   currentPage: AdminPage;
@@ -14,9 +14,10 @@ interface AdminLayoutProps {
   setSidebarOpen: (open: boolean) => void;
 }
 
-const NAV_ITEMS: { id: AdminPage; label: string; icon: typeof LayoutDashboard }[] = [
+const NAV_ITEMS: { id: AdminPage; label: string; icon: typeof LayoutDashboard; badge?: string }[] = [
   { id: "dashboard", label: "Panel de Control", icon: LayoutDashboard },
   { id: "add-movie", label: "Agregar Película", icon: PlusCircle },
+  { id: "bulk-import", label: "Importación Masiva", icon: Layers, badge: "NUEVO" },
   { id: "manage-movies", label: "Gestionar Películas", icon: Film },
   { id: "video-servers", label: "Servidores de Video", icon: Server },
   { id: "settings", label: "Configuración", icon: Settings },
@@ -93,8 +94,13 @@ export function AdminLayout({
                 data-testid={`nav-${item.id}`}
               >
                 <Icon className="w-4 h-4 flex-shrink-0" />
-                {item.label}
-                {isActive && <ChevronRight className="w-3 h-3 ml-auto opacity-60" />}
+                <span className="flex-1 text-left">{item.label}</span>
+                {item.badge && !isActive && (
+                  <span className="text-[9px] font-bold bg-[#238636]/20 text-[#3fb950] px-1.5 py-0.5 rounded font-mono">
+                    {item.badge}
+                  </span>
+                )}
+                {isActive && <ChevronRight className="w-3 h-3 opacity-60" />}
               </button>
             );
           })}

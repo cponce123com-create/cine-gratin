@@ -3,6 +3,7 @@ import { AdminLogin } from "./AdminLogin";
 import { AdminLayout, AdminPage } from "./AdminLayout";
 import { Dashboard } from "./Dashboard";
 import { AddMovie } from "./AddMovie";
+import { BulkImport } from "./BulkImport";
 import { ManageMovies } from "./ManageMovies";
 import { VideoServers } from "./VideoServers";
 import { AdminSettings } from "./AdminSettings";
@@ -45,6 +46,8 @@ export default function AdminApp() {
         );
       case "manage-movies":
         return <ManageMovies onEdit={handleEdit} />;
+      case "bulk-import":
+        return <BulkImport />;
       case "video-servers":
         return <VideoServers />;
       case "settings":
