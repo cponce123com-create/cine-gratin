@@ -3,14 +3,13 @@ import { Link, useLocation } from "wouter";
 import { Film, Search, Menu, X, Heart, Tv } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useLocalStorage } from "@/hooks/use-local-storage";
-import { FavoriteMovie } from "@/lib/yts";
 
 export function Navbar() {
   const [location, setLocation] = useLocation();
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
-  const [favorites] = useLocalStorage<FavoriteMovie[]>("cv_favorites", []);
+  const [favorites] = useLocalStorage<string[]>("cv_favorites", []);
 
   const debouncedSearch = useDebounce(searchValue, 400);
 

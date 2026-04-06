@@ -1,171 +1,221 @@
-import { useState, useEffect } from "react";
-import { useMovieList } from "@/lib/yts";
-import { MovieCard, MovieCardSkeleton, RecentlyWatchedMovie } from "@/components/movie/MovieCard";
+import { useState, useEffect, useMemo } from "react";
+import { getMovies, LocalMovie } from "@/lib/admin-db";
+import { MovieCard } from "@/components/movie/MovieCard";
+import { MovieCardSkeleton } from "@/components/movie/MovieCard";
 import { PageTransition } from "@/components/layout/PageTransition";
-import { Filter } from "lucide-react";
+import { Filter, Film } from "lucide-react";
 import { useLocalStorage } from "@/hooks/use-local-storage";
+import { Link } from "wouter";
 
-const GENRES = ["All", "Action", "Adventure", "Animation", "Comedy", "Crime", "Documentary", "Drama", "Family", "Fantasy", "History", "Horror", "Music", "Mystery", "Romance", "Sci-Fi", "Thriller", "War", "Western"];
-const GENRES_ES: Record<string, string> = {
-  All: "Todos", Action: "Acción", Adventure: "Aventura", Animation: "Animación",
-  Comedy: "Comedia", Crime: "Crimen", Documentary: "Documental", Drama: "Drama",
-  Family: "Familia", Fantasy: "Fantasía", History: "Historia", Horror: "Terror",
-  Music: "Música", Mystery: "Misterio", Romance: "Romance", "Sci-Fi": "Ciencia Ficción",
-  Thriller: "Suspenso", War: "Guerra", Western: "Western",
-};
-const QUALITIES = ["All", "720p", "1080p", "2160p", "3D"];
-const RATINGS = [{ label: "Cualquiera", value: "0" }, { label: "5+", value: "5" }, { label: "6+", value: "6" }, { label: "7+", value: "7" }, { label: "8+", value: "8" }, { label: "9+", value: "9" }];
+interface WatchedEntry {
+  id: string;
+  timestamp: number;
+}
+
+const RATINGS = [
+  { label: "Cualquier puntuación", value: "0" },
+  { label: "5+ puntuación", value: "5" },
+  { label: "6+ puntuación", value: "6" },
+  { label: "7+ puntuación", value: "7" },
+  { label: "8+ puntuación", value: "8" },
+  { label: "9+ puntuación", value: "9" },
+];
+
 const SORTS = [
   { label: "Recientes", value: "date_added" },
   { label: "Puntuación", value: "rating" },
   { label: "Año", value: "year" },
   { label: "Título", value: "title" },
-  { label: "Descargas", value: "download_count" },
-  { label: "Me Gusta", value: "like_count" }
 ];
 
 export default function Browse() {
-  const [genre, setGenre] = useState("All");
-  const [quality, setQuality] = useState("All");
+  const [allMovies, setAllMovies] = useState<LocalMovie[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [, setWatched] = useLocalStorage<WatchedEntry[]>("cv_recently_watched", []);
+
+  const [genre, setGenre] = useState("Todos");
   const [minimumRating, setMinimumRating] = useState("0");
   const [sortBy, setSortBy] = useState("date_added");
-  const [page, setPage] = useState(1);
-  
-  const [allMovies, setAllMovies] = useState<any[]>([]);
-  const [, setRecentMovies] = useLocalStorage<RecentlyWatchedMovie[]>("cv_recently_watched", []);
+  const [search, setSearch] = useState("");
 
-  // Parse URL search params for initial state if needed
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('genre')) setGenre(params.get('genre')!);
-    if (params.get('quality')) setQuality(params.get('quality')!);
-    if (params.get('minimum_rating')) setMinimumRating(params.get('minimum_rating')!);
-    if (params.get('sort_by')) setSortBy(params.get('sort_by')!);
+    if (params.get("sort")) setSortBy(params.get("sort")!);
+    if (params.get("sort_by")) setSortBy(params.get("sort_by")!);
+    if (params.get("genre")) setGenre(params.get("genre")!);
   }, []);
 
-  const queryParams = {
-    genre: genre === "All" ? "" : genre.toLowerCase(),
-    quality: quality === "All" ? "" : quality,
-    minimum_rating: minimumRating,
-    sort_by: sortBy,
-    limit: 20,
-    page
-  };
-
-  const { data, loading, error } = useMovieList(queryParams);
-
   useEffect(() => {
-    // Reset movies when filters change, but not when page changes
-    setAllMovies([]);
-    setPage(1);
-  }, [genre, quality, minimumRating, sortBy]);
+    const movies = getMovies();
+    setAllMovies(movies);
+    setLoading(false);
+  }, []);
 
-  useEffect(() => {
-    if (data?.movies) {
-      if (page === 1) {
-        setAllMovies(data.movies);
-      } else {
-        setAllMovies(prev => [...prev, ...data.movies]);
-      }
+  const genres = useMemo(() => {
+    const set = new Set<string>();
+    allMovies.forEach((m) => m.genres?.forEach((g) => set.add(g)));
+    return ["Todos", ...Array.from(set).sort()];
+  }, [allMovies]);
+
+  const filtered = useMemo(() => {
+    let list = [...allMovies];
+
+    if (genre !== "Todos") {
+      list = list.filter((m) =>
+        m.genres?.some((g) => g.toLowerCase() === genre.toLowerCase())
+      );
     }
-  }, [data, page]);
 
-  const handleSaveRecent = (movie: RecentlyWatchedMovie) => {
-    setRecentMovies(prev => {
-      const filtered = prev.filter(m => m.id !== movie.id);
-      return [movie, ...filtered].slice(0, 6);
+    if (minimumRating !== "0") {
+      list = list.filter((m) => m.rating >= Number(minimumRating));
+    }
+
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter(
+        (m) =>
+          m.title.toLowerCase().includes(q) ||
+          m.genres?.some((g) => g.toLowerCase().includes(q)) ||
+          String(m.year).includes(q)
+      );
+    }
+
+    list.sort((a, b) => {
+      if (sortBy === "date_added")
+        return (
+          new Date(b.date_added || 0).getTime() -
+          new Date(a.date_added || 0).getTime()
+        );
+      if (sortBy === "rating") return b.rating - a.rating;
+      if (sortBy === "year") return b.year - a.year;
+      if (sortBy === "title") return a.title.localeCompare(b.title);
+      return 0;
+    });
+
+    return list;
+  }, [allMovies, genre, minimumRating, sortBy, search]);
+
+  const handleSaveRecent = (id: string) => {
+    setWatched((prev) => {
+      const filtered = prev.filter((w) => w.id !== id);
+      return [{ id, timestamp: Date.now() }, ...filtered].slice(0, 10);
     });
   };
-
-  const hasMore = data ? (data.movie_count > page * 20) : false;
 
   return (
     <PageTransition>
       <div className="min-h-screen pt-24 pb-20 px-4 md:px-8 max-w-[1600px] mx-auto">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <h1 className="text-4xl font-heading tracking-wide flex items-center gap-3">
-            <span className="w-1.5 h-8 bg-primary block rounded-full"></span>
+            <span className="w-1.5 h-8 bg-primary block rounded-full" />
             Explorar Películas
           </h1>
-          
-          <div className="w-full md:w-auto bg-card border border-border p-3 rounded-xl shadow-lg flex flex-wrap gap-4 items-center">
-            <div className="flex items-center gap-2 text-muted-foreground mr-2">
+
+          <div className="w-full md:w-auto bg-card border border-border p-3 rounded-xl shadow-lg flex flex-wrap gap-3 items-center">
+            <div className="flex items-center gap-2 text-muted-foreground">
               <Filter className="w-4 h-4" />
-              <span className="text-sm font-bold uppercase tracking-wider hidden lg:inline">Filtros</span>
+              <span className="text-sm font-bold uppercase tracking-wider hidden lg:inline">
+                Filtros
+              </span>
             </div>
-            
-            <select 
-              value={genre} 
+
+            <input
+              type="text"
+              placeholder="Buscar por título..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="bg-background border border-border text-sm rounded-lg px-3 py-1.5 focus:border-primary focus:ring-1 focus:ring-primary outline-none w-40"
+            />
+
+            <select
+              value={genre}
               onChange={(e) => setGenre(e.target.value)}
-              className="bg-background border border-border text-sm rounded-lg px-3 py-1.5 focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+              className="bg-background border border-border text-sm rounded-lg px-3 py-1.5 focus:border-primary outline-none"
             >
-              {GENRES.map(g => <option key={g} value={g}>{GENRES_ES[g] ?? g}</option>)}
+              {genres.map((g) => (
+                <option key={g} value={g}>
+                  {g}
+                </option>
+              ))}
             </select>
-            
-            <select 
-              value={quality} 
-              onChange={(e) => setQuality(e.target.value)}
-              className="bg-background border border-border text-sm rounded-lg px-3 py-1.5 focus:border-primary focus:ring-1 focus:ring-primary outline-none"
-            >
-              {QUALITIES.map(q => <option key={q} value={q}>{q === "All" ? "Todos" : q}</option>)}
-            </select>
-            
-            <select 
-              value={minimumRating} 
+
+            <select
+              value={minimumRating}
               onChange={(e) => setMinimumRating(e.target.value)}
-              className="bg-background border border-border text-sm rounded-lg px-3 py-1.5 focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+              className="bg-background border border-border text-sm rounded-lg px-3 py-1.5 focus:border-primary outline-none"
             >
-              {RATINGS.map(r => <option key={r.label} value={r.value}>{r.label === "Cualquiera" ? "Cualquier puntuación" : `${r.label} puntuación`}</option>)}
+              {RATINGS.map((r) => (
+                <option key={r.value} value={r.value}>
+                  {r.label}
+                </option>
+              ))}
             </select>
-            
-            <select 
-              value={sortBy} 
+
+            <select
+              value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
-              className="bg-background border border-border text-sm rounded-lg px-3 py-1.5 focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+              className="bg-background border border-border text-sm rounded-lg px-3 py-1.5 focus:border-primary outline-none"
             >
-              {SORTS.map(s => <option key={s.label} value={s.value}>Ordenar: {s.label}</option>)}
+              {SORTS.map((s) => (
+                <option key={s.value} value={s.value}>
+                  Ordenar: {s.label}
+                </option>
+              ))}
             </select>
           </div>
         </div>
 
-        {error && (
-          <div className="py-20 text-center">
-            <h2 className="text-2xl font-heading text-destructive mb-2">Error al Cargar Películas</h2>
-            <p className="text-muted-foreground">{error.message}</p>
+        {/* Películas */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-6">
+          {loading
+            ? Array.from({ length: 12 }).map((_, i) => (
+                <MovieCardSkeleton key={i} />
+              ))
+            : filtered.map((movie) => (
+                <MovieCard
+                  key={movie.id}
+                  movie={movie}
+                  onSaveRecent={() => handleSaveRecent(movie.id)}
+                />
+              ))}
+        </div>
+
+        {/* Empty states */}
+        {!loading && allMovies.length === 0 && (
+          <div className="py-32 text-center flex flex-col items-center justify-center">
+            <Film className="w-16 h-16 text-muted-foreground/30 mb-6" />
+            <h2 className="text-3xl font-heading tracking-widest text-muted-foreground mb-3">
+              Sin Contenido
+            </h2>
+            <p className="text-muted-foreground max-w-md mx-auto">
+              Agrega películas desde el{" "}
+              <Link href="/admin" className="text-primary underline">
+                panel de administración
+              </Link>{" "}
+              para que aparezcan aquí.
+            </p>
           </div>
         )}
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-6">
-          {allMovies.map((movie) => (
-            <MovieCard key={`${movie.id}-${page}`} movie={movie} onSaveRecent={handleSaveRecent} />
-          ))}
-          
-          {loading && Array.from({ length: page === 1 ? 12 : 6 }).map((_, i) => (
-            <MovieCardSkeleton key={`skel-${i}`} />
-          ))}
-        </div>
-
-        {!loading && allMovies.length === 0 && !error && (
+        {!loading && allMovies.length > 0 && filtered.length === 0 && (
           <div className="py-32 text-center flex flex-col items-center justify-center">
             <div className="w-24 h-24 mb-6 rounded-full bg-card border border-border flex items-center justify-center opacity-50">
               <Filter className="w-10 h-10 text-muted-foreground" />
             </div>
-            <h2 className="text-3xl font-heading tracking-widest text-muted-foreground mb-2">No se Encontraron Películas</h2>
+            <h2 className="text-3xl font-heading tracking-widest text-muted-foreground mb-2">
+              No se Encontraron Películas
+            </h2>
             <p className="text-muted-foreground max-w-md mx-auto">
               Intenta ajustar los filtros para encontrar lo que buscas.
             </p>
           </div>
         )}
 
-        {hasMore && !loading && (
-          <div className="mt-12 text-center">
-            <button
-              onClick={() => setPage(p => p + 1)}
-              className="bg-card hover:bg-secondary border border-border text-foreground px-8 py-3 rounded-lg font-bold uppercase tracking-widest transition-all hover:border-primary hover:text-primary active:scale-95"
-            >
-              Cargar Más
-            </button>
-          </div>
+        {!loading && filtered.length > 0 && (
+          <p className="text-center text-muted-foreground text-sm mt-10">
+            {filtered.length} película{filtered.length !== 1 ? "s" : ""}{" "}
+            encontrada{filtered.length !== 1 ? "s" : ""}
+          </p>
         )}
       </div>
     </PageTransition>
