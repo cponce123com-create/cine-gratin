@@ -5,14 +5,12 @@ import {
   Calendar, Clock, Globe, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import {
-  addMovie,
-  getMovie,
   uid,
-  makeVideoSourcesForImdb,
   LocalMovie,
   VideoSource,
   LocalTorrent,
 } from "@/lib/admin-db";
+import { apiSaveMovie, apiGetMovie, apiGetServers, DEFAULT_SERVERS } from "@/lib/api-client";
 import { toast } from "sonner";
 
 interface AddMovieProps {
@@ -50,7 +48,9 @@ interface TmdbResult {
   homepage: string;
 }
 
-const EMPTY_MOVIE: Omit<LocalMovie, "id" | "date_added" | "views"> = {
+const EMPTY_MOVIE: Omit<LocalMovie, "id"> = {
+  date_added: "",
+  views: 0,
   imdb_id: "",
   title: "",
   year: new Date().getFullYear(),
@@ -90,13 +90,14 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
 
   useEffect(() => {
     if (editId) {
-      const existing = getMovie(editId);
-      if (existing) {
-        setForm({ ...existing });
-        setGenreInput(existing.genres.join(", "));
-        setCastInput(existing.cast_list.join("\n"));
-        setTab("manual");
-      }
+      apiGetMovie(editId).then(existing => {
+        if (existing) {
+          setForm({ ...existing });
+          setGenreInput(existing.genres.join(", "));
+          setCastInput(existing.cast_list.join("\n"));
+          setTab("manual");
+        }
+      }).catch(() => {});
     }
   }, [editId]);
 
@@ -137,7 +138,16 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
       // Auto-fill form
       const allPosters = [data.poster_url, ...data.extra_posters].filter(Boolean);
       const allBackdrops = [data.background_url, ...data.extra_backdrops].filter(Boolean);
-      const sources = makeVideoSourcesForImdb(imdbId);
+
+      // Build video sources from DB servers or defaults
+      const dbServers = await apiGetServers().catch(() => DEFAULT_SERVERS);
+      const activeServers = dbServers.filter(s => s.active).sort((a, b) => a.order - b.order);
+      const sources = activeServers.map(s => ({
+        id: uid(),
+        name: s.name,
+        url: s.url_pattern.replace("{IMDB_ID}", imdbId),
+        active: true,
+      }));
 
       update({
         imdb_id: data.imdb_id,
@@ -221,7 +231,7 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
 
   // ─── Save ─────────────────────────────────────────────────────
 
-  const handleSave = (preview = false) => {
+  const handleSave = async (preview = false) => {
     if (!form.title || !form.imdb_id) {
       toast.error("El título y el ID de IMDb son requeridos");
       return;
@@ -238,16 +248,19 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
       genres,
       cast_list,
       slug,
-      date_added: editId ? (getMovie(editId)?.date_added || new Date().toISOString()) : new Date().toISOString(),
-      views: editId ? (getMovie(editId)?.views || 0) : 0,
+      date_added: form.date_added || new Date().toISOString(),
+      views: form.views || 0,
     };
 
-    addMovie(movie);
-    toast.success(editId ? "¡Película actualizada!" : "¡Película guardada!");
+    try {
+      await apiSaveMovie(movie);
+      toast.success(editId ? "¡Película actualizada!" : "¡Película guardada!");
+      if (preview) window.open(`/movie/${movie.id}`, "_blank");
+      onSaved();
+    } catch {
+      toast.error("Error al guardar la película");
+    }
     setSaving(false);
-
-    if (preview) window.open(`/movie/${movie.id}`, "_blank");
-    onSaved();
   };
 
   const InputField = ({ label, value, onChange, placeholder, type = "text", mono = false }: {

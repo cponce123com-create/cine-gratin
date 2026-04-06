@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
-import { getMovies, LocalMovie } from "@/lib/admin-db";
+import { LocalMovie } from "@/lib/admin-db";
+import { apiGetMovies } from "@/lib/api-client";
 import { MovieCard } from "@/components/movie/MovieCard";
 import { MovieCardSkeleton } from "@/components/movie/MovieCard";
 import { PageTransition } from "@/components/layout/PageTransition";
@@ -46,9 +47,9 @@ export default function Browse() {
   }, []);
 
   useEffect(() => {
-    const movies = getMovies();
-    setAllMovies(movies);
-    setLoading(false);
+    apiGetMovies()
+      .then(movies => { setAllMovies(movies); setLoading(false); })
+      .catch(() => setLoading(false));
   }, []);
 
   const genres = useMemo(() => {

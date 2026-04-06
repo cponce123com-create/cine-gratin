@@ -1,12 +1,6 @@
 import { useState, useEffect } from "react";
-import {
-  getMovie,
-  getMovies,
-  getServers,
-  makeVideoSourcesForImdb,
-  incrementViews,
-  LocalMovie,
-} from "@/lib/admin-db";
+import { LocalMovie, makeVideoSourcesForImdb } from "@/lib/admin-db";
+import { apiGetMovie, apiGetMovies, apiGetServers, apiIncrementView } from "@/lib/api-client";
 import { PageTransition } from "@/components/layout/PageTransition";
 import { MovieCard } from "@/components/movie/MovieCard";
 import { MovieCarousel } from "@/components/movie/MovieCarousel";
@@ -72,43 +66,51 @@ export default function MovieDetail({ params }: MovieDetailProps) {
   const [, setWatched] = useLocalStorage<WatchedEntry[]>("cv_recently_watched", []);
 
   useEffect(() => {
-    const m = getMovie(params.id);
-    if (!m) {
-      setNotFound(true);
-      return;
-    }
-    setMovie(m);
-    document.title = `${m.title} (${m.year}) — CineVault`;
+    const load = async () => {
+      let m: LocalMovie | null = null;
+      try {
+        m = await apiGetMovie(params.id);
+      } catch {
+        setNotFound(true);
+        return;
+      }
+      setMovie(m);
+      document.title = `${m.title} (${m.year}) — CineVault`;
 
-    // Similar movies (same primary genre, excluding self)
-    const genre = m.genres?.[0];
-    if (genre) {
-      const others = getMovies()
-        .filter((x) => x.id !== m.id && x.genres?.includes(genre))
-        .slice(0, 20);
-      setSimilar(others);
-    }
+      // Similar movies (same primary genre, excluding self)
+      const genre = m.genres?.[0];
+      if (genre) {
+        const all = await apiGetMovies().catch(() => [] as LocalMovie[]);
+        setSimilar(all.filter((x) => x.id !== m!.id && x.genres?.includes(genre)).slice(0, 20));
+      }
 
-    // Build video server list
-    let servers: VideoServer[] = [];
-    if (m.video_sources && m.video_sources.filter((s) => s.active).length > 0) {
-      servers = m.video_sources
-        .filter((s) => s.active)
-        .map((s) => ({ name: s.name, url: s.url }));
-    } else if (m.imdb_id) {
-      const defaultSources = makeVideoSourcesForImdb(m.imdb_id);
-      servers = defaultSources.map((s) => ({ name: s.name, url: s.url }));
-    }
-    setVideoServers(servers);
+      // Build video server list
+      let servers: VideoServer[] = [];
+      if (m.video_sources && m.video_sources.filter((s) => s.active).length > 0) {
+        servers = m.video_sources.filter((s) => s.active).map((s) => ({ name: s.name, url: s.url }));
+      } else if (m.imdb_id) {
+        const dbServers = await apiGetServers().catch(() => [] as import("@/lib/admin-db").VideoServer[]);
+        const mockSources = makeVideoSourcesForImdb(m.imdb_id);
+        servers = (dbServers.length > 0
+          ? dbServers.filter(s => s.active).sort((a, b) => a.order - b.order).map(s => ({
+              name: s.name,
+              url: s.url_pattern.replace("{IMDB_ID}", m!.imdb_id),
+            }))
+          : mockSources.map((s) => ({ name: s.name, url: s.url }))
+        );
+      }
+      setVideoServers(servers);
 
-    // Increment views
-    if (m.imdb_id) incrementViews(m.imdb_id);
+      // Increment views
+      apiIncrementView(m.id).catch(() => {});
 
-    // Add to recently watched
-    setWatched((prev) => {
-      const filtered = prev.filter((w) => w.id !== m.id);
-      return [{ id: m.id, timestamp: Date.now() }, ...filtered].slice(0, 10);
-    });
+      // Add to recently watched
+      setWatched((prev) => {
+        const filtered = prev.filter((w) => w.id !== m!.id);
+        return [{ id: m!.id, timestamp: Date.now() }, ...filtered].slice(0, 10);
+      });
+    };
+    load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id]);
 

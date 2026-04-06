@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Film, Lock, Eye, EyeOff, ShieldCheck } from "lucide-react";
-import { login } from "@/lib/admin-db";
+import { apiLogin } from "@/lib/api-client";
 
 interface AdminLoginProps {
   onLogin: () => void;
@@ -12,18 +12,17 @@ export function AdminLogin({ onLogin }: AdminLoginProps) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: { preventDefault: () => void }) => {
+  const handleSubmit = async (e: { preventDefault: () => void }) => {
     e.preventDefault();
     setLoading(true);
     setError("");
-    setTimeout(() => {
-      if (login(password)) {
-        onLogin();
-      } else {
-        setError("Contraseña incorrecta. La contraseña predeterminada es: admin123");
-      }
-      setLoading(false);
-    }, 400);
+    try {
+      await apiLogin(password);
+      onLogin();
+    } catch {
+      setError("Contraseña incorrecta. La contraseña predeterminada es: admin123");
+    }
+    setLoading(false);
   };
 
   return (

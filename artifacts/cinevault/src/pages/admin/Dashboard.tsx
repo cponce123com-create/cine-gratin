@@ -1,14 +1,19 @@
 import { useState, useEffect } from "react";
 import { Film, Eye, Clock, TrendingUp, Activity, Database } from "lucide-react";
-import { getMovies, getActivity, ActivityEntry, LocalMovie } from "@/lib/admin-db";
+import { ActivityEntry, LocalMovie } from "@/lib/admin-db";
+import { apiGetMovies } from "@/lib/api-client";
 
 export function Dashboard() {
   const [movies, setMovies] = useState<LocalMovie[]>([]);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
 
   useEffect(() => {
-    setMovies(getMovies());
-    setActivity(getActivity());
+    apiGetMovies().then(setMovies).catch(() => {});
+    // Activity is still local (session-based)
+    try {
+      const raw = localStorage.getItem("cinevault_activity");
+      if (raw) setActivity(JSON.parse(raw));
+    } catch { /* ignore */ }
   }, []);
 
   const mostViewed = [...movies].sort((a, b) => (b.views || 0) - (a.views || 0))[0];

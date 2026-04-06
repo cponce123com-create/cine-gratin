@@ -1,24 +1,25 @@
 import { useState, useEffect } from "react";
 import { Settings, Save, Upload, Download, Eye, EyeOff } from "lucide-react";
-import { getSettings, saveSettings, getMovies, type AdminSettings } from "@/lib/admin-db";
+import { DEFAULT_SETTINGS, type AdminSettings } from "@/lib/admin-db";
+import { apiGetSettings, apiSaveSettings, apiGetMovies, apiChangePassword, apiSaveMovie } from "@/lib/api-client";
 import { toast } from "sonner";
 
 export function AdminSettings() {
-  const [settings, setSettings] = useState<AdminSettings>(getSettings());
+  const [settings, setSettings] = useState<AdminSettings>(DEFAULT_SETTINGS);
   const [showPass, setShowPass] = useState(false);
   const [newPass, setNewPass] = useState("");
   const [confirmPass, setConfirmPass] = useState("");
 
   useEffect(() => {
-    setSettings(getSettings());
+    apiGetSettings().then(setSettings).catch(() => {});
   }, []);
 
-  const save = () => {
-    saveSettings(settings);
+  const save = async () => {
+    await apiSaveSettings(settings);
     toast.success("Configuración guardada");
   };
 
-  const handlePasswordChange = () => {
+  const handlePasswordChange = async () => {
     if (!newPass) {
       toast.error("La contraseña no puede estar vacía");
       return;
@@ -27,15 +28,14 @@ export function AdminSettings() {
       toast.error("Las contraseñas no coinciden");
       return;
     }
-    saveSettings({ ...settings, admin_password: newPass });
-    setSettings(s => ({ ...s, admin_password: newPass }));
+    await apiChangePassword(newPass);
     setNewPass("");
     setConfirmPass("");
     toast.success("Contraseña actualizada");
   };
 
-  const exportDB = () => {
-    const movies = getMovies();
+  const exportDB = async () => {
+    const movies = await apiGetMovies();
     const blob = new Blob([JSON.stringify(movies, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -54,14 +54,16 @@ export function AdminSettings() {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = (ev) => {
+      reader.onload = async (ev) => {
         try {
           const data = JSON.parse(ev.target?.result as string);
           if (!Array.isArray(data)) {
             toast.error("Formato de archivo inválido");
             return;
           }
-          localStorage.setItem("cinevault_movies", JSON.stringify(data));
+          for (const movie of data) {
+            await apiSaveMovie(movie);
+          }
           toast.success(`${data.length} películas importadas`);
         } catch {
           toast.error("Error al leer el archivo JSON");

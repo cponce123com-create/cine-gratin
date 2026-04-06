@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
-import { getMovies, getSettings, LocalMovie } from "@/lib/admin-db";
+import { LocalMovie } from "@/lib/admin-db";
+import { apiGetMovies, apiGetSettings } from "@/lib/api-client";
 import { MovieCard } from "@/components/movie/MovieCard";
 import { MovieCarousel } from "@/components/movie/MovieCarousel";
 import { PageTransition } from "@/components/layout/PageTransition";
@@ -17,9 +18,10 @@ export default function Home() {
   const [watched, setWatched] = useLocalStorage<WatchedEntry[]>("cv_recently_watched", []);
 
   useEffect(() => {
-    setMovies(getMovies());
-    const settings = getSettings();
-    document.title = `${settings.site_name} — Streaming de Películas Premium`;
+    apiGetMovies().then(setMovies).catch(() => setMovies([]));
+    apiGetSettings()
+      .then(s => { document.title = `${s.site_name} — Streaming de Películas Premium`; })
+      .catch(() => {});
   }, []);
 
   const heroMovie =

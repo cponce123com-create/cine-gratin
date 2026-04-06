@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { getMovies, LocalMovie } from "@/lib/admin-db";
+import { LocalMovie } from "@/lib/admin-db";
+import { apiSearchMovies } from "@/lib/api-client";
 import { MovieCard } from "@/components/movie/MovieCard";
 import { PageTransition } from "@/components/layout/PageTransition";
 import { Search } from "lucide-react";
@@ -20,21 +21,10 @@ export default function SearchPage({ params }: SearchProps) {
   const [, setWatched] = useLocalStorage<WatchedEntry[]>("cv_recently_watched", []);
 
   useEffect(() => {
-    const q = query.toLowerCase().trim();
-    if (!q) {
-      setResults([]);
-      return;
-    }
-    const all = getMovies();
-    const matches = all.filter(
-      (m) =>
-        m.title.toLowerCase().includes(q) ||
-        m.genres?.some((g) => g.toLowerCase().includes(q)) ||
-        String(m.year).includes(q) ||
-        m.director?.toLowerCase().includes(q) ||
-        m.cast_list?.some((c) => c.toLowerCase().includes(q))
-    );
-    setResults(matches);
+    if (!query.trim()) { setResults([]); return; }
+    apiSearchMovies(query)
+      .then(setResults)
+      .catch(() => setResults([]));
   }, [query]);
 
   const handleSaveRecent = (id: string) => {

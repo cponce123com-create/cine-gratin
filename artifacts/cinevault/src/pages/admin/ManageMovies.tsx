@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Film, Search, Trash2, Edit2, Eye, Star, Trash, ChevronLeft, ChevronRight } from "lucide-react";
-import { getMovies, deleteMovie, updateMovie, LocalMovie } from "@/lib/admin-db";
+import { LocalMovie } from "@/lib/admin-db";
+import { apiGetMovies, apiDeleteMovie, apiSaveMovie } from "@/lib/api-client";
 import { toast } from "sonner";
 
 interface ManageMoviesProps {
@@ -17,8 +18,7 @@ export function ManageMovies({ onEdit }: ManageMoviesProps) {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
   const load = () => {
-    setMovies(getMovies());
-    setSelected(new Set());
+    apiGetMovies().then(ms => { setMovies(ms); setSelected(new Set()); }).catch(() => {});
   };
 
   useEffect(() => {
@@ -35,22 +35,22 @@ export function ManageMovies({ onEdit }: ManageMoviesProps) {
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const handleDelete = (id: string) => {
-    deleteMovie(id);
+  const handleDelete = async (id: string) => {
+    await apiDeleteMovie(id);
     load();
     setDeleteConfirm(null);
     toast.success("Película eliminada");
   };
 
-  const handleBulkDelete = () => {
+  const handleBulkDelete = async () => {
     if (!confirm(`¿Eliminar ${selected.size} películas seleccionadas?`)) return;
-    selected.forEach(id => deleteMovie(id));
+    await Promise.all([...selected].map(id => apiDeleteMovie(id)));
     load();
     toast.success(`${selected.size} películas eliminadas`);
   };
 
-  const toggleFeatured = (movie: LocalMovie) => {
-    updateMovie(movie.id, { featured: !movie.featured });
+  const toggleFeatured = async (movie: LocalMovie) => {
+    await apiSaveMovie({ ...movie, featured: !movie.featured });
     load();
     toast.success(movie.featured ? "Quitada de destacados" : "Marcada como destacada");
   };

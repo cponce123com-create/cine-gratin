@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { isAuthenticated } from "@/lib/admin-db";
 import { AdminLogin } from "./AdminLogin";
 import { AdminLayout, AdminPage } from "./AdminLayout";
 import { Dashboard } from "./Dashboard";
@@ -9,13 +8,18 @@ import { VideoServers } from "./VideoServers";
 import { AdminSettings } from "./AdminSettings";
 
 export default function AdminApp() {
-  const [authed, setAuthed] = useState(isAuthenticated());
+  const [authed, setAuthed] = useState(() => {
+    try { return localStorage.getItem("cv_admin_authed") === "1"; } catch { return false; }
+  });
   const [page, setPage] = useState<AdminPage>("dashboard");
   const [editMovieId, setEditMovieId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   if (!authed) {
-    return <AdminLogin onLogin={() => setAuthed(true)} />;
+    return <AdminLogin onLogin={() => {
+      localStorage.setItem("cv_admin_authed", "1");
+      setAuthed(true);
+    }} />;
   }
 
   const navigate = (p: AdminPage) => {
@@ -54,7 +58,7 @@ export default function AdminApp() {
     <AdminLayout
       currentPage={page}
       onNavigate={navigate}
-      onLogout={() => setAuthed(false)}
+      onLogout={() => { localStorage.removeItem("cv_admin_authed"); setAuthed(false); }}
       editMovieId={editMovieId}
       sidebarOpen={sidebarOpen}
       setSidebarOpen={setSidebarOpen}

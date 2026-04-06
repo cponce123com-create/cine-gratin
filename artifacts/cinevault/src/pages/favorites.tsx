@@ -3,7 +3,8 @@ import { Heart, Trash2 } from "lucide-react";
 import { PageTransition } from "@/components/layout/PageTransition";
 import { MovieCard } from "@/components/movie/MovieCard";
 import { useLocalStorage } from "@/hooks/use-local-storage";
-import { getMovies, LocalMovie } from "@/lib/admin-db";
+import { LocalMovie } from "@/lib/admin-db";
+import { apiGetMovies } from "@/lib/api-client";
 
 interface WatchedEntry {
   id: string;
@@ -16,7 +17,7 @@ export default function Favorites() {
   const [allMovies, setAllMovies] = useState<LocalMovie[]>([]);
 
   useEffect(() => {
-    setAllMovies(getMovies());
+    apiGetMovies().then(setAllMovies).catch(() => {});
   }, []);
 
   const favMovies = favorites

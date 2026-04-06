@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Server, Plus, Trash2, ChevronUp, ChevronDown, TestTube, X } from "lucide-react";
-import { getServers, saveServers, VideoServer, uid } from "@/lib/admin-db";
+import { VideoServer, uid } from "@/lib/admin-db";
+import { apiGetServers, apiSaveServers } from "@/lib/api-client";
 import { toast } from "sonner";
 
 export function VideoServers() {
@@ -11,13 +12,13 @@ export function VideoServers() {
   const [showAdd, setShowAdd] = useState(false);
 
   useEffect(() => {
-    setServers(getServers().sort((a, b) => a.order - b.order));
+    apiGetServers().then(ss => setServers(ss.sort((a, b) => a.order - b.order))).catch(() => {});
   }, []);
 
-  const persist = (list: VideoServer[]) => {
+  const persist = async (list: VideoServer[]) => {
     const reordered = list.map((s, i) => ({ ...s, order: i }));
     setServers(reordered);
-    saveServers(reordered);
+    await apiSaveServers(reordered);
   };
 
   const moveUp = (idx: number) => {
