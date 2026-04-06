@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "wouter";
 import { LocalMovie } from "@/lib/admin-db";
 import { apiGetMovies, apiGetSettings } from "@/lib/api-client";
 import { MovieCard } from "@/components/movie/MovieCard";
 import { MovieCarousel } from "@/components/movie/MovieCarousel";
 import { PageTransition } from "@/components/layout/PageTransition";
-import { Play, Info, Star, Film } from "lucide-react";
+import { Play, Info, Star, Film, ChevronLeft, ChevronRight, Pause } from "lucide-react";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 
 interface WatchedEntry {
@@ -13,9 +13,16 @@ interface WatchedEntry {
   timestamp: number;
 }
 
+const SLIDE_INTERVAL = 10000; // 10 seconds
+
 export default function Home() {
   const [movies, setMovies] = useState<LocalMovie[]>([]);
   const [watched, setWatched] = useLocalStorage<WatchedEntry[]>("cv_recently_watched", []);
+  const [heroIndex, setHeroIndex] = useState(0);
+  const [prevIndex, setPrevIndex] = useState<number | null>(null);
+  const [transitioning, setTransitioning] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     apiGetMovies().then(setMovies).catch(() => setMovies([]));
@@ -24,153 +31,285 @@ export default function Home() {
       .catch(() => {});
   }, []);
 
-  const heroMovie =
-    movies.find((m) => m.featured) || (movies.length > 0 ? movies[0] : null);
+  // Hero movies: featured first, then top-rated, max 8
+  const heroMovies = (() => {
+    if (movies.length === 0) return [];
+    const featured = movies.filter(m => m.featured);
+    const topRated = [...movies]
+      .filter(m => !m.featured && m.background_url)
+      .sort((a, b) => b.rating - a.rating)
+      .slice(0, 8 - featured.length);
+    const pool = [...featured, ...topRated].slice(0, 8);
+    return pool.length > 0 ? pool : movies.slice(0, 1);
+  })();
+
+  const currentHero = heroMovies[heroIndex] ?? null;
+
+  const goTo = useCallback((idx: number) => {
+    if (transitioning || idx === heroIndex) return;
+    setPrevIndex(heroIndex);
+    setTransitioning(true);
+    setTimeout(() => {
+      setHeroIndex(idx);
+      setPrevIndex(null);
+      setTransitioning(false);
+    }, 600);
+  }, [transitioning, heroIndex]);
+
+  const goNext = useCallback(() => {
+    if (heroMovies.length <= 1) return;
+    goTo((heroIndex + 1) % heroMovies.length);
+  }, [heroIndex, heroMovies.length, goTo]);
+
+  const goPrev = useCallback(() => {
+    if (heroMovies.length <= 1) return;
+    goTo((heroIndex - 1 + heroMovies.length) % heroMovies.length);
+  }, [heroIndex, heroMovies.length, goTo]);
+
+  // Auto-advance
+  useEffect(() => {
+    if (paused || heroMovies.length <= 1) return;
+    timerRef.current = setTimeout(goNext, SLIDE_INTERVAL);
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, [heroIndex, paused, heroMovies.length, goNext]);
 
   const watchedMovies = watched
-    .map((w) => movies.find((m) => m.id === w.id))
+    .map(w => movies.find(m => m.id === w.id))
     .filter(Boolean) as LocalMovie[];
 
   const latestMovies = [...movies].sort(
-    (a, b) =>
-      new Date(b.date_added || 0).getTime() -
-      new Date(a.date_added || 0).getTime()
+    (a, b) => new Date(b.date_added || 0).getTime() - new Date(a.date_added || 0).getTime()
   );
-  const topRated = [...movies]
-    .filter((m) => m.rating >= 7)
-    .sort((a, b) => b.rating - a.rating);
-  const fourK = movies.filter((m) =>
-    m.torrents?.some((t) => t.quality.includes("2160"))
-  );
+  const topRated = [...movies].filter(m => m.rating >= 7).sort((a, b) => b.rating - a.rating);
+  const fourK = movies.filter(m => m.torrents?.some(t => t.quality.includes("2160")));
 
   const handleSaveRecent = (id: string) => {
-    setWatched((prev) => {
-      const filtered = prev.filter((w) => w.id !== id);
-      return [{ id, timestamp: Date.now() }, ...filtered].slice(0, 10);
+    setWatched(prev => {
+      const f = prev.filter(w => w.id !== id);
+      return [{ id, timestamp: Date.now() }, ...f].slice(0, 10);
     });
   };
 
   return (
     <PageTransition>
       <div className="pb-20">
-        {/* === HERO === */}
-        <section className="relative w-full h-[70vh] min-h-[600px] flex items-end pb-20 pt-32">
-          {heroMovie ? (
-            <>
-              <div className="absolute inset-0 z-0">
-                {heroMovie.background_url ? (
-                  <img
-                    src={heroMovie.background_url}
-                    alt={heroMovie.title}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = "none";
-                    }}
-                  />
-                ) : (
-                  <div className="w-full h-full bg-gradient-to-br from-card via-background to-black" />
-                )}
-                <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-transparent" />
-                <div className="absolute inset-0 bg-gradient-to-r from-background via-background/60 to-transparent" />
-              </div>
 
-              <div className="relative z-10 max-w-7xl mx-auto px-6 md:px-10 w-full animate-in fade-in slide-in-from-bottom-8 duration-700">
-                <div className="max-w-3xl">
-                  {heroMovie.genres?.length > 0 && (
-                    <div className="flex gap-2 mb-4">
-                      {heroMovie.genres.slice(0, 3).map((g) => (
-                        <span
-                          key={g}
-                          className="bg-primary/20 border border-primary/50 text-primary px-3 py-1 rounded text-xs font-bold uppercase tracking-wider backdrop-blur-sm"
-                        >
-                          {g}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  <h1 className="text-5xl md:text-7xl font-heading text-white mb-4 leading-none tracking-wide drop-shadow-lg">
-                    {heroMovie.title}
-                  </h1>
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground mb-6 font-medium">
-                    <span className="text-white bg-white/10 px-2 py-0.5 rounded backdrop-blur-sm">
-                      {heroMovie.year}
-                    </span>
-                    {heroMovie.rating > 0 && (
-                      <span className="flex items-center gap-1 text-yellow-400">
-                        <Star className="w-4 h-4 fill-current" />
-                        {heroMovie.rating}
-                      </span>
-                    )}
-                    {heroMovie.runtime > 0 && (
-                      <span>
-                        {Math.floor(heroMovie.runtime / 60)}h{" "}
-                        {heroMovie.runtime % 60}m
-                      </span>
-                    )}
-                    {heroMovie.mpa_rating && (
-                      <span className="border border-white/30 px-1.5 py-0.5 rounded text-xs font-bold uppercase">
-                        {heroMovie.mpa_rating}
-                      </span>
-                    )}
-                  </div>
-                  {heroMovie.synopsis && (
-                    <p className="text-lg text-foreground/80 line-clamp-3 mb-8 max-w-2xl leading-relaxed">
-                      {heroMovie.synopsis}
-                    </p>
-                  )}
-                  <div className="flex flex-wrap items-center gap-4">
-                    <Link
-                      href={`/movie/${heroMovie.id}`}
-                      onClick={() => handleSaveRecent(heroMovie.id)}
-                      className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-3 rounded-lg font-bold uppercase tracking-widest flex items-center gap-2 transition-all hover:scale-105 active:scale-95 shadow-[0_0_20px_rgba(0,212,255,0.4)]"
-                    >
-                      <Play className="w-5 h-5 fill-current" />
-                      Ver Ahora
-                    </Link>
-                    <Link
-                      href={`/movie/${heroMovie.id}`}
-                      className="bg-white/10 hover:bg-white/20 text-white border border-white/20 px-8 py-3 rounded-lg font-bold uppercase tracking-widest flex items-center gap-2 backdrop-blur-md transition-all hover:scale-105 active:scale-95"
-                    >
-                      <Info className="w-5 h-5" />
-                      Detalles
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            </>
-          ) : (
+        {/* === HERO CAROUSEL === */}
+        <section
+          className="relative w-full h-[75vh] min-h-[600px] overflow-hidden"
+          onMouseEnter={() => setPaused(true)}
+          onMouseLeave={() => setPaused(false)}
+        >
+          {heroMovies.length === 0 ? (
             <div className="absolute inset-0 bg-gradient-to-br from-card via-background to-black flex items-center justify-center">
               <div className="text-center z-10 px-4">
                 <Film className="w-20 h-20 text-primary/40 mx-auto mb-6" />
-                <h2 className="text-3xl font-heading text-muted-foreground mb-3">
-                  Aún no hay contenido
-                </h2>
+                <h2 className="text-3xl font-heading text-muted-foreground mb-3">Aún no hay contenido</h2>
                 <p className="text-muted-foreground max-w-md mx-auto">
                   Agrega películas desde el{" "}
-                  <Link href="/admin" className="text-primary underline hover:text-primary/80">
-                    panel de administración
-                  </Link>{" "}
+                  <Link href="/admin" className="text-primary underline hover:text-primary/80">panel de administración</Link>{" "}
                   para que aparezcan aquí.
                 </p>
               </div>
             </div>
+          ) : (
+            <>
+              {/* Slides */}
+              {heroMovies.map((movie, i) => {
+                const isActive = i === heroIndex;
+                const isPrev = i === prevIndex;
+                if (!isActive && !isPrev) return null;
+                return (
+                  <div
+                    key={movie.id}
+                    className="absolute inset-0 transition-opacity duration-700"
+                    style={{ opacity: isActive && !transitioning ? 1 : isActive && transitioning ? 0 : isPrev ? 1 : 0 }}
+                  >
+                    {/* Background */}
+                    {movie.background_url ? (
+                      <img
+                        src={movie.background_url}
+                        alt={movie.title}
+                        className="absolute inset-0 w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="absolute inset-0 bg-gradient-to-br from-card via-background to-black" />
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-background via-background/75 to-black/30" />
+                    <div className="absolute inset-0 bg-gradient-to-r from-background via-background/50 to-transparent" />
+                  </div>
+                );
+              })}
+
+              {/* Content of active slide */}
+              <div className="absolute inset-0 flex items-end pb-24 pt-32 z-10">
+                {currentHero && (
+                  <div
+                    key={currentHero.id}
+                    className="max-w-7xl mx-auto px-6 md:px-10 w-full animate-in fade-in slide-in-from-bottom-6 duration-500"
+                  >
+                    <div className="max-w-3xl">
+                      {currentHero.genres?.length > 0 && (
+                        <div className="flex gap-2 mb-4 flex-wrap">
+                          {currentHero.genres.slice(0, 3).map(g => (
+                            <span key={g} className="bg-primary/20 border border-primary/50 text-primary px-3 py-1 rounded text-xs font-bold uppercase tracking-wider backdrop-blur-sm">
+                              {g}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <h1 className="text-5xl md:text-7xl font-heading text-white mb-4 leading-none tracking-wide drop-shadow-lg line-clamp-2">
+                        {currentHero.title}
+                      </h1>
+                      <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mb-5 font-medium">
+                        <span className="text-white bg-white/10 px-2 py-0.5 rounded backdrop-blur-sm">{currentHero.year}</span>
+                        {currentHero.rating > 0 && (
+                          <span className="flex items-center gap-1 text-yellow-400 font-bold">
+                            <Star className="w-4 h-4 fill-current" />{currentHero.rating}
+                          </span>
+                        )}
+                        {currentHero.runtime > 0 && (
+                          <span>{Math.floor(currentHero.runtime / 60)}h {currentHero.runtime % 60}m</span>
+                        )}
+                        {currentHero.mpa_rating && (
+                          <span className="border border-white/30 px-1.5 py-0.5 rounded text-xs font-bold uppercase">{currentHero.mpa_rating}</span>
+                        )}
+                      </div>
+                      {currentHero.synopsis && (
+                        <p className="text-base text-foreground/80 line-clamp-3 mb-7 max-w-2xl leading-relaxed">
+                          {currentHero.synopsis}
+                        </p>
+                      )}
+                      <div className="flex flex-wrap items-center gap-4">
+                        <Link
+                          href={`/movie/${currentHero.id}`}
+                          onClick={() => handleSaveRecent(currentHero.id)}
+                          className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-3 rounded-lg font-bold uppercase tracking-widest flex items-center gap-2 transition-all hover:scale-105 active:scale-95 shadow-[0_0_20px_rgba(0,212,255,0.4)]"
+                        >
+                          <Play className="w-5 h-5 fill-current" />
+                          Ver Ahora
+                        </Link>
+                        <Link
+                          href={`/movie/${currentHero.id}`}
+                          className="bg-white/10 hover:bg-white/20 text-white border border-white/20 px-8 py-3 rounded-lg font-bold uppercase tracking-widest flex items-center gap-2 backdrop-blur-md transition-all hover:scale-105 active:scale-95"
+                        >
+                          <Info className="w-5 h-5" />
+                          Detalles
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Navigation arrows */}
+              {heroMovies.length > 1 && (
+                <>
+                  <button
+                    onClick={goPrev}
+                    className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-11 h-11 rounded-full bg-black/50 hover:bg-black/80 border border-white/10 hover:border-white/30 flex items-center justify-center text-white transition-all hover:scale-110 backdrop-blur-sm"
+                    aria-label="Anterior"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={goNext}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-11 h-11 rounded-full bg-black/50 hover:bg-black/80 border border-white/10 hover:border-white/30 flex items-center justify-center text-white transition-all hover:scale-110 backdrop-blur-sm"
+                    aria-label="Siguiente"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                </>
+              )}
+
+              {/* Dots + progress + pause */}
+              {heroMovies.length > 1 && (
+                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3">
+                  {/* Pause button */}
+                  <button
+                    onClick={() => setPaused(p => !p)}
+                    className="w-7 h-7 rounded-full bg-black/50 hover:bg-black/80 border border-white/10 flex items-center justify-center text-white/60 hover:text-white transition-all"
+                    title={paused ? "Reanudar" : "Pausar"}
+                  >
+                    {paused ? <Play className="w-3 h-3 fill-current" /> : <Pause className="w-3 h-3" />}
+                  </button>
+
+                  {/* Dots */}
+                  {heroMovies.map((m, i) => (
+                    <button
+                      key={m.id}
+                      onClick={() => goTo(i)}
+                      className="relative flex items-center justify-center"
+                      aria-label={`Ir a ${m.title}`}
+                    >
+                      <span className={`block rounded-full transition-all duration-300 ${
+                        i === heroIndex
+                          ? "w-8 h-2.5 bg-primary shadow-[0_0_8px_rgba(0,212,255,0.8)]"
+                          : "w-2.5 h-2.5 bg-white/30 hover:bg-white/60"
+                      }`} />
+                      {/* Progress ring for active dot */}
+                      {i === heroIndex && !paused && (
+                        <svg
+                          className="absolute -inset-1 w-4 h-4 -rotate-90 animate-none hidden"
+                          viewBox="0 0 16 16"
+                        />
+                      )}
+                    </button>
+                  ))}
+
+                  {/* Counter */}
+                  <span className="text-white/40 text-xs font-mono">
+                    {heroIndex + 1}/{heroMovies.length}
+                  </span>
+                </div>
+              )}
+
+              {/* Progress bar */}
+              {heroMovies.length > 1 && !paused && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white/10 z-20">
+                  <div
+                    key={`${heroIndex}-progress`}
+                    className="h-full bg-primary origin-left"
+                    style={{
+                      animation: `progress-bar ${SLIDE_INTERVAL}ms linear forwards`,
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* Thumbnail strip */}
+              {heroMovies.length > 1 && (
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 z-20 hidden xl:flex flex-col gap-2">
+                  {heroMovies.map((m, i) => (
+                    <button
+                      key={m.id}
+                      onClick={() => goTo(i)}
+                      className={`relative w-20 h-12 rounded overflow-hidden border-2 transition-all ${
+                        i === heroIndex ? "border-primary scale-105 shadow-[0_0_10px_rgba(0,212,255,0.5)]" : "border-white/10 hover:border-white/30 opacity-60 hover:opacity-100"
+                      }`}
+                    >
+                      {m.poster_url ? (
+                        <img src={m.poster_url} alt={m.title} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full bg-card flex items-center justify-center">
+                          <Film className="w-4 h-4 text-muted-foreground" />
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </section>
 
         {/* === CARRUSELES === */}
-        <div className="max-w-[1600px] mx-auto space-y-8">
+        <div className="max-w-[1600px] mx-auto space-y-8 mt-4">
           {watchedMovies.length > 0 && (
             <MovieCarousel title="Seguir Viendo">
-              {watchedMovies.map((m) => (
-                <div
-                  key={`recent-${m.id}`}
-                  className="w-[160px] md:w-[200px] lg:w-[240px] flex-none"
-                >
-                  <MovieCard
-                    movie={m}
-                    isRecent
-                    onSaveRecent={() => handleSaveRecent(m.id)}
-                  />
+              {watchedMovies.map(m => (
+                <div key={`recent-${m.id}`} className="w-[160px] md:w-[200px] lg:w-[240px] flex-none">
+                  <MovieCard movie={m} isRecent onSaveRecent={() => handleSaveRecent(m.id)} />
                 </div>
               ))}
             </MovieCarousel>
@@ -178,37 +317,19 @@ export default function Home() {
 
           {movies.length > 0 && (
             <>
-              <MovieCarousel
-                title="Últimas Incorporaciones"
-                viewAllLink="/browse"
-              >
-                {latestMovies.slice(0, 20).map((m) => (
-                  <div
-                    key={m.id}
-                    className="w-[160px] md:w-[200px] lg:w-[240px] flex-none"
-                  >
-                    <MovieCard
-                      movie={m}
-                      onSaveRecent={() => handleSaveRecent(m.id)}
-                    />
+              <MovieCarousel title="Últimas Incorporaciones" viewAllLink="/browse">
+                {latestMovies.slice(0, 20).map(m => (
+                  <div key={m.id} className="w-[160px] md:w-[200px] lg:w-[240px] flex-none">
+                    <MovieCard movie={m} onSaveRecent={() => handleSaveRecent(m.id)} />
                   </div>
                 ))}
               </MovieCarousel>
 
               {topRated.length > 0 && (
-                <MovieCarousel
-                  title="Mejor Calificadas"
-                  viewAllLink="/browse?sort=rating"
-                >
-                  {topRated.slice(0, 20).map((m) => (
-                    <div
-                      key={m.id}
-                      className="w-[160px] md:w-[200px] lg:w-[240px] flex-none"
-                    >
-                      <MovieCard
-                        movie={m}
-                        onSaveRecent={() => handleSaveRecent(m.id)}
-                      />
+                <MovieCarousel title="Mejor Calificadas" viewAllLink="/browse?sort=rating">
+                  {topRated.slice(0, 20).map(m => (
+                    <div key={m.id} className="w-[160px] md:w-[200px] lg:w-[240px] flex-none">
+                      <MovieCard movie={m} onSaveRecent={() => handleSaveRecent(m.id)} />
                     </div>
                   ))}
                 </MovieCarousel>
@@ -216,15 +337,9 @@ export default function Home() {
 
               {fourK.length > 0 && (
                 <MovieCarousel title="Ultra HD 4K" viewAllLink="/browse?quality=2160p">
-                  {fourK.slice(0, 20).map((m) => (
-                    <div
-                      key={m.id}
-                      className="w-[160px] md:w-[200px] lg:w-[240px] flex-none"
-                    >
-                      <MovieCard
-                        movie={m}
-                        onSaveRecent={() => handleSaveRecent(m.id)}
-                      />
+                  {fourK.slice(0, 20).map(m => (
+                    <div key={m.id} className="w-[160px] md:w-[200px] lg:w-[240px] flex-none">
+                      <MovieCard movie={m} onSaveRecent={() => handleSaveRecent(m.id)} />
                     </div>
                   ))}
                 </MovieCarousel>
@@ -233,6 +348,14 @@ export default function Home() {
           )}
         </div>
       </div>
+
+      {/* CSS for progress bar animation */}
+      <style>{`
+        @keyframes progress-bar {
+          from { width: 0%; }
+          to { width: 100%; }
+        }
+      `}</style>
     </PageTransition>
   );
 }
