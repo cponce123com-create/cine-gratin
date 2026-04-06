@@ -47,15 +47,42 @@ router.get("/movies/featured", async (req, res) => {
   }
 });
 
+// GET /api/movies/trending — top 10 most viewed recently
+router.get("/movies/trending", async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT * FROM movies ORDER BY views DESC, date_added DESC LIMIT 10`
+    );
+    res.json(rows.map(toMovie));
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
 // GET /api/movies/search?q=...
 router.get("/movies/search", async (req, res) => {
   const q = String(req.query.q || "");
+  const limit = Math.min(Number(req.query.limit || 20), 50);
   try {
     const { rows } = await pool.query(
-      `SELECT * FROM movies WHERE title ILIKE $1 OR synopsis ILIKE $1 ORDER BY date_added DESC`,
-      [`%${q}%`]
+      `SELECT * FROM movies WHERE title ILIKE $1 OR synopsis ILIKE $1 ORDER BY views DESC, date_added DESC LIMIT $2`,
+      [`%${q}%`, limit]
     );
     res.json(rows.map(toMovie));
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// GET /api/movies/by-slug/:slug
+router.get("/movies/by-slug/:slug", async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      "SELECT * FROM movies WHERE slug = $1 OR id = $1 OR imdb_id = $1",
+      [req.params.slug]
+    );
+    if (!rows[0]) return res.status(404).json({ error: "Not found" });
+    res.json(toMovie(rows[0]));
   } catch (e) {
     res.status(500).json({ error: String(e) });
   }
@@ -64,7 +91,15 @@ router.get("/movies/search", async (req, res) => {
 // GET /api/movies/:id
 router.get("/movies/:id", async (req, res) => {
   try {
-    const { rows } = await pool.query("SELECT * FROM movies WHERE id = $1", [req.params.id]);
+    // Try by id first, then by slug or imdb_id
+    let { rows } = await pool.query("SELECT * FROM movies WHERE id = $1", [req.params.id]);
+    if (!rows[0]) {
+      const result = await pool.query(
+        "SELECT * FROM movies WHERE slug = $1 OR imdb_id = $1",
+        [req.params.id]
+      );
+      rows = result.rows;
+    }
     if (!rows[0]) return res.status(404).json({ error: "Not found" });
     res.json(toMovie(rows[0]));
   } catch (e) {

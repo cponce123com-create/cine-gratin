@@ -38,10 +38,40 @@ router.get("/series", async (req, res) => {
   }
 });
 
+// GET /api/series/trending
+router.get("/series/trending", async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      "SELECT * FROM cv_series ORDER BY views DESC, date_added DESC LIMIT 10"
+    );
+    res.json(rows.map(toSeries));
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// GET /api/series/search?q=
+router.get("/series/search", async (req, res) => {
+  const q = String(req.query.q || "");
+  const limit = Math.min(Number(req.query.limit || 20), 50);
+  try {
+    const { rows } = await pool.query(
+      `SELECT * FROM cv_series WHERE title ILIKE $1 OR synopsis ILIKE $1 ORDER BY views DESC, date_added DESC LIMIT $2`,
+      [`%${q}%`, limit]
+    );
+    res.json(rows.map(toSeries));
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
 // GET /api/series/:id
 router.get("/series/:id", async (req, res) => {
   try {
-    const { rows } = await pool.query("SELECT * FROM cv_series WHERE id = $1", [req.params.id]);
+    const { rows } = await pool.query(
+      "SELECT * FROM cv_series WHERE id = $1 OR imdb_id = $1",
+      [req.params.id]
+    );
     if (!rows[0]) return res.status(404).json({ error: "Not found" });
     res.json(toSeries(rows[0]));
   } catch (e) {

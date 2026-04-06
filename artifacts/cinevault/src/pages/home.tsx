@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { LocalMovie } from "@/lib/admin-db";
-import { apiGetMovies, apiGetSettings, apiGetSeries, type LocalSeries } from "@/lib/api-client";
+import { apiGetMovies, apiGetSettings, apiGetSeries, apiGetTrendingMovies, type LocalSeries } from "@/lib/api-client";
 import { MovieCard } from "@/components/movie/MovieCard";
 import { MovieCarousel } from "@/components/movie/MovieCarousel";
 import { PageTransition } from "@/components/layout/PageTransition";
-import { Play, Info, Star, Film, ChevronLeft, ChevronRight, Pause, Tv } from "lucide-react";
+import { Play, Info, Star, Film, ChevronLeft, ChevronRight, Pause, Tv, Shuffle, X, Calendar, Globe } from "lucide-react";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 
 interface WatchedEntry {
@@ -16,7 +16,8 @@ interface WatchedEntry {
 const SLIDE_INTERVAL = 10000; // 10 seconds
 
 // ─── Series card for home page ────────────────────────────────────────────────
-function SeriesCard({ series, onOpen }: { series: LocalSeries; onOpen: () => void }) {
+function SeriesCard({ series }: { series: LocalSeries }) {
+  const [, setLocation] = useLocation();
   const poster = series.poster_url || "https://placehold.co/400x600/12121a/333333?text=Sin+Poster";
   const statusColors: Record<string, string> = {
     "Returning Series": "bg-green-500/80",
@@ -32,7 +33,7 @@ function SeriesCard({ series, onOpen }: { series: LocalSeries; onOpen: () => voi
 
   return (
     <button
-      onClick={onOpen}
+      onClick={() => setLocation(`/series/${series.id}`)}
       className="group relative block w-full aspect-[2/3] rounded-xl overflow-hidden bg-card border border-border shadow-md transition-all duration-300 hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(0,212,255,0.3)] hover:z-10 text-left"
     >
       <img
@@ -76,9 +77,9 @@ function SeriesCard({ series, onOpen }: { series: LocalSeries; onOpen: () => voi
 }
 
 export default function Home() {
-  const [, setLocation] = useLocation();
   const [movies, setMovies] = useState<LocalMovie[]>([]);
   const [series, setSeries] = useState<LocalSeries[]>([]);
+  const [trending, setTrending] = useState<LocalMovie[]>([]);
   const [watched, setWatched] = useLocalStorage<WatchedEntry[]>("cv_recently_watched", []);
   const [heroIndex, setHeroIndex] = useState(0);
   const [prevIndex, setPrevIndex] = useState<number | null>(null);
@@ -86,25 +87,29 @@ export default function Home() {
   const [paused, setPaused] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // "¿Qué veo hoy?" state
+  const [randomPick, setRandomPick] = useState<LocalMovie | LocalSeries | null>(null);
+  const [randomType, setRandomType] = useState<"movie" | "series">("movie");
+  const [, setLocation] = useLocation();
+
   useEffect(() => {
     apiGetMovies().then(setMovies).catch(() => setMovies([]));
     apiGetSeries().then(setSeries).catch(() => setSeries([]));
+    apiGetTrendingMovies().then(setTrending).catch(() => setTrending([]));
     apiGetSettings()
       .then(s => { document.title = `${s.site_name} — Streaming de Películas Premium`; })
       .catch(() => {});
   }, []);
 
-  // Open a series in the series page (restoring via sessionStorage)
-  const openSeries = (s: LocalSeries) => {
-    try {
-      sessionStorage.setItem("cv_series_state", JSON.stringify({
-        seriesId: s.id,
-        season: 1,
-        episode: 1,
-        activeServer: 0,
-      }));
-    } catch {}
-    setLocation("/series");
+  const pickRandom = () => {
+    const allContent: Array<{ item: LocalMovie | LocalSeries; type: "movie" | "series" }> = [
+      ...movies.map(m => ({ item: m as LocalMovie | LocalSeries, type: "movie" as const })),
+      ...series.map(s => ({ item: s as LocalMovie | LocalSeries, type: "series" as const })),
+    ];
+    if (allContent.length === 0) return;
+    const pick = allContent[Math.floor(Math.random() * allContent.length)];
+    setRandomPick(pick.item);
+    setRandomType(pick.type);
   };
 
   // Hero movies: featured first, then top-rated, max 8
@@ -391,6 +396,30 @@ export default function Home() {
             </MovieCarousel>
           )}
 
+          {/* === "¿Qué veo hoy?" + Trending === */}
+          {(movies.length > 0 || series.length > 0) && (
+            <div className="flex items-center justify-between mb-2">
+              <div />
+              <button
+                onClick={pickRandom}
+                className="flex items-center gap-2 bg-primary/10 hover:bg-primary/20 border border-primary/40 text-primary px-5 py-2.5 rounded-xl font-bold text-sm uppercase tracking-wider transition-all hover:scale-105 active:scale-95 shadow-[0_0_15px_rgba(0,212,255,0.2)]"
+              >
+                <Shuffle className="w-4 h-4" />
+                ¿Qué veo hoy?
+              </button>
+            </div>
+          )}
+
+          {trending.length > 0 && (
+            <MovieCarousel title="Tendencias" viewAllLink="/browse?sort=views">
+              {trending.map(m => (
+                <div key={m.id} className="w-[160px] md:w-[200px] lg:w-[240px] flex-none">
+                  <MovieCard movie={m} onSaveRecent={() => handleSaveRecent(m.id)} />
+                </div>
+              ))}
+            </MovieCarousel>
+          )}
+
           {movies.length > 0 && (
             <>
               <MovieCarousel title="Últimas Películas" viewAllLink="/browse">
@@ -434,7 +463,7 @@ export default function Home() {
                 >
                   {series.filter(s => s.featured).slice(0, 20).map(s => (
                     <div key={s.id} className="w-[160px] md:w-[200px] lg:w-[240px] flex-none">
-                      <SeriesCard series={s} onOpen={() => openSeries(s)} />
+                      <SeriesCard series={s} />
                     </div>
                   ))}
                 </MovieCarousel>
@@ -450,7 +479,7 @@ export default function Home() {
                   .slice(0, 20)
                   .map(s => (
                     <div key={s.id} className="w-[160px] md:w-[200px] lg:w-[240px] flex-none">
-                      <SeriesCard series={s} onOpen={() => openSeries(s)} />
+                      <SeriesCard series={s} />
                     </div>
                   ))}
               </MovieCarousel>
@@ -458,6 +487,89 @@ export default function Home() {
           )}
         </div>
       </div>
+
+      {/* === ¿Qué veo hoy? Modal === */}
+      {randomPick && (
+        <div
+          className="fixed inset-0 z-[150] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setRandomPick(null)}
+        >
+          <div
+            className="relative w-full max-w-lg bg-card border border-border rounded-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Backdrop */}
+            {(randomPick as LocalMovie).background_url && (
+              <div className="absolute inset-0 opacity-10">
+                <img src={(randomPick as LocalMovie).background_url} alt="" className="w-full h-full object-cover" />
+              </div>
+            )}
+            <div className="relative z-10 p-6">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-2 text-primary">
+                  <Shuffle className="w-5 h-5" />
+                  <span className="font-bold text-sm uppercase tracking-wider">Tu Selección Aleatoria</span>
+                </div>
+                <button onClick={() => setRandomPick(null)} className="text-muted-foreground hover:text-foreground transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="flex gap-4">
+                <img
+                  src={randomPick.poster_url || "https://placehold.co/200x300/12121a/333?text=Cine"}
+                  alt={randomPick.title}
+                  className="w-28 h-40 object-cover rounded-xl flex-shrink-0 shadow-lg"
+                  onError={e => { (e.target as HTMLImageElement).src = "https://placehold.co/200x300/12121a/333?text=Cine"; }}
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="mb-2">
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${randomType === "series" ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" : "bg-primary/20 text-primary border border-primary/30"}`}>
+                      {randomType === "series" ? "Serie" : "Película"}
+                    </span>
+                  </div>
+                  <h3 className="text-xl font-heading tracking-wide text-foreground leading-snug mb-2">{randomPick.title}</h3>
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mb-3">
+                    {randomPick.year && <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{randomPick.year}</span>}
+                    {randomPick.rating > 0 && <span className="flex items-center gap-1 text-yellow-400"><Star className="w-3 h-3 fill-current" />{randomPick.rating.toFixed(1)}</span>}
+                    {randomPick.language && <span className="flex items-center gap-1 uppercase"><Globe className="w-3 h-3" />{randomPick.language}</span>}
+                    {randomType === "series" && (
+                      <span className="flex items-center gap-1"><Tv className="w-3 h-3" />{(randomPick as LocalSeries).total_seasons} temporadas</span>
+                    )}
+                  </div>
+                  {randomPick.synopsis && (
+                    <p className="text-muted-foreground text-sm line-clamp-3 leading-relaxed">{randomPick.synopsis}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3 mt-5">
+                <button
+                  onClick={() => {
+                    setRandomPick(null);
+                    const path = randomType === "series" ? `/series/${randomPick.id}` : `/movie/${randomPick.id}`;
+                    setLocation(path);
+                  }}
+                  className="flex-1 flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground py-3 rounded-xl font-bold text-sm uppercase tracking-wider transition-all hover:scale-105 active:scale-95"
+                >
+                  <Play className="w-4 h-4 fill-current" />
+                  Ver Ahora
+                </button>
+                <button
+                  onClick={pickRandom}
+                  className="flex items-center justify-center gap-2 bg-secondary hover:bg-secondary/80 text-foreground px-4 py-3 rounded-xl font-bold text-sm transition-all"
+                  title="Otra sugerencia"
+                >
+                  <Shuffle className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* CSS for progress bar animation */}
       <style>{`

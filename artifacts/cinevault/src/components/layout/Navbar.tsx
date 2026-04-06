@@ -1,43 +1,91 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { Film, Search, Menu, X, Heart, Tv } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useLocalStorage } from "@/hooks/use-local-storage";
+import { apiSearchMovies, apiSearchSeries, type LocalSeries } from "@/lib/api-client";
+import { LocalMovie } from "@/lib/admin-db";
 
 export function Navbar() {
   const [location, setLocation] = useLocation();
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
+  const [autocomplete, setAutocomplete] = useState<{ movies: LocalMovie[]; series: LocalSeries[] }>({ movies: [], series: [] });
+  const [showDropdown, setShowDropdown] = useState(false);
   const [favorites] = useLocalStorage<string[]>("cv_favorites", []);
+  const searchRef = useRef<HTMLDivElement>(null);
 
-  const debouncedSearch = useDebounce(searchValue, 400);
+  const debouncedSearch = useDebounce(searchValue, 300);
 
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 20);
-    };
+    const handleScroll = () => setIsScrolled(window.scrollY > 20);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  // Autocomplete search
   useEffect(() => {
-    if (debouncedSearch.trim()) {
-      setLocation(`/search/${encodeURIComponent(debouncedSearch.trim())}`);
+    if (!debouncedSearch.trim() || debouncedSearch.trim().length < 2) {
+      setAutocomplete({ movies: [], series: [] });
+      setShowDropdown(false);
+      return;
     }
-  }, [debouncedSearch, setLocation]);
+    Promise.all([
+      apiSearchMovies(debouncedSearch, 5).catch(() => [] as LocalMovie[]),
+      apiSearchSeries(debouncedSearch, 5).catch(() => [] as LocalSeries[]),
+    ]).then(([movies, series]) => {
+      setAutocomplete({ movies, series });
+      setShowDropdown(movies.length > 0 || series.length > 0);
+    });
+  }, [debouncedSearch]);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchValue.trim()) {
+      setLocation(`/search/${encodeURIComponent(searchValue.trim())}`);
+      setShowDropdown(false);
+    }
+  };
+
+  const handleSearchKey = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") handleSearchSubmit(e as unknown as React.FormEvent);
+    if (e.key === "Escape") { setShowDropdown(false); setSearchValue(""); }
+  };
+
+  const goToMovie = (id: string) => {
+    setLocation(`/movie/${id}`);
+    setShowDropdown(false);
+    setSearchValue("");
+  };
+
+  const goToSeries = (id: string) => {
+    setLocation(`/series/${id}`);
+    setShowDropdown(false);
+    setSearchValue("");
+  };
 
   useEffect(() => {
-    if (!location.startsWith("/search")) {
-      setSearchValue("");
-    }
+    if (!location.startsWith("/search")) setSearchValue("");
     setMobileMenuOpen(false);
+    setShowDropdown(false);
   }, [location]);
 
   const navLinks = [
     { href: "/", label: "Inicio", match: (l: string) => l === "/" },
     { href: "/browse", label: "Explorar", match: (l: string) => l.startsWith("/browse") },
-    { href: "/series", label: "Series", match: (l: string) => l.startsWith("/series") },
+    { href: "/series", label: "Series", match: (l: string) => l === "/series" },
   ];
 
   return (
@@ -76,18 +124,83 @@ export function Navbar() {
 
         {/* Right: Search + My List + Mobile toggle */}
         <div className="flex items-center gap-3">
-          <div className="hidden md:flex relative group">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
-            </div>
-            <input
-              type="text"
-              placeholder="Buscar películas..."
-              value={searchValue}
-              onChange={(e) => setSearchValue(e.target.value)}
-              className="bg-secondary/50 border border-border focus:border-primary focus:ring-1 focus:ring-primary text-foreground rounded-full pl-10 pr-4 py-2 text-sm w-56 transition-all outline-none placeholder:text-muted-foreground backdrop-blur-md"
-              data-testid="input-search"
-            />
+          {/* Search with autocomplete */}
+          <div ref={searchRef} className="hidden md:flex relative group">
+            <form onSubmit={handleSearchSubmit} className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search className="h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+              </div>
+              <input
+                type="text"
+                placeholder="Buscar películas y series..."
+                value={searchValue}
+                onChange={e => setSearchValue(e.target.value)}
+                onFocus={() => { if (autocomplete.movies.length || autocomplete.series.length) setShowDropdown(true); }}
+                onKeyDown={handleSearchKey}
+                className="bg-secondary/50 border border-border focus:border-primary focus:ring-1 focus:ring-primary text-foreground rounded-full pl-10 pr-4 py-2 text-sm w-64 transition-all outline-none placeholder:text-muted-foreground backdrop-blur-md"
+                data-testid="input-search"
+              />
+            </form>
+
+            {/* Autocomplete dropdown */}
+            {showDropdown && (
+              <div className="absolute top-full mt-2 left-0 right-0 w-80 bg-card border border-border rounded-xl shadow-2xl overflow-hidden z-[100]">
+                {autocomplete.movies.length > 0 && (
+                  <div>
+                    <div className="px-3 py-2 border-b border-border/50 flex items-center gap-1.5">
+                      <Film className="w-3.5 h-3.5 text-primary" />
+                      <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Películas</span>
+                    </div>
+                    {autocomplete.movies.map(m => (
+                      <button
+                        key={m.id}
+                        onClick={() => goToMovie(m.id)}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-primary/10 transition-colors text-left"
+                      >
+                        {m.poster_url && (
+                          <img src={m.poster_url} alt="" className="w-8 h-10 object-cover rounded" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-foreground text-sm font-semibold truncate">{m.title}</p>
+                          <p className="text-muted-foreground text-xs">{m.year}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {autocomplete.series.length > 0 && (
+                  <div>
+                    <div className="px-3 py-2 border-t border-b border-border/50 flex items-center gap-1.5">
+                      <Tv className="w-3.5 h-3.5 text-primary" />
+                      <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Series</span>
+                    </div>
+                    {autocomplete.series.map(s => (
+                      <button
+                        key={s.id}
+                        onClick={() => goToSeries(s.id)}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-primary/10 transition-colors text-left"
+                      >
+                        {s.poster_url && (
+                          <img src={s.poster_url} alt="" className="w-8 h-10 object-cover rounded" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-foreground text-sm font-semibold truncate">{s.title}</p>
+                          <p className="text-muted-foreground text-xs">{s.year} · {s.total_seasons} temp.</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {/* See all results */}
+                <button
+                  onClick={() => { setLocation(`/search/${encodeURIComponent(searchValue.trim())}`); setShowDropdown(false); }}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-primary/5 hover:bg-primary/10 border-t border-border transition-colors text-primary text-xs font-bold uppercase tracking-wider"
+                >
+                  <Search className="w-3.5 h-3.5" />
+                  Ver todos los resultados
+                </button>
+              </div>
+            )}
           </div>
 
           {/* My List button */}
@@ -122,18 +235,19 @@ export function Navbar() {
       {/* Mobile Menu */}
       {mobileMenuOpen && (
         <div className="md:hidden absolute top-20 left-0 right-0 bg-card border-b border-border shadow-2xl p-4 flex flex-col gap-3 animate-in slide-in-from-top-2">
-          <div className="relative">
+          <form onSubmit={handleSearchSubmit} className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <Search className="h-4 w-4 text-muted-foreground" />
             </div>
             <input
               type="text"
-              placeholder="Buscar películas..."
+              placeholder="Buscar películas y series..."
               value={searchValue}
-              onChange={(e) => setSearchValue(e.target.value)}
+              onChange={e => setSearchValue(e.target.value)}
+              onKeyDown={handleSearchKey}
               className="w-full bg-background border border-border focus:border-primary text-foreground rounded-lg pl-10 pr-4 py-3 text-sm outline-none"
             />
-          </div>
+          </form>
           {navLinks.map(link => (
             <Link
               key={link.href}

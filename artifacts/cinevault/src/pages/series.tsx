@@ -389,9 +389,9 @@ export default function Series() {
                           </>
                         )}
                       </div>
-                      {currentSeries?.genres.length > 0 && (
+                      {(currentSeries?.genres?.length ?? 0) > 0 && (
                         <div className="flex flex-wrap gap-1 mt-2">
-                          {currentSeries.genres.slice(0, 4).map(g => (
+                          {currentSeries!.genres.slice(0, 4).map(g => (
                             <span key={g} className="text-[10px] bg-primary/15 border border-primary/30 text-primary px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">{g}</span>
                           ))}
                         </div>

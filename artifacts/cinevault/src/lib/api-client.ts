@@ -1,5 +1,5 @@
 // ============================================================
-// CineVault — API client (talks to api-server)
+// Cine Gratín — API client (talks to api-server)
 // ============================================================
 
 import type { LocalMovie, VideoServer, AdminSettings } from "./admin-db";
@@ -22,8 +22,8 @@ export const apiGetMovies = () => api<LocalMovie[]>("/movies");
 
 export const apiGetMovie = (id: string) => api<LocalMovie>(`/movies/${id}`);
 
-export const apiSearchMovies = (q: string) =>
-  api<LocalMovie[]>(`/movies/search?q=${encodeURIComponent(q)}`);
+export const apiSearchMovies = (q: string, limit = 20) =>
+  api<LocalMovie[]>(`/movies/search?q=${encodeURIComponent(q)}&limit=${limit}`);
 
 export const apiSaveMovie = (movie: LocalMovie) =>
   api<LocalMovie>("/movies", { method: "POST", body: JSON.stringify(movie) });
@@ -145,6 +145,13 @@ export const apiGetSeries = () => api<LocalSeries[]>("/series");
 
 export const apiGetOneSeries = (id: string) => api<LocalSeries>(`/series/${id}`);
 
+export const apiSearchSeries = (q: string, limit = 20) =>
+  api<LocalSeries[]>(`/series/search?q=${encodeURIComponent(q)}&limit=${limit}`);
+
+export const apiGetTrendingMovies = () => api<LocalMovie[]>("/movies/trending");
+
+export const apiGetTrendingSeries = () => api<LocalSeries[]>("/series/trending");
+
 export const apiSaveSeries = (series: LocalSeries) =>
   api<LocalSeries>("/series", { method: "POST", body: JSON.stringify(series) });
 
@@ -156,17 +163,18 @@ export const apiIncrementSeriesView = (id: string) =>
 
 // Default TV video servers (URL pattern with {IMDB_ID}, {SEASON}, {EPISODE})
 export const DEFAULT_TV_SERVERS = [
-  { id: "vidsrc-tv", name: "VidSrc", url: "https://vidsrc.net/embed/tv/{IMDB_ID}/{SEASON}/{EPISODE}", active: true },
-  { id: "multiembed-tv", name: "MultiEmbed", url: "https://multiembed.mov/embed/imdb/{IMDB_ID}&s={SEASON}&e={EPISODE}", active: true },
+  { id: "vidsrc-pro-tv", name: "VidSrc Pro", url: "https://vidsrc.pro/embed/tv/{IMDB_ID}/{SEASON}/{EPISODE}", active: true },
+  { id: "vidsrc-to-tv", name: "VidSrc.to", url: "https://vidsrc.to/embed/tv/{IMDB_ID}/{SEASON}/{EPISODE}", active: true },
+  { id: "vidsrc-xyz-tv", name: "VidSrc.xyz", url: "https://vidsrc.xyz/embed/tv?imdb={IMDB_ID}&season={SEASON}&episode={EPISODE}", active: true },
   { id: "2embed-tv", name: "2Embed", url: "https://www.2embed.cc/embedtv/{IMDB_ID}&s={SEASON}&e={EPISODE}", active: true },
-  { id: "embedsu-tv", name: "EmbedSu", url: "https://embed.su/embed/tv/{IMDB_ID}/{SEASON}/{EPISODE}", active: true },
 ];
 
 // ─── Default servers (fallback) ───────────────────────────────
 
 export const DEFAULT_SERVERS: VideoServer[] = [
-  { id: "vidsrc", name: "VidSrc", url_pattern: "https://vidsrc.net/embed/movie/{IMDB_ID}/", active: true, order: 0 },
-  { id: "multiembed", name: "MultiEmbed", url_pattern: "https://multiembed.mov/embed/imdb/{IMDB_ID}", active: true, order: 1 },
-  { id: "2embed", name: "2Embed", url_pattern: "https://www.2embed.cc/embed/{IMDB_ID}", active: true, order: 2 },
-  { id: "embedsu", name: "EmbedSu", url_pattern: "https://embed.su/embed/movie/{IMDB_ID}", active: true, order: 3 },
+  { id: "vidsrc-pro", name: "VidSrc Pro", url_pattern: "https://vidsrc.pro/embed/movie/{IMDB_ID}", active: true, order: 0 },
+  { id: "vidsrc-to", name: "VidSrc.to", url_pattern: "https://vidsrc.to/embed/movie/{IMDB_ID}", active: true, order: 1 },
+  { id: "vidsrc-xyz", name: "VidSrc.xyz", url_pattern: "https://vidsrc.xyz/embed/movie?imdb={IMDB_ID}", active: true, order: 2 },
+  { id: "2embed", name: "2Embed", url_pattern: "https://www.2embed.cc/embed/{IMDB_ID}", active: true, order: 3 },
+  { id: "embedsu", name: "EmbedSu", url_pattern: "https://embed.su/embed/movie/{IMDB_ID}", active: true, order: 4 },
 ];

@@ -16,6 +16,7 @@ import SearchPage from "@/pages/search";
 import MovieDetail from "@/pages/movie-detail";
 import Favorites from "@/pages/favorites";
 import Series from "@/pages/series";
+import SeriesDetail from "@/pages/series-detail";
 import AdminApp from "@/pages/admin/AdminApp";
 import NotFound from "@/pages/not-found";
 
@@ -33,6 +34,7 @@ function PublicRouter() {
         <Route path="/movie/:id" component={MovieDetail} />
         <Route path="/favorites" component={Favorites} />
         <Route path="/series" component={Series} />
+        <Route path="/series/:id" component={SeriesDetail} />
         <Route component={NotFound} />
       </Switch>
     </AnimatePresence>
@@ -49,7 +51,7 @@ function PublicSite() {
       <footer className="border-t border-border bg-card py-8 mt-auto">
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-muted-foreground text-sm font-medium">
-            © {new Date().getFullYear()} CineVault. Todos los derechos reservados.
+            © {new Date().getFullYear()} Cine Gratín. Todos los derechos reservados.
           </p>
           <div className="flex items-center gap-6 text-sm font-bold uppercase tracking-wider text-muted-foreground">
             <a href="#" className="hover:text-primary transition-colors">Términos</a>

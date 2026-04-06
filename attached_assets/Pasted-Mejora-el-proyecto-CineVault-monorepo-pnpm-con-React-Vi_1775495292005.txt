@@ -1,0 +1,107 @@
+Mejora el proyecto CineVault (monorepo pnpm con React+Vite frontend y Express API) con las siguientes mejoras priorizadas. El descubrimiento clave es que VidSrc usa los mismos IMDb IDs que ya tenemos en la DB, así que hay que sacarle el máximo provecho.
+
+## PRIORIDAD 1 — SEO y páginas de detalle
+
+### 1A. Crear página de detalle de series `/series/:id`
+- Crear `artifacts/cinevault/src/pages/series-detail.tsx` similar a `movie-detail.tsx`
+- Mostrar: poster, backdrop, título, años, rating, géneros, sinopsis, creadores, cast
+- Sección de temporadas/episodios: acordeón desplegable por temporada con lista de episodios
+- Player embebido con los mismos servidores configurados pero con placeholders `{IMDB_ID}`, `{SEASON}`, `{EPISODE}`
+- Añadir ruta en `App.tsx`: `/series/:id`
+- En la página `/series` y en el home, los cards de series deben navegar a `/series/:id` en vez de abrir un modal
+
+### 1B. Meta tags dinámicos para SEO
+- En `movie-detail.tsx` y en la nueva `series-detail.tsx`, usar `useEffect` para actualizar dinámicamente:
+  - `document.title` → "Título (Año) - CineVault"
+  - Meta description → sinopsis truncada a 160 chars
+  - og:title, og:description, og:image (usando poster_url o background_url)
+  - og:type → "video.movie" o "video.tv_show"
+- En `index.html` poner meta tags base con valores por defecto
+
+### 1C. Slugs amigables en URLs
+- En la API (`artifacts/api-server/src/routes/movies.ts`), añadir endpoint: `GET /api/movies/by-slug/:slug`
+- En la API de series, añadir: `GET /api/series/by-slug/:slug`  
+- En el frontend, la ruta `/movie/:id` debe también aceptar el slug
+- Los links de MovieCard deben usar el slug si existe: `/movie/${movie.slug || movie.id}`
+
+## PRIORIDAD 2 — Player mejorado con VidSrc multi-endpoint
+
+### 2A. Configurar VidSrc como servidor principal con fallbacks
+En el Admin Panel → Video Servers, los servidores por defecto para películas deben ser:
+1. VidSrc Pro: `https://vidsrc.pro/embed/movie/{IMDB_ID}`
+2. VidSrc.to: `https://vidsrc.to/embed/movie/{IMDB_ID}`
+3. VidSrc.xyz: `https://vidsrc.xyz/embed/movie/{IMDB_ID}`
+4. 2embed: `https://www.2embed.cc/embed/{IMDB_ID}`
+5. EmbedSu: `https://embed.su/embed/movie/{IMDB_ID}`
+
+Para series:
+1. VidSrc Pro: `https://vidsrc.pro/embed/tv/{IMDB_ID}/{SEASON}/{EPISODE}`
+2. VidSrc.to: `https://vidsrc.to/embed/tv/{IMDB_ID}/{SEASON}/{EPISODE}`
+3. VidSrc.xyz: `https://vidsrc.xyz/embed/tv/{IMDB_ID}/{SEASON}-{EPISODE}`
+4. 2embed series: `https://www.2embed.cc/embedtv/{IMDB_ID}&s={SEASON}&e={EPISODE}`
+
+Actualizar los servers por defecto en la inicialización de la DB.
+
+### 2B. Selector de episodios integrado en el player (series-detail)
+- Encima del player mostrar: selector de temporada (dropdown) + grid de episodios numerados
+- Al hacer click en episodio, el iframe src se actualiza con la temporada y episodio correctos
+- Guardar en localStorage el último episodio visto por serie: `cv_progress_${series.id}` → `{season, episode}`
+- Al entrar a la página, auto-cargar el último episodio donde se quedó
+
+## PRIORIDAD 3 — Búsqueda mejorada
+
+### 3A. Autocompletado en el Navbar
+En `Navbar.tsx`, mejorar el input de búsqueda:
+- Mientras el usuario escribe (debounce 300ms), hacer fetch a `/api/movies/search?q=` y `/api/series/search?q=`
+- Mostrar dropdown con resultados (máx 5 películas + 3 series) con poster thumbnail, título y año
+- Click en resultado navega directamente al detalle
+- Añadir endpoint `GET /api/series/search?q=` en la API de series
+
+### 3B. Página de búsqueda unificada (`/search`)
+- Mejorar `search.tsx` para mostrar películas Y series en tabs separados
+- Añadir filtros: Año, Género, Tipo (película/serie), Rating mínimo
+- Mostrar contador de resultados: "X películas y Y series encontradas"
+
+## PRIORIDAD 4 — Engagement y retención
+
+### 4A. "Continuar viendo" mejorado
+- Cuando el usuario abre el player de una película, guardar en localStorage:
+  `cv_watching` → array de `{id, type: 'movie'|'series', title, poster_url, imdb_id, season?, episode?, timestamp}`
+- En el Home, si hay entradas en `cv_watching`, mostrar sección "Continuar viendo" ANTES de las demás secciones
+- Limitar a 10 entradas, eliminar las más antiguas
+
+### 4B. Botón "¿Qué veo hoy?" 
+- En el Navbar o en el Home, añadir botón con ícono de dado 🎲
+- Al hacer click, muestra un modal con: título "Sorpréndeme" + filtros opcionales (género, duración máxima)
+- Botón "Buscar" selecciona una película aleatoria del catálogo que cumpla los filtros
+- Muestra la película con botón "Ver ahora" que lleva al detalle
+
+### 4C. Sección "Trending" en el Home
+- Añadir endpoint `GET /api/movies/trending` → devuelve las 10 películas con más `views` en los últimos 30 días
+- Para esto, añadir columna `last_viewed_at` timestamp a la tabla `movies` y `cv_series`
+- Actualizar el PATCH `/api/movies/:id/view` para también actualizar `last_viewed_at = NOW()`
+- En el Home, añadir sección "Tendencias esta semana" usando ese endpoint
+
+## PRIORIDAD 5 — Admin Panel mejoras
+
+### 5A. Importación masiva mejorada
+- En el Bulk Import del admin, añadir opción "Importar desde lista de IMDb IDs de series"
+- Al importar serie, automáticamente traer seasons_data de TMDB (temporadas y episodios)
+- Mostrar progreso en tiempo real con barra de progreso
+
+### 5B. Dashboard con estadísticas reales
+- En `/admin`, mostrar:
+  - Total películas / Total series
+  - Películas más vistas (top 5 con gráfico de barras simple usando divs CSS)
+  - Series más vistas (top 5)
+  - Últimas 5 añadidas (con fecha)
+  - Botón "Refrescar estadísticas"
+
+## NOTAS TÉCNICAS IMPORTANTES
+- El proyecto usa pnpm workspaces, no tocar la estructura de monorepo
+- Frontend en `artifacts/cinevault/src/`, API en `artifacts/api-server/src/`
+- Base de datos PostgreSQL con pool directo (no ORM)
+- Para cualquier nueva tabla o columna, añadir la migración SQL como comentario en el archivo correspondiente Y ejecutarla via `pool.query()` en el startup de la app
+- Mantener el tema dark cinematic: bg #0a0a0f, accent #00d4ff, fuentes Bebas Neue + DM Sans
+- Todos los textos de cara al usuario deben estar en español
+- No romper las funcionalidades existentes del Admin Panel
