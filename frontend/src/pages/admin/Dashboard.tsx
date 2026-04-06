@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
-import { logout } from "@/lib/auth";
+import AdminLayout from "@/components/admin/AdminLayout";
 import {
   getAutoImportStatus,
   toggleAutoImport,
@@ -23,8 +22,6 @@ function formatDate(iso: string) {
 }
 
 export default function AdminDashboard() {
-  const navigate = useNavigate();
-
   const [status, setStatus] = useState<AutoImportStatus | null>(null);
   const [statusLoading, setStatusLoading] = useState(true);
   const [statusError, setStatusError] = useState("");
@@ -72,7 +69,6 @@ export default function AdminDashboard() {
     try {
       const result = await runAutoImport();
       setRunResult(result);
-      // Refresh logs after run
       await loadStatus();
     } catch (err: unknown) {
       setRunError(err instanceof Error ? err.message : "Error al importar.");
@@ -81,37 +77,12 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate("/admin/login", { replace: true });
-  };
-
   const logs: AutoImportLog[] = status?.logs ?? [];
 
   return (
-    <div className="min-h-screen bg-brand-dark">
-      {/* Top bar */}
-      <header className="bg-brand-card border-b border-brand-border sticky top-0 z-40">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1">
-              <span className="text-brand-red font-black text-base tracking-tight">CINE</span>
-              <span className="text-brand-gold font-black text-base tracking-tight">GRATIN</span>
-            </div>
-            <span className="text-brand-border text-sm select-none">/</span>
-            <span className="text-gray-400 text-sm font-medium">Admin</span>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-1.5 text-gray-400 hover:text-white text-sm transition-colors"
-          >
-            <LogoutIcon />
-            Cerrar sesión
-          </button>
-        </div>
-      </header>
-
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-10 space-y-8">
+    <AdminLayout>
+      <div className="space-y-8">
+        {/* Page header */}
         <div>
           <h1 className="text-2xl font-black text-white">Dashboard</h1>
           <p className="text-gray-500 text-sm mt-0.5">Panel de administración de Cine Gratín</p>
@@ -126,7 +97,6 @@ export default function AdminDashboard() {
                 Importa automáticamente películas y series desde TMDB cada día a las 03:00.
               </p>
             </div>
-            {/* Refresh */}
             <button
               onClick={loadStatus}
               disabled={statusLoading}
@@ -267,14 +237,10 @@ export default function AdminDashboard() {
                         {formatDate(log.run_at)}
                       </td>
                       <td className="px-4 py-3.5 text-center">
-                        <span className="text-green-400 font-bold">
-                          +{log.movies_imported}
-                        </span>
+                        <span className="text-green-400 font-bold">+{log.movies_imported}</span>
                       </td>
                       <td className="px-4 py-3.5 text-center">
-                        <span className="text-blue-400 font-bold">
-                          +{log.series_imported}
-                        </span>
+                        <span className="text-blue-400 font-bold">+{log.series_imported}</span>
                       </td>
                       <td className="px-4 py-3.5 text-center text-gray-400">
                         {log.total_checked}
@@ -302,18 +268,8 @@ export default function AdminDashboard() {
             </div>
           )}
         </div>
-
-        {/* Quick links back to the site */}
-        <div className="flex gap-3">
-          <a
-            href="/"
-            className="text-xs text-gray-600 hover:text-gray-400 transition-colors"
-          >
-            ← Volver al sitio
-          </a>
-        </div>
-      </main>
-    </div>
+      </div>
+    </AdminLayout>
   );
 }
 
@@ -340,16 +296,6 @@ function DownloadIcon() {
       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" strokeLinecap="round" strokeLinejoin="round" />
       <polyline points="7 10 12 15 17 10" strokeLinecap="round" strokeLinejoin="round" />
       <line x1="12" y1="15" x2="12" y2="3" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function LogoutIcon() {
-  return (
-    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" strokeLinecap="round" strokeLinejoin="round" />
-      <polyline points="16 17 21 12 16 7" strokeLinecap="round" strokeLinejoin="round" />
-      <line x1="21" y1="12" x2="9" y2="12" strokeLinecap="round" />
     </svg>
   );
 }

@@ -12,6 +12,7 @@ import SeriesPlayer from "@/pages/player/SeriesPlayer";
 import NotFound from "@/pages/NotFound";
 import AdminLogin from "@/pages/admin/Login";
 import AdminDashboard from "@/pages/admin/Dashboard";
+import AdminImport from "@/pages/admin/Import";
 
 export default function App() {
   return (
@@ -27,6 +28,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/import"
+          element={
+            <ProtectedRoute>
+              <AdminImport />
             </ProtectedRoute>
           }
         />
