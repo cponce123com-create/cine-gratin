@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { LocalMovie, makeVideoSourcesForImdb } from "@/lib/admin-db";
 import { apiGetMovie, apiGetMovies, apiGetServers, apiIncrementView } from "@/lib/api-client";
 import { PageTransition } from "@/components/layout/PageTransition";
@@ -18,6 +18,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Film,
+  Maximize2,
+  ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useLocalStorage } from "@/hooks/use-local-storage";
@@ -63,7 +65,26 @@ export default function MovieDetail({ params }: MovieDetailProps) {
   const [activeTab, setActiveTab] = useState<"synopsis" | "specs">("synopsis");
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const [showTrailer, setShowTrailer] = useState(false);
+  const [playerFullscreen, setPlayerFullscreen] = useState(false);
   const [, setWatched] = useLocalStorage<WatchedEntry[]>("cv_recently_watched", []);
+
+  const handleEsc = useCallback((e: KeyboardEvent) => {
+    if (e.key === "Escape") setPlayerFullscreen(false);
+  }, []);
+
+  useEffect(() => {
+    if (playerFullscreen) {
+      document.addEventListener("keydown", handleEsc);
+      document.body.style.overflow = "hidden";
+    } else {
+      document.removeEventListener("keydown", handleEsc);
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.removeEventListener("keydown", handleEsc);
+      document.body.style.overflow = "";
+    };
+  }, [playerFullscreen, handleEsc]);
 
   useEffect(() => {
     const load = async () => {
@@ -405,17 +426,51 @@ export default function MovieDetail({ params }: MovieDetailProps) {
                     ))}
                   </div>
                 </div>
-                <div className="aspect-video bg-black w-full">
+                <div className="relative aspect-video bg-black w-full group">
                   <iframe
                     key={currentServerUrl}
                     src={currentServerUrl}
                     className="w-full h-full"
                     frameBorder="0"
                     allowFullScreen
-                    allow="autoplay; fullscreen"
+                    allow="autoplay; fullscreen; picture-in-picture; encrypted-media; gyroscope; accelerometer; clipboard-write"
+                    referrerPolicy="no-referrer"
                     title={`${movie.title} — ${videoServers[activeServer]?.name}`}
                     data-testid="video-player"
                   />
+                  {/* Overlay controls */}
+                  <div className="absolute top-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                    <button
+                      onClick={() => setPlayerFullscreen(true)}
+                      className="flex items-center gap-1.5 bg-black/80 hover:bg-primary/90 text-white px-3 py-1.5 rounded-lg text-xs font-bold backdrop-blur-sm transition-all border border-white/10 hover:border-primary/50"
+                      title="Pantalla completa"
+                    >
+                      <Maximize2 className="w-3.5 h-3.5" />
+                      Pantalla completa
+                    </button>
+                    <a
+                      href={currentServerUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 bg-black/80 hover:bg-white/20 text-white px-3 py-1.5 rounded-lg text-xs font-bold backdrop-blur-sm transition-all border border-white/10"
+                      title="Abrir en pestaña nueva"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      Nueva pestaña
+                    </a>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between px-3 py-2 bg-black/40 border-t border-white/5">
+                  <p className="text-muted-foreground text-xs">
+                    Si el video no carga, prueba otro servidor arriba o ábrelo en nueva pestaña.
+                  </p>
+                  <button
+                    onClick={() => setPlayerFullscreen(true)}
+                    className="flex items-center gap-1 text-primary hover:text-primary/80 text-xs font-bold transition-colors flex-shrink-0 ml-3"
+                  >
+                    <Maximize2 className="w-3 h-3" />
+                    Expandir
+                  </button>
                 </div>
               </section>
             )}
@@ -553,6 +608,76 @@ export default function MovieDetail({ params }: MovieDetailProps) {
               title="Tráiler"
             />
           </div>
+        </div>
+      )}
+
+      {/* === Fullscreen Player Modal === */}
+      {playerFullscreen && currentServerUrl && (
+        <div
+          className="fixed inset-0 z-[200] bg-black flex flex-col"
+          onKeyDown={(e) => e.key === "Escape" && setPlayerFullscreen(false)}
+          tabIndex={-1}
+        >
+          {/* Top bar */}
+          <div className="flex items-center justify-between px-4 py-2 bg-black/80 border-b border-white/10 flex-shrink-0">
+            <div className="flex items-center gap-3">
+              <Film className="w-4 h-4 text-primary" />
+              <span className="text-white font-bold text-sm truncate max-w-[200px] sm:max-w-none">
+                {movie?.title}
+              </span>
+              <span className="text-muted-foreground text-xs font-mono hidden sm:inline">
+                — {videoServers[activeServer]?.name}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              {/* Server switcher in fullscreen */}
+              {videoServers.length > 1 && videoServers.map((s, i) => (
+                <button
+                  key={i}
+                  onClick={() => setActiveServer(i)}
+                  className={`px-2.5 py-1 rounded text-xs font-bold transition-all hidden sm:block ${
+                    i === activeServer ? "bg-primary text-black" : "bg-white/10 text-white hover:bg-white/20"
+                  }`}
+                >
+                  {s.name}
+                </button>
+              ))}
+              <a
+                href={currentServerUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-white/60 hover:text-white text-xs transition-colors px-2 py-1 rounded hover:bg-white/10"
+                title="Abrir en nueva pestaña"
+              >
+                <ExternalLink className="w-4 h-4" />
+                <span className="hidden sm:inline">Nueva pestaña</span>
+              </a>
+              <button
+                onClick={() => setPlayerFullscreen(false)}
+                className="flex items-center gap-1.5 bg-white/10 hover:bg-red-600/80 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+              >
+                <X className="w-4 h-4" />
+                <span className="hidden sm:inline">Cerrar</span>
+              </button>
+            </div>
+          </div>
+          {/* Player fills entire remaining space */}
+          <div className="flex-1 relative">
+            <iframe
+              key={`fs-${currentServerUrl}`}
+              src={currentServerUrl}
+              className="absolute inset-0 w-full h-full"
+              frameBorder="0"
+              allowFullScreen
+              allow="autoplay; fullscreen; picture-in-picture; encrypted-media; gyroscope; accelerometer; clipboard-write"
+              referrerPolicy="no-referrer"
+              title={`${movie?.title} — Pantalla Completa`}
+            />
+          </div>
+          {/* ESC hint */}
+          <p className="text-center text-white/30 text-xs py-1.5 flex-shrink-0">
+            Presiona <kbd className="font-mono bg-white/10 px-1.5 py-0.5 rounded text-[10px]">ESC</kbd> para salir · Usa el control del reproductor para pantalla completa nativa
+          </p>
         </div>
       )}
 
