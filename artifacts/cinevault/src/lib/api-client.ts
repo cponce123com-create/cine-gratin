@@ -106,6 +106,62 @@ export const apiChangePassword = (password: string) =>
     body: JSON.stringify({ password }),
   });
 
+// ─── Series ───────────────────────────────────────────────────
+
+export interface SeasonInfo {
+  season: number;
+  episodes: number;
+  name?: string;
+  poster?: string | null;
+  air_date?: string | null;
+}
+
+export interface LocalSeries {
+  id: string;
+  imdb_id: string;
+  tmdb_id?: number | null;
+  title: string;
+  year: number;
+  end_year?: number | null;
+  rating: number;
+  genres: string[];
+  language: string;
+  synopsis: string;
+  creators: string[];
+  cast_list: string[];
+  poster_url: string;
+  background_url: string;
+  yt_trailer_code: string;
+  status: string;
+  total_seasons: number;
+  seasons_data: SeasonInfo[];
+  video_sources: Array<{ id: string; name: string; url: string; active: boolean }>;
+  featured: boolean;
+  views: number;
+  date_added: string;
+}
+
+export const apiGetSeries = () => api<LocalSeries[]>("/series");
+
+export const apiGetOneSeries = (id: string) => api<LocalSeries>(`/series/${id}`);
+
+export const apiSaveSeries = (series: LocalSeries) =>
+  api<LocalSeries>("/series", { method: "POST", body: JSON.stringify(series) });
+
+export const apiDeleteSeries = (id: string) =>
+  api<{ ok: boolean }>(`/series/${id}`, { method: "DELETE" });
+
+export const apiIncrementSeriesView = (id: string) =>
+  api<{ ok: boolean }>(`/series/${id}/view`, { method: "PATCH" });
+
+// Default TV video servers (URL pattern with {IMDB_ID}, {SEASON}, {EPISODE})
+export const DEFAULT_TV_SERVERS = [
+  { id: "vidsrc-tv", name: "VidSrc", url: "https://vidsrc.net/embed/tv/{IMDB_ID}/{SEASON}/{EPISODE}", active: true },
+  { id: "multiembed-tv", name: "MultiEmbed", url: "https://multiembed.mov/embed/imdb/{IMDB_ID}&s={SEASON}&e={EPISODE}", active: true },
+  { id: "2embed-tv", name: "2Embed", url: "https://www.2embed.cc/embedtv/{IMDB_ID}&s={SEASON}&e={EPISODE}", active: true },
+  { id: "embedsu-tv", name: "EmbedSu", url: "https://embed.su/embed/tv/{IMDB_ID}/{SEASON}/{EPISODE}", active: true },
+];
+
 // ─── Default servers (fallback) ───────────────────────────────
 
 export const DEFAULT_SERVERS: VideoServer[] = [

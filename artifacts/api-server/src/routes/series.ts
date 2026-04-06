@@ -1,0 +1,103 @@
+import { Router } from "express";
+import { pool } from "../lib/db";
+
+const router = Router();
+
+const toSeries = (row: Record<string, unknown>) => ({
+  id: row.id,
+  imdb_id: row.imdb_id,
+  tmdb_id: row.tmdb_id ? Number(row.tmdb_id) : null,
+  title: row.title,
+  year: Number(row.year),
+  end_year: row.end_year ? Number(row.end_year) : null,
+  rating: Number(row.rating),
+  genres: row.genres,
+  language: row.language,
+  synopsis: row.synopsis,
+  creators: row.creators,
+  cast_list: row.cast_list,
+  poster_url: row.poster_url,
+  background_url: row.background_url,
+  yt_trailer_code: row.yt_trailer_code,
+  status: row.status,
+  total_seasons: Number(row.total_seasons),
+  seasons_data: row.seasons_data,
+  video_sources: row.video_sources,
+  featured: row.featured,
+  views: Number(row.views),
+  date_added: row.date_added,
+});
+
+// GET /api/series
+router.get("/series", async (req, res) => {
+  try {
+    const { rows } = await pool.query("SELECT * FROM cv_series ORDER BY date_added DESC");
+    res.json(rows.map(toSeries));
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// GET /api/series/:id
+router.get("/series/:id", async (req, res) => {
+  try {
+    const { rows } = await pool.query("SELECT * FROM cv_series WHERE id = $1", [req.params.id]);
+    if (!rows[0]) return res.status(404).json({ error: "Not found" });
+    res.json(toSeries(rows[0]));
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// POST /api/series — upsert
+router.post("/series", async (req, res) => {
+  const s = req.body;
+  try {
+    await pool.query(
+      `INSERT INTO cv_series (id, imdb_id, tmdb_id, title, year, end_year, rating, genres, language,
+        synopsis, creators, cast_list, poster_url, background_url, yt_trailer_code, status,
+        total_seasons, seasons_data, video_sources, featured, views, date_added)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
+       ON CONFLICT (id) DO UPDATE SET
+         imdb_id=$2, tmdb_id=$3, title=$4, year=$5, end_year=$6, rating=$7, genres=$8, language=$9,
+         synopsis=$10, creators=$11, cast_list=$12, poster_url=$13, background_url=$14,
+         yt_trailer_code=$15, status=$16, total_seasons=$17, seasons_data=$18,
+         video_sources=$19, featured=$20, views=$21`,
+      [
+        s.id, s.imdb_id, s.tmdb_id || null, s.title, s.year, s.end_year || null,
+        s.rating, s.genres, s.language, s.synopsis, s.creators, s.cast_list,
+        s.poster_url, s.background_url, s.yt_trailer_code, s.status || "",
+        s.total_seasons, JSON.stringify(s.seasons_data || []),
+        JSON.stringify(s.video_sources || []),
+        s.featured || false, s.views || 0,
+        s.date_added || new Date().toISOString(),
+      ]
+    );
+    const { rows } = await pool.query("SELECT * FROM cv_series WHERE id = $1", [s.id]);
+    res.json(toSeries(rows[0]));
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// DELETE /api/series/:id
+router.delete("/series/:id", async (req, res) => {
+  try {
+    await pool.query("DELETE FROM cv_series WHERE id = $1", [req.params.id]);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// PATCH /api/series/:id/view
+router.patch("/series/:id/view", async (req, res) => {
+  try {
+    await pool.query("UPDATE cv_series SET views = views + 1 WHERE id = $1", [req.params.id]);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+export default router;

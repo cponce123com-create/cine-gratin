@@ -1,25 +1,28 @@
 import { type ReactNode } from "react";
-import { LayoutDashboard, PlusCircle, Film, Server, Settings, LogOut, Menu, X, ChevronRight, Layers } from "lucide-react";
+import { LayoutDashboard, PlusCircle, Film, Server, Settings, LogOut, Menu, X, ChevronRight, Layers, Tv, ListVideo } from "lucide-react";
 import { logout } from "@/lib/admin-db";
 
-export type AdminPage = "dashboard" | "add-movie" | "manage-movies" | "video-servers" | "settings" | "bulk-import";
+export type AdminPage = "dashboard" | "add-movie" | "manage-movies" | "bulk-import" | "add-series" | "manage-series" | "video-servers" | "settings";
 
 interface AdminLayoutProps {
   currentPage: AdminPage;
   onNavigate: (page: AdminPage) => void;
   onLogout: () => void;
   editMovieId?: string | null;
+  editSeriesId?: string | null;
   children: ReactNode;
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
 }
 
-const NAV_ITEMS: { id: AdminPage; label: string; icon: typeof LayoutDashboard; badge?: string }[] = [
+const NAV_ITEMS: { id: AdminPage; label: string; icon: typeof LayoutDashboard; badge?: string; group?: string }[] = [
   { id: "dashboard", label: "Panel de Control", icon: LayoutDashboard },
-  { id: "add-movie", label: "Agregar Película", icon: PlusCircle },
-  { id: "bulk-import", label: "Importación Masiva", icon: Layers, badge: "NUEVO" },
+  { id: "add-movie", label: "Agregar Película", icon: PlusCircle, group: "Películas" },
+  { id: "bulk-import", label: "Importación Masiva", icon: Layers },
   { id: "manage-movies", label: "Gestionar Películas", icon: Film },
-  { id: "video-servers", label: "Servidores de Video", icon: Server },
+  { id: "add-series", label: "Añadir Serie", icon: Tv, group: "Series" },
+  { id: "manage-series", label: "Gestionar Series", icon: ListVideo },
+  { id: "video-servers", label: "Servidores de Video", icon: Server, group: "Sistema" },
   { id: "settings", label: "Configuración", icon: Settings },
 ];
 
@@ -28,6 +31,7 @@ export function AdminLayout({
   onNavigate,
   onLogout,
   editMovieId,
+  editSeriesId,
   children,
   sidebarOpen,
   setSidebarOpen,
@@ -40,6 +44,8 @@ export function AdminLayout({
   const pageTitle =
     currentPage === "add-movie" && editMovieId
       ? "Editar Película"
+      : currentPage === "add-series" && editSeriesId
+      ? "Editar Serie"
       : NAV_ITEMS.find(n => n.id === currentPage)?.label ?? "Admin";
 
   return (
@@ -78,30 +84,37 @@ export function AdminLayout({
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {NAV_ITEMS.map(item => {
+        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+          {NAV_ITEMS.map((item, idx) => {
             const Icon = item.icon;
             const isActive = currentPage === item.id;
+            const showGroup = item.group && (idx === 0 || NAV_ITEMS[idx - 1].group !== item.group);
             return (
-              <button
-                key={item.id}
-                onClick={() => { onNavigate(item.id); setSidebarOpen(false); }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  isActive
-                    ? "bg-[#238636]/20 text-[#3fb950] border border-[#238636]/30"
-                    : "text-[#8b949e] hover:text-[#c9d1d9] hover:bg-[#21262d]"
-                }`}
-                data-testid={`nav-${item.id}`}
-              >
-                <Icon className="w-4 h-4 flex-shrink-0" />
-                <span className="flex-1 text-left">{item.label}</span>
-                {item.badge && !isActive && (
-                  <span className="text-[9px] font-bold bg-[#238636]/20 text-[#3fb950] px-1.5 py-0.5 rounded font-mono">
-                    {item.badge}
-                  </span>
+              <div key={item.id}>
+                {showGroup && (
+                  <p className="text-[#484f58] text-[10px] font-mono uppercase tracking-widest px-3 pt-4 pb-1.5">
+                    {item.group}
+                  </p>
                 )}
-                {isActive && <ChevronRight className="w-3 h-3 opacity-60" />}
-              </button>
+                <button
+                  onClick={() => { onNavigate(item.id); setSidebarOpen(false); }}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                    isActive
+                      ? "bg-[#238636]/20 text-[#3fb950] border border-[#238636]/30"
+                      : "text-[#8b949e] hover:text-[#c9d1d9] hover:bg-[#21262d]"
+                  }`}
+                  data-testid={`nav-${item.id}`}
+                >
+                  <Icon className="w-4 h-4 flex-shrink-0" />
+                  <span className="flex-1 text-left">{item.label}</span>
+                  {item.badge && !isActive && (
+                    <span className="text-[9px] font-bold bg-[#238636]/20 text-[#3fb950] px-1.5 py-0.5 rounded font-mono">
+                      {item.badge}
+                    </span>
+                  )}
+                  {isActive && <ChevronRight className="w-3 h-3 opacity-60" />}
+                </button>
+              </div>
             );
           })}
         </nav>

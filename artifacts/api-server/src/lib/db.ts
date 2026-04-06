@@ -48,6 +48,31 @@ export async function initDb() {
 
     INSERT INTO cv_auth (id, password) VALUES ('admin', 'admin123')
       ON CONFLICT (id) DO NOTHING;
+
+    CREATE TABLE IF NOT EXISTS cv_series (
+      id TEXT PRIMARY KEY,
+      imdb_id TEXT NOT NULL,
+      tmdb_id INTEGER,
+      title TEXT NOT NULL,
+      year INTEGER NOT NULL DEFAULT 0,
+      end_year INTEGER,
+      rating NUMERIC NOT NULL DEFAULT 0,
+      genres TEXT[] NOT NULL DEFAULT '{}',
+      language TEXT NOT NULL DEFAULT 'en',
+      synopsis TEXT NOT NULL DEFAULT '',
+      creators TEXT[] NOT NULL DEFAULT '{}',
+      cast_list TEXT[] NOT NULL DEFAULT '{}',
+      poster_url TEXT NOT NULL DEFAULT '',
+      background_url TEXT NOT NULL DEFAULT '',
+      yt_trailer_code TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT '',
+      total_seasons INTEGER NOT NULL DEFAULT 1,
+      seasons_data JSONB NOT NULL DEFAULT '[]',
+      video_sources JSONB NOT NULL DEFAULT '[]',
+      featured BOOLEAN NOT NULL DEFAULT FALSE,
+      views INTEGER NOT NULL DEFAULT 0,
+      date_added TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
   `);
 }
 

@@ -5,6 +5,8 @@ import { Dashboard } from "./Dashboard";
 import { AddMovie } from "./AddMovie";
 import { BulkImport } from "./BulkImport";
 import { ManageMovies } from "./ManageMovies";
+import { AddSeries } from "./AddSeries";
+import { ManageSeries } from "./ManageSeries";
 import { VideoServers } from "./VideoServers";
 import { AdminSettings } from "./AdminSettings";
 
@@ -14,6 +16,7 @@ export default function AdminApp() {
   });
   const [page, setPage] = useState<AdminPage>("dashboard");
   const [editMovieId, setEditMovieId] = useState<string | null>(null);
+  const [editSeriesId, setEditSeriesId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   if (!authed) {
@@ -26,11 +29,17 @@ export default function AdminApp() {
   const navigate = (p: AdminPage) => {
     setPage(p);
     if (p !== "add-movie") setEditMovieId(null);
+    if (p !== "add-series") setEditSeriesId(null);
   };
 
   const handleEdit = (id: string) => {
     setEditMovieId(id);
     setPage("add-movie");
+  };
+
+  const handleEditSeries = (id: string) => {
+    setEditSeriesId(id);
+    setPage("add-series");
   };
 
   const renderPage = () => {
@@ -48,6 +57,10 @@ export default function AdminApp() {
         return <ManageMovies onEdit={handleEdit} />;
       case "bulk-import":
         return <BulkImport />;
+      case "add-series":
+        return <AddSeries editId={editSeriesId} onSaved={() => navigate("manage-series")} />;
+      case "manage-series":
+        return <ManageSeries onEdit={handleEditSeries} />;
       case "video-servers":
         return <VideoServers />;
       case "settings":
@@ -63,6 +76,7 @@ export default function AdminApp() {
       onNavigate={navigate}
       onLogout={() => { localStorage.removeItem("cv_admin_authed"); setAuthed(false); }}
       editMovieId={editMovieId}
+      editSeriesId={editSeriesId}
       sidebarOpen={sidebarOpen}
       setSidebarOpen={setSidebarOpen}
     >
