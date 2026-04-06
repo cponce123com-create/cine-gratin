@@ -1,5 +1,9 @@
 import { useState, useEffect } from "react";
-import { Plus, Trash2, X, Loader2, Download, TestTube, ChevronUp, ChevronDown } from "lucide-react";
+import {
+  Plus, Trash2, X, Loader2, Search, TestTube,
+  ChevronUp, ChevronDown, CheckCircle2, Film, Star,
+  Calendar, Clock, Globe, ChevronLeft, ChevronRight,
+} from "lucide-react";
 import {
   addMovie,
   getMovie,
@@ -14,6 +18,36 @@ import { toast } from "sonner";
 interface AddMovieProps {
   editId?: string | null;
   onSaved: () => void;
+}
+
+interface TmdbResult {
+  imdb_id: string;
+  tmdb_id: number;
+  title: string;
+  original_title: string;
+  year: number;
+  release_date: string;
+  rating: number;
+  vote_count: number;
+  runtime: number;
+  synopsis: string;
+  tagline: string;
+  genres: string[];
+  language: string;
+  spoken_languages: string[];
+  director: string;
+  cast: { name: string; character: string; profile: string | null }[];
+  poster_url: string;
+  poster_original: string;
+  background_url: string;
+  extra_backdrops: string[];
+  extra_posters: string[];
+  yt_trailer_code: string;
+  mpa_rating: string;
+  budget: number;
+  revenue: number;
+  production_companies: string[];
+  homepage: string;
 }
 
 const EMPTY_MOVIE: Omit<LocalMovie, "id" | "date_added" | "views"> = {
@@ -50,6 +84,9 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
   const [fetching, setFetching] = useState(false);
   const [testEmbedUrl, setTestEmbedUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [tmdbData, setTmdbData] = useState<TmdbResult | null>(null);
+  const [selectedPoster, setSelectedPoster] = useState(0);
+  const [selectedBackdrop, setSelectedBackdrop] = useState(0);
 
   useEffect(() => {
     if (editId) {
@@ -65,74 +102,91 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
 
   const update = (patch: Partial<typeof form>) => setForm(prev => ({ ...prev, ...patch }));
 
-  // ─── Importar por IMDb ───────────────────────────────────────
+  // ─── TMDB Import ─────────────────────────────────────────────
 
-  const fetchFromImdb = async () => {
-    const q = imdbQuery.trim();
-    if (!q) { toast.error("Ingresa un ID de IMDb o URL"); return; }
-    const imdbId = q.includes("tt") ? q.match(/tt\d+/)?.[0] : q;
-    if (!imdbId) { toast.error("No se pudo extraer el ID de IMDb"); return; }
+  const extractImdbId = (q: string): string | null => {
+    if (/^tt\d+$/.test(q.trim())) return q.trim();
+    const match = q.match(/tt\d+/);
+    return match ? match[0] : null;
+  };
+
+  const fetchFromTmdb = async () => {
+    const imdbId = extractImdbId(imdbQuery.trim());
+    if (!imdbId) {
+      toast.error("Ingresa un ID de IMDb válido (ej. tt0111161)");
+      return;
+    }
 
     setFetching(true);
+    setTmdbData(null);
+
     try {
-      const res = await fetch(
-        `https://yts.mx/api/v2/list_movies.json?query_term=${imdbId}&with_cast=true`
-      );
-      const json = await res.json();
-      const movie = json?.data?.movies?.[0];
-      if (!movie) {
-        toast.error("Película no encontrada. Intenta agregar manualmente.");
+      const res = await fetch(`/api/tmdb/movie/${imdbId}`);
+      const data = await res.json() as TmdbResult & { error?: string };
+
+      if (!res.ok || data.error) {
+        toast.error(data.error || "Error al importar desde TMDB");
         setFetching(false);
         return;
       }
 
-      const sources = makeVideoSourcesForImdb(movie.imdb_code);
+      setTmdbData(data);
+      setSelectedPoster(0);
+      setSelectedBackdrop(0);
 
-      const torrents: LocalTorrent[] = (movie.torrents || []).map((t: {
-        quality: string; type: string; size: string; url: string;
-      }) => ({
-        id: uid(),
-        quality: t.quality,
-        source: t.type,
-        size: t.size,
-        url: t.url,
-      }));
+      // Auto-fill form
+      const allPosters = [data.poster_url, ...data.extra_posters].filter(Boolean);
+      const allBackdrops = [data.background_url, ...data.extra_backdrops].filter(Boolean);
+      const sources = makeVideoSourcesForImdb(imdbId);
 
       update({
-        imdb_id: movie.imdb_code,
-        title: movie.title,
-        year: movie.year,
-        rating: movie.rating,
-        runtime: movie.runtime,
-        genres: movie.genres || [],
-        language: movie.language || "en",
-        synopsis: movie.description_full || movie.summary || "",
-        director: "",
-        cast_list: (movie.cast || []).map((c: { name: string }) => c.name),
-        poster_url: movie.large_cover_image || movie.medium_cover_image,
-        background_url: movie.background_image_original || movie.background_image,
-        yt_trailer_code: movie.yt_trailer_code || "",
-        mpa_rating: movie.mpa_rating || "NR",
-        slug: movie.slug,
+        imdb_id: data.imdb_id,
+        title: data.title,
+        year: data.year,
+        rating: data.rating,
+        runtime: data.runtime,
+        genres: data.genres,
+        language: data.language,
+        synopsis: data.synopsis,
+        director: data.director,
+        cast_list: data.cast.map(c => c.name),
+        poster_url: allPosters[0] || "",
+        background_url: allBackdrops[0] || "",
+        yt_trailer_code: data.yt_trailer_code,
+        mpa_rating: data.mpa_rating || "NR",
+        slug: data.title.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
         video_sources: sources,
-        torrents,
       });
+      setGenreInput(data.genres.join(", "));
+      setCastInput(data.cast.map(c => c.name).join("\n"));
 
-      setGenreInput((movie.genres || []).join(", "));
-      setCastInput((movie.cast || []).map((c: { name: string }) => c.name).join("\n"));
+      toast.success(`¡Importado! ${data.title} (${data.year})`);
       setTab("manual");
-      toast.success(`Importado: ${movie.title} (${movie.year})`);
     } catch {
-      toast.error("Error al importar. Intenta agregar manualmente.");
+      toast.error("Error de conexión. Verifica tu clave TMDB_API_KEY.");
     }
     setFetching(false);
   };
 
-  // ─── Fuentes de Video ────────────────────────────────────────
+  // ─── Image selectors ─────────────────────────────────────────
+
+  const allPosters = tmdbData ? [tmdbData.poster_url, ...tmdbData.extra_posters].filter(Boolean) : [];
+  const allBackdrops = tmdbData ? [tmdbData.background_url, ...tmdbData.extra_backdrops].filter(Boolean) : [];
+
+  const selectPoster = (idx: number) => {
+    setSelectedPoster(idx);
+    update({ poster_url: allPosters[idx] });
+  };
+
+  const selectBackdrop = (idx: number) => {
+    setSelectedBackdrop(idx);
+    update({ background_url: allBackdrops[idx] });
+  };
+
+  // ─── Video Sources ────────────────────────────────────────────
 
   const addSource = () => {
-    const sources = [...form.video_sources, { id: uid(), name: "Servidor Personalizado", url: "", active: true }];
-    update({ video_sources: sources });
+    update({ video_sources: [...form.video_sources, { id: uid(), name: "Servidor Personalizado", url: "", active: true }] });
   };
 
   const updateSource = (id: string, patch: Partial<VideoSource>) => {
@@ -151,7 +205,7 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
     update({ video_sources: list });
   };
 
-  // ─── Torrents ────────────────────────────────────────────────
+  // ─── Torrents ─────────────────────────────────────────────────
 
   const addTorrent = () => {
     update({ torrents: [...form.torrents, { id: uid(), quality: "1080p", source: "BluRay", size: "", url: "" }] });
@@ -165,7 +219,7 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
     update({ torrents: form.torrents.filter(t => t.id !== id) });
   };
 
-  // ─── Guardar ─────────────────────────────────────────────────
+  // ─── Save ─────────────────────────────────────────────────────
 
   const handleSave = (preview = false) => {
     if (!form.title || !form.imdb_id) {
@@ -192,17 +246,11 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
     toast.success(editId ? "¡Película actualizada!" : "¡Película guardada!");
     setSaving(false);
 
-    if (preview) {
-      window.open(`/movie/${movie.id}`, "_blank");
-    }
+    if (preview) window.open(`/movie/${movie.id}`, "_blank");
     onSaved();
   };
 
-  // ─── Componentes UI ──────────────────────────────────────────
-
-  const InputField = ({
-    label, value, onChange, placeholder, type = "text", mono = false
-  }: {
+  const InputField = ({ label, value, onChange, placeholder, type = "text", mono = false }: {
     label: string; value: string; onChange: (v: string) => void;
     placeholder?: string; type?: string; mono?: boolean;
   }) => (
@@ -225,7 +273,7 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
           {editId ? "Editar Película" : "Agregar Película"}
         </h1>
         <p className="text-[#8b949e] text-sm">
-          {editId ? "Actualizar datos de la película existente" : "Importar por ID de IMDb o agregar manualmente"}
+          {editId ? "Actualizar datos de la película" : "Importa todos los datos automáticamente con el ID de IMDb"}
         </p>
       </div>
 
@@ -242,42 +290,260 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
                   : "text-[#8b949e] hover:text-[#c9d1d9]"
               }`}
             >
-              {t === "import" ? "Importar por IMDb" : "Agregar Manualmente"}
+              {t === "import" ? "Importar por IMDb / TMDB" : "Agregar Manualmente"}
             </button>
           ))}
         </div>
       )}
 
-      {/* Import tab */}
+      {/* ─── Import Tab ─────────────────────────────────────── */}
       {tab === "import" && !editId && (
-        <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-6 space-y-4">
-          <h2 className="text-[#c9d1d9] font-bold text-sm">Importar datos por ID de IMDb</h2>
-          <div className="flex gap-3">
-            <input
-              value={imdbQuery}
-              onChange={e => setImdbQuery(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && fetchFromImdb()}
-              placeholder="ID de IMDb (ej. tt0072610) o URL de la película"
-              className="flex-1 bg-[#0d1117] border border-[#30363d] focus:border-[#238636] text-[#c9d1d9] rounded-lg px-4 py-3 text-sm font-mono outline-none placeholder:text-[#484f58]"
-              data-testid="input-imdb-query"
-            />
-            <button
-              onClick={fetchFromImdb}
-              disabled={fetching}
-              className="flex items-center gap-2 bg-[#238636] hover:bg-[#2ea043] disabled:opacity-50 text-white px-5 py-3 rounded-lg text-sm font-bold transition-colors whitespace-nowrap"
-              data-testid="btn-fetch-movie"
-            >
-              {fetching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              Importar
-            </button>
+        <div className="space-y-4">
+          <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-6 space-y-4">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-5 h-5 rounded bg-[#238636]/20 flex items-center justify-center">
+                <Search className="w-3 h-3 text-[#3fb950]" />
+              </div>
+              <h2 className="text-[#c9d1d9] font-bold text-sm">Importar datos automáticamente</h2>
+            </div>
+            <p className="text-[#8b949e] text-xs">
+              Ingresa el ID de IMDb y se importarán: título, sinopsis, póster, fondo, tráiler de YouTube, reparto, director, géneros, puntuación y más.
+            </p>
+
+            <div className="flex gap-3">
+              <div className="flex-1 relative">
+                <Film className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8b949e]" />
+                <input
+                  value={imdbQuery}
+                  onChange={e => setImdbQuery(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && fetchFromTmdb()}
+                  placeholder="ID de IMDb  (ej. tt0111161)"
+                  className="w-full bg-[#0d1117] border border-[#30363d] focus:border-[#238636] text-[#c9d1d9] rounded-lg pl-10 pr-4 py-3 text-sm font-mono outline-none placeholder:text-[#484f58]"
+                  data-testid="input-imdb-query"
+                  autoFocus
+                />
+              </div>
+              <button
+                onClick={fetchFromTmdb}
+                disabled={fetching || !imdbQuery.trim()}
+                className="flex items-center gap-2 bg-[#238636] hover:bg-[#2ea043] disabled:opacity-50 disabled:cursor-not-allowed text-white px-5 py-3 rounded-lg text-sm font-bold transition-colors whitespace-nowrap"
+                data-testid="btn-fetch-movie"
+              >
+                {fetching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                {fetching ? "Importando..." : "Importar"}
+              </button>
+            </div>
+
+            <p className="text-[#484f58] text-xs font-mono">
+              Ejemplos: <span className="text-[#58a6ff] cursor-pointer hover:underline" onClick={() => setImdbQuery("tt0111161")}>tt0111161</span> · <span className="text-[#58a6ff] cursor-pointer hover:underline" onClick={() => setImdbQuery("tt0068646")}>tt0068646</span> · <span className="text-[#58a6ff] cursor-pointer hover:underline" onClick={() => setImdbQuery("tt0816692")}>tt0816692</span>
+            </p>
           </div>
-          <p className="text-[#8b949e] text-xs font-mono">
-            Ingresa un ID como <span className="text-[#58a6ff]">tt0111161</span> para importar los datos automáticamente
-          </p>
+
+          {/* TMDB preview card after successful fetch */}
+          {tmdbData && (
+            <div className="bg-[#161b22] border border-[#238636]/40 rounded-xl overflow-hidden">
+              {/* Hero backdrop */}
+              {tmdbData.background_url && (
+                <div className="relative h-40 overflow-hidden">
+                  <img
+                    src={form.background_url || tmdbData.background_url}
+                    alt="Backdrop"
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#161b22] via-[#161b22]/50 to-transparent" />
+                  <div className="absolute bottom-0 left-0 right-0 px-5 pb-3 flex items-end gap-4">
+                    {tmdbData.poster_url && (
+                      <img
+                        src={form.poster_url || tmdbData.poster_url}
+                        alt={tmdbData.title}
+                        className="w-16 h-24 object-cover rounded-lg border-2 border-[#238636]/50 flex-shrink-0 shadow-xl"
+                      />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-white font-bold text-lg leading-tight line-clamp-1">{tmdbData.title}</h3>
+                      <div className="flex items-center gap-3 mt-1 flex-wrap">
+                        <span className="flex items-center gap-1 text-yellow-400 text-xs font-mono">
+                          <Star className="w-3 h-3 fill-current" />{tmdbData.rating}
+                          <span className="text-[#8b949e]">({tmdbData.vote_count?.toLocaleString()})</span>
+                        </span>
+                        <span className="flex items-center gap-1 text-[#8b949e] text-xs">
+                          <Calendar className="w-3 h-3" />{tmdbData.year}
+                        </span>
+                        <span className="flex items-center gap-1 text-[#8b949e] text-xs">
+                          <Clock className="w-3 h-3" />{tmdbData.runtime} min
+                        </span>
+                        {tmdbData.director && (
+                          <span className="text-[#8b949e] text-xs">Dir. {tmdbData.director}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 bg-[#238636] text-white text-xs font-bold px-3 py-1.5 rounded-lg flex-shrink-0">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      Importado
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="p-5 space-y-5">
+                {/* Synopsis */}
+                {tmdbData.synopsis && (
+                  <div>
+                    <p className="text-[#8b949e] text-[10px] font-mono uppercase tracking-wider mb-1.5">Sinopsis</p>
+                    <p className="text-[#c9d1d9] text-sm leading-relaxed line-clamp-3">{tmdbData.synopsis}</p>
+                  </div>
+                )}
+
+                {/* Genres */}
+                {tmdbData.genres.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {tmdbData.genres.map(g => (
+                      <span key={g} className="text-xs bg-[#21262d] text-[#8b949e] px-2.5 py-1 rounded-full border border-[#30363d]">{g}</span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Poster selector */}
+                {allPosters.length > 1 && (
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-[#8b949e] text-[10px] font-mono uppercase tracking-wider">Elige Póster ({allPosters.length} opciones)</p>
+                      <div className="flex gap-1">
+                        <button onClick={() => selectPoster(Math.max(0, selectedPoster - 1))} disabled={selectedPoster === 0} className="p-0.5 text-[#8b949e] hover:text-white disabled:opacity-30">
+                          <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        <span className="text-xs text-[#8b949e] font-mono px-1">{selectedPoster + 1}/{allPosters.length}</span>
+                        <button onClick={() => selectPoster(Math.min(allPosters.length - 1, selectedPoster + 1))} disabled={selectedPoster === allPosters.length - 1} className="p-0.5 text-[#8b949e] hover:text-white disabled:opacity-30">
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 overflow-x-auto pb-1">
+                      {allPosters.slice(0, 8).map((p, i) => (
+                        <button
+                          key={i}
+                          onClick={() => selectPoster(i)}
+                          className={`flex-shrink-0 rounded-lg overflow-hidden border-2 transition-all ${selectedPoster === i ? "border-[#238636] scale-105" : "border-[#30363d] opacity-60 hover:opacity-80"}`}
+                        >
+                          <img src={p} alt={`Póster ${i + 1}`} className="h-24 w-16 object-cover" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Backdrop selector */}
+                {allBackdrops.length > 1 && (
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-[#8b949e] text-[10px] font-mono uppercase tracking-wider">Elige Fondo ({allBackdrops.length} opciones)</p>
+                      <div className="flex gap-1">
+                        <button onClick={() => selectBackdrop(Math.max(0, selectedBackdrop - 1))} disabled={selectedBackdrop === 0} className="p-0.5 text-[#8b949e] hover:text-white disabled:opacity-30">
+                          <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        <span className="text-xs text-[#8b949e] font-mono px-1">{selectedBackdrop + 1}/{allBackdrops.length}</span>
+                        <button onClick={() => selectBackdrop(Math.min(allBackdrops.length - 1, selectedBackdrop + 1))} disabled={selectedBackdrop === allBackdrops.length - 1} className="p-0.5 text-[#8b949e] hover:text-white disabled:opacity-30">
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 overflow-x-auto pb-1">
+                      {allBackdrops.slice(0, 6).map((b, i) => (
+                        <button
+                          key={i}
+                          onClick={() => selectBackdrop(i)}
+                          className={`flex-shrink-0 rounded-lg overflow-hidden border-2 transition-all ${selectedBackdrop === i ? "border-[#238636] scale-105" : "border-[#30363d] opacity-60 hover:opacity-80"}`}
+                        >
+                          <img src={b} alt={`Fondo ${i + 1}`} className="h-16 w-28 object-cover" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Trailer */}
+                {tmdbData.yt_trailer_code && (
+                  <div className="flex items-center gap-3 bg-[#0d1117] rounded-lg px-4 py-3 border border-[#30363d]">
+                    <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M8 5v14l11-7z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[#c9d1d9] text-sm font-medium">Tráiler de YouTube</p>
+                      <p className="text-[#8b949e] text-xs font-mono truncate">{tmdbData.yt_trailer_code}</p>
+                    </div>
+                    <a
+                      href={`https://youtube.com/watch?v=${tmdbData.yt_trailer_code}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[#58a6ff] text-xs hover:underline flex-shrink-0"
+                    >
+                      Ver
+                    </a>
+                  </div>
+                )}
+
+                {/* Cast */}
+                {tmdbData.cast.length > 0 && (
+                  <div>
+                    <p className="text-[#8b949e] text-[10px] font-mono uppercase tracking-wider mb-2">Reparto Principal</p>
+                    <div className="flex gap-2 overflow-x-auto pb-1">
+                      {tmdbData.cast.slice(0, 10).map(c => (
+                        <div key={c.name} className="flex-shrink-0 text-center w-14">
+                          {c.profile ? (
+                            <img src={c.profile} alt={c.name} className="w-14 h-14 rounded-full object-cover border border-[#30363d] mb-1" />
+                          ) : (
+                            <div className="w-14 h-14 rounded-full bg-[#21262d] flex items-center justify-center border border-[#30363d] mb-1">
+                              <span className="text-[#8b949e] text-lg font-bold">{c.name[0]}</span>
+                            </div>
+                          )}
+                          <p className="text-[#c9d1d9] text-[9px] font-medium leading-tight line-clamp-2">{c.name}</p>
+                          <p className="text-[#8b949e] text-[8px] leading-tight line-clamp-1 mt-0.5">{c.character}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Language / companies */}
+                <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs">
+                  {tmdbData.language && (
+                    <span className="flex items-center gap-1 text-[#8b949e]">
+                      <Globe className="w-3 h-3" /> {tmdbData.language.toUpperCase()}
+                    </span>
+                  )}
+                  {tmdbData.production_companies.slice(0, 3).map(c => (
+                    <span key={c} className="text-[#484f58]">{c}</span>
+                  ))}
+                </div>
+
+                {/* Action buttons */}
+                <div className="flex gap-3 pt-1">
+                  <button
+                    onClick={() => setTab("manual")}
+                    className="flex-1 bg-[#238636] hover:bg-[#2ea043] text-white py-3 rounded-lg font-bold text-sm transition-colors"
+                    data-testid="btn-confirm-import"
+                  >
+                    Continuar y Editar →
+                  </button>
+                  <button
+                    onClick={() => handleSave(false)}
+                    disabled={saving}
+                    className="flex items-center gap-2 bg-[#21262d] hover:bg-[#30363d] text-[#c9d1d9] px-5 py-3 rounded-lg font-bold text-sm transition-colors border border-[#30363d]"
+                    data-testid="btn-save-movie"
+                  >
+                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                    Guardar Directo
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Manual / Edit form */}
+      {/* ─── Manual / Edit form ──────────────────────────────── */}
       {(tab === "manual" || editId) && (
         <div className="space-y-6">
           {/* Core Info */}
@@ -307,9 +573,7 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
             </div>
 
             <div>
-              <label className="block text-[#8b949e] text-xs font-mono uppercase tracking-wider mb-1.5">
-                Géneros (separados por coma)
-              </label>
+              <label className="block text-[#8b949e] text-xs font-mono uppercase tracking-wider mb-1.5">Géneros (separados por coma)</label>
               <input
                 value={genreInput}
                 onChange={e => setGenreInput(e.target.value)}
@@ -340,7 +604,7 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
                 value={castInput}
                 onChange={e => setCastInput(e.target.value)}
                 placeholder={"Tim Robbins\nMorgan Freeman"}
-                rows={3}
+                rows={4}
                 className="w-full bg-[#0d1117] border border-[#30363d] focus:border-[#238636] text-[#c9d1d9] rounded-lg px-3 py-2.5 text-sm font-mono outline-none resize-none"
               />
             </div>
@@ -349,17 +613,44 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
           {/* Media */}
           <section className="bg-[#161b22] border border-[#30363d] rounded-xl p-6 space-y-4">
             <h2 className="text-[#c9d1d9] font-bold text-sm border-b border-[#30363d] pb-3">Multimedia</h2>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <InputField label="URL del Póster" value={form.poster_url} onChange={v => update({ poster_url: v })} placeholder="https://..." />
                 {form.poster_url && (
                   <img src={form.poster_url} alt="Vista previa del póster" className="h-40 object-cover rounded-lg border border-[#30363d]" />
                 )}
+                {/* Poster alternatives from TMDB */}
+                {allPosters.length > 1 && (
+                  <div>
+                    <p className="text-[#8b949e] text-[10px] font-mono uppercase mb-1.5">Otras opciones de TMDB</p>
+                    <div className="flex gap-1.5 overflow-x-auto pb-1">
+                      {allPosters.slice(0, 6).map((p, i) => (
+                        <button key={i} onClick={() => selectPoster(i)} className={`flex-shrink-0 rounded overflow-hidden border transition-all ${selectedPoster === i ? "border-[#238636]" : "border-[#30363d] opacity-50 hover:opacity-80"}`}>
+                          <img src={p} alt="" className="h-16 w-11 object-cover" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="space-y-2">
+
+              <div className="space-y-3">
                 <InputField label="URL del Fondo/Banner" value={form.background_url} onChange={v => update({ background_url: v })} placeholder="https://..." />
                 {form.background_url && (
                   <img src={form.background_url} alt="Vista previa del fondo" className="h-40 w-full object-cover rounded-lg border border-[#30363d]" />
+                )}
+                {allBackdrops.length > 1 && (
+                  <div>
+                    <p className="text-[#8b949e] text-[10px] font-mono uppercase mb-1.5">Otras opciones de TMDB</p>
+                    <div className="flex gap-1.5 overflow-x-auto pb-1">
+                      {allBackdrops.slice(0, 5).map((b, i) => (
+                        <button key={i} onClick={() => selectBackdrop(i)} className={`flex-shrink-0 rounded overflow-hidden border transition-all ${selectedBackdrop === i ? "border-[#238636]" : "border-[#30363d] opacity-50 hover:opacity-80"}`}>
+                          <img src={b} alt="" className="h-14 w-24 object-cover" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
@@ -380,7 +671,7 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
 
             {form.video_sources.length === 0 && (
               <p className="text-[#8b949e] text-sm font-mono text-center py-4">
-                Sin fuentes de video. Agrega una manualmente o importa por IMDb.
+                Sin fuentes de video. Importa un ID de IMDb para auto-generar.
               </p>
             )}
 
@@ -409,10 +700,7 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
                     <TestTube className="w-3 h-3" />
                     Probar
                   </button>
-                  <button
-                    onClick={() => removeSource(src.id)}
-                    className="text-[#8b949e] hover:text-[#f85149] transition-colors p-1"
-                  >
+                  <button onClick={() => removeSource(src.id)} className="text-[#8b949e] hover:text-[#f85149] transition-colors p-1">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
@@ -521,7 +809,7 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
               data-testid="btn-save-movie"
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              {editId ? "Guardar Cambios" : "Guardar y Salir"}
+              {editId ? "Guardar Cambios" : "Guardar Película"}
             </button>
             {!editId && (
               <button
@@ -539,14 +827,8 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
 
       {/* Test embed modal */}
       {testEmbedUrl && (
-        <div
-          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
-          onClick={() => setTestEmbedUrl(null)}
-        >
-          <div
-            className="w-full max-w-3xl"
-            onClick={e => e.stopPropagation()}
-          >
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setTestEmbedUrl(null)}>
+          <div className="w-full max-w-3xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-3">
               <p className="text-[#8b949e] font-mono text-xs truncate flex-1 mr-4">{testEmbedUrl}</p>
               <button onClick={() => setTestEmbedUrl(null)} className="text-white hover:text-[#f85149]">
@@ -554,14 +836,7 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
               </button>
             </div>
             <div className="w-full aspect-video rounded-xl overflow-hidden bg-black border border-[#30363d]">
-              <iframe
-                src={testEmbedUrl}
-                width="100%"
-                height="100%"
-                allowFullScreen
-                className="w-full h-full"
-                title="Probar fuente de video"
-              />
+              <iframe src={testEmbedUrl} width="100%" height="100%" allowFullScreen className="w-full h-full" title="Probar fuente de video" />
             </div>
           </div>
         </div>
