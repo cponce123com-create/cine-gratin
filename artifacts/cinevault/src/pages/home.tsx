@@ -84,10 +84,10 @@ export default function Home() {
 
   // Update document title for SEO
   useEffect(() => {
-    document.title = "CineVault — Premium Movie Streaming";
+    document.title = "CineVault — Streaming de Películas Premium";
     const metaDesc = document.querySelector('meta[name="description"]');
     if (metaDesc) {
-      metaDesc.setAttribute("content", "Discover and stream the latest movies in HD and 4K. Browse by genre, rating, or quality on CineVault.");
+      metaDesc.setAttribute("content", "Descubre y transmite las últimas películas en HD y 4K. Explora por género, calificación o calidad en CineVault.");
     }
   }, []);
 
@@ -160,14 +160,14 @@ export default function Home() {
                       }
                     >
                       <Play className="w-5 h-5 fill-current" />
-                      Watch Now
+                      Ver Ahora
                     </Link>
                     <Link
                       href={`/movie/${heroMovie.id}`}
                       className="bg-white/10 hover:bg-white/20 text-white border border-white/20 px-8 py-3 rounded-lg font-bold uppercase tracking-widest flex items-center gap-2 backdrop-blur-md transition-all hover:scale-105 active:scale-95"
                     >
                       <Info className="w-5 h-5" />
-                      Details
+                      Detalles
                     </Link>
                   </div>
                 </div>
@@ -181,7 +181,7 @@ export default function Home() {
         <div className="max-w-[1600px] mx-auto space-y-8">
           {/* Recently Watched */}
           {recentMovies.length > 0 && (
-            <MovieCarousel title="Continue Watching">
+            <MovieCarousel title="Seguir Viendo">
               {recentMovies.map(movie => (
                 <div key={`recent-${movie.id}`} className="w-[160px] md:w-[200px] lg:w-[240px] flex-none">
                   <MovieCard movie={movie} isRecent />
@@ -191,7 +191,7 @@ export default function Home() {
           )}
 
           {/* Latest Movies */}
-          <MovieCarousel title="Latest Additions" viewAllLink="/browse?sort_by=date_added">
+          <MovieCarousel title="Últimas Incorporaciones" viewAllLink="/browse?sort_by=date_added">
             {latestLoading
               ? Array.from({ length: 8 }).map((_, i) => (
                   <div key={i} className="w-[160px] md:w-[200px] lg:w-[240px] flex-none">
@@ -206,7 +206,7 @@ export default function Home() {
           </MovieCarousel>
 
           {/* Top Rated */}
-          <MovieCarousel title="Critically Acclaimed" viewAllLink="/browse?sort_by=rating&minimum_rating=7">
+          <MovieCarousel title="Aclamadas por la Crítica" viewAllLink="/browse?sort_by=rating&minimum_rating=7">
             {topRatedLoading
               ? Array.from({ length: 8 }).map((_, i) => (
                   <div key={i} className="w-[160px] md:w-[200px] lg:w-[240px] flex-none">
@@ -222,6 +222,7 @@ export default function Home() {
 
           {/* 4K Movies */}
           <MovieCarousel title="Ultra HD 4K" viewAllLink="/browse?quality=2160p">
+
             {fourKLoading
               ? Array.from({ length: 8 }).map((_, i) => (
                   <div key={i} className="w-[160px] md:w-[200px] lg:w-[240px] flex-none">

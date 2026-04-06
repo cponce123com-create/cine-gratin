@@ -36,8 +36,8 @@ export function Navbar() {
   }, [location]);
 
   const navLinks = [
-    { href: "/", label: "Home", match: (l: string) => l === "/" },
-    { href: "/browse", label: "Browse", match: (l: string) => l.startsWith("/browse") },
+    { href: "/", label: "Inicio", match: (l: string) => l === "/" },
+    { href: "/browse", label: "Explorar", match: (l: string) => l.startsWith("/browse") },
     { href: "/series", label: "Series", match: (l: string) => l.startsWith("/series") },
   ];
 
@@ -83,7 +83,7 @@ export function Navbar() {
             </div>
             <input
               type="text"
-              placeholder="Search movies..."
+              placeholder="Buscar películas..."
               value={searchValue}
               onChange={(e) => setSearchValue(e.target.value)}
               className="bg-secondary/50 border border-border focus:border-primary focus:ring-1 focus:ring-primary text-foreground rounded-full pl-10 pr-4 py-2 text-sm w-56 transition-all outline-none placeholder:text-muted-foreground backdrop-blur-md"
@@ -102,7 +102,7 @@ export function Navbar() {
             data-testid="link-favorites"
           >
             <Heart className={`w-4 h-4 ${location.startsWith("/favorites") ? "fill-current" : ""}`} />
-            My List
+            Mi Lista
             {favorites.length > 0 && (
               <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                 {favorites.length > 99 ? "99+" : favorites.length}
@@ -113,7 +113,7 @@ export function Navbar() {
           <button
             className="md:hidden text-foreground hover:text-primary transition-colors p-2"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            aria-label="Toggle menu"
+            aria-label="Abrir menú"
           >
             {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
@@ -129,7 +129,7 @@ export function Navbar() {
             </div>
             <input
               type="text"
-              placeholder="Search movies..."
+              placeholder="Buscar películas..."
               value={searchValue}
               onChange={(e) => setSearchValue(e.target.value)}
               className="w-full bg-background border border-border focus:border-primary text-foreground rounded-lg pl-10 pr-4 py-3 text-sm outline-none"
@@ -154,7 +154,7 @@ export function Navbar() {
             }`}
           >
             <Heart className="w-4 h-4" />
-            My List
+            Mi Lista
             {favorites.length > 0 && (
               <span className="ml-auto bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
                 {favorites.length}

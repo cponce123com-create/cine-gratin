@@ -118,7 +118,7 @@ export function MovieCard({ movie, onSaveRecent, isRecent }: MovieCardProps) {
             : "bg-black/60 text-white opacity-0 group-hover:opacity-100 hover:bg-red-500/80 backdrop-blur-md border border-white/10"
         }`}
         data-testid={`btn-favorite-${movie.id}`}
-        aria-label={isFavorited ? "Remove from favorites" : "Add to favorites"}
+        aria-label={isFavorited ? "Quitar de favoritos" : "Agregar a favoritos"}
       >
         <Heart className={`w-4 h-4 ${isFavorited ? "fill-current" : ""}`} />
       </button>
@@ -131,7 +131,7 @@ export function MovieCard({ movie, onSaveRecent, isRecent }: MovieCardProps) {
         <p className="text-muted-foreground text-sm mb-3">{movie.year}</p>
         <div className="flex items-center justify-center gap-2 bg-primary text-primary-foreground py-2 rounded font-bold uppercase tracking-widest text-sm transition-transform active:scale-95">
           <Play className="w-4 h-4 fill-current" />
-          {isRecent ? "Resume" : "Watch Now"}
+          {isRecent ? "Reanudar" : "Ver Ahora"}
         </div>
       </div>
     </Link>

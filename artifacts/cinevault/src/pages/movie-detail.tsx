@@ -104,7 +104,7 @@ export default function MovieDetail({ params }: MovieDetailProps) {
       <div className="min-h-screen pt-20 flex items-center justify-center">
         <div className="flex flex-col items-center">
           <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-          <p className="mt-4 font-heading tracking-widest text-muted-foreground text-xl">Loading Movie...</p>
+          <p className="mt-4 font-heading tracking-widest text-muted-foreground text-xl">Cargando Película...</p>
         </div>
       </div>
     );
@@ -113,8 +113,8 @@ export default function MovieDetail({ params }: MovieDetailProps) {
   if (error || !data?.movie) {
     return (
       <div className="min-h-screen pt-32 px-4 text-center">
-        <h2 className="text-4xl font-heading text-destructive mb-4">Movie Not Found</h2>
-        <p className="text-muted-foreground">Could not load this movie. Try browsing for another title.</p>
+        <h2 className="text-4xl font-heading text-destructive mb-4">Película No Encontrada</h2>
+        <p className="text-muted-foreground">No se pudo cargar esta película. Intenta buscar otro título.</p>
       </div>
     );
   }
@@ -159,13 +159,13 @@ export default function MovieDetail({ params }: MovieDetailProps) {
   };
 
   const handleDownload = (quality: string, type: string) => {
-    toast.success(`Opening ${quality} ${type} torrent...`, {
-      description: "Ensure you have a BitTorrent client installed.",
+    toast.success(`Abriendo torrent ${quality} ${type}...`, {
+      description: "Asegúrate de tener un cliente BitTorrent instalado.",
     });
   };
 
   const handleMagnet = (quality: string) => {
-    toast.success(`Opening ${quality} magnet link...`);
+    toast.success(`Abriendo enlace magnet ${quality}...`);
   };
 
   const openLightbox = (largeUrl: string, idx: number) => {
@@ -264,7 +264,7 @@ export default function MovieDetail({ params }: MovieDetailProps) {
                     data-testid="btn-trailer"
                   >
                     <Youtube className="w-5 h-5" />
-                    Watch Trailer
+                    Ver Tráiler
                   </button>
                 )}
               </div>
@@ -293,9 +293,9 @@ export default function MovieDetail({ params }: MovieDetailProps) {
                     data-testid={`tab-${tab}`}
                   >
                     {tab === "synopsis" ? (
-                      <span className="flex items-center justify-center gap-2"><Info className="w-4 h-4" />Synopsis</span>
+                      <span className="flex items-center justify-center gap-2"><Info className="w-4 h-4" />Sinopsis</span>
                     ) : (
-                      <span className="flex items-center justify-center gap-2"><Server className="w-4 h-4" />Tech Specs</span>
+                      <span className="flex items-center justify-center gap-2"><Server className="w-4 h-4" />Especificaciones</span>
                     )}
                   </button>
                 ))}
@@ -304,7 +304,7 @@ export default function MovieDetail({ params }: MovieDetailProps) {
               <div className="p-6 md:p-8">
                 {activeTab === "synopsis" && (
                   <p className="text-lg leading-relaxed text-muted-foreground">
-                    {movie.description_full || movie.summary || "No synopsis available for this title."}
+                    {movie.description_full || movie.summary || "No hay sinopsis disponible para este título."}
                   </p>
                 )}
 
@@ -330,15 +330,15 @@ export default function MovieDetail({ params }: MovieDetailProps) {
                     {activeTorrent && (
                       <div className="grid grid-cols-2 gap-4">
                         {[
-                          { label: "Quality", value: activeTorrent.quality },
-                          { label: "Source", value: activeTorrent.type },
-                          { label: "File Size", value: activeTorrent.size },
-                          { label: "Language", value: movie.language?.toUpperCase() || "EN" },
-                          { label: "Runtime", value: formatRuntime(movie.runtime) },
-                          { label: "MPA Rating", value: movie.mpa_rating || "N/A" },
-                          ...(activeTorrent.video_codec ? [{ label: "Video Codec", value: activeTorrent.video_codec }] : []),
+                          { label: "Calidad", value: activeTorrent.quality },
+                          { label: "Fuente", value: activeTorrent.type },
+                          { label: "Tamaño", value: activeTorrent.size },
+                          { label: "Idioma", value: movie.language?.toUpperCase() || "EN" },
+                          { label: "Duración", value: formatRuntime(movie.runtime) },
+                          { label: "Clasificación", value: movie.mpa_rating || "N/A" },
+                          ...(activeTorrent.video_codec ? [{ label: "Códec de Video", value: activeTorrent.video_codec }] : []),
                           ...(activeTorrent.audio_channels ? [{ label: "Audio", value: activeTorrent.audio_channels }] : []),
-                          ...(activeTorrent.bit_depth ? [{ label: "Bit Depth", value: activeTorrent.bit_depth + "-bit" }] : []),
+                          ...(activeTorrent.bit_depth ? [{ label: "Profundidad de Color", value: activeTorrent.bit_depth + "-bit" }] : []),
                           ...(activeTorrent.fps ? [{ label: "FPS", value: String(activeTorrent.fps) }] : []),
                           { label: "Seeds", value: String(activeTorrent.seeds) },
                           { label: "Peers", value: String(activeTorrent.peers) },
@@ -360,7 +360,7 @@ export default function MovieDetail({ params }: MovieDetailProps) {
               <section>
                 <h2 className="text-2xl font-heading tracking-wide mb-5 flex items-center gap-2">
                   <span className="w-1 h-6 bg-primary block rounded-full"></span>
-                  Top Cast
+                  Reparto Principal
                 </h2>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {movie.cast.map(actor => (
@@ -400,7 +400,7 @@ export default function MovieDetail({ params }: MovieDetailProps) {
               <h2 className="text-2xl font-heading tracking-wide mb-5 flex items-center gap-2">
                 <span className="w-1 h-6 bg-primary block rounded-full"></span>
                 <Image className="w-5 h-5" />
-                Screenshots
+                Capturas de Pantalla
               </h2>
               <div className="grid grid-cols-3 gap-3">
                 {screenshots.map(({ medium, large, idx }) => (
@@ -435,11 +435,11 @@ export default function MovieDetail({ params }: MovieDetailProps) {
                 <div className="px-6 pt-6 pb-4">
                   <h2 className="text-2xl font-heading tracking-wide mb-4 flex items-center gap-2 text-primary">
                     <PlayCircle className="w-5 h-5" />
-                    Watch Online
+                    Ver Online
                   </h2>
                   {/* Server buttons */}
                   <div className="flex items-center gap-2 flex-wrap mb-4">
-                    <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground mr-1">Stream via:</span>
+                    <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground mr-1">Transmitir por:</span>
                     {VIDEO_SERVERS.map((server, i) => (
                       <button
                         key={server.name}
@@ -477,9 +477,9 @@ export default function MovieDetail({ params }: MovieDetailProps) {
               <div className="p-6 border-b border-border">
                 <h2 className="text-2xl font-heading tracking-wide flex items-center gap-2 text-primary">
                   <Download className="w-5 h-5" />
-                  Downloads
+                  Descargas
                 </h2>
-                <p className="text-xs text-muted-foreground mt-1">All available qualities</p>
+                <p className="text-xs text-muted-foreground mt-1">Todas las calidades disponibles</p>
               </div>
 
               {movie.torrents && movie.torrents.length > 0 ? (
@@ -506,7 +506,7 @@ export default function MovieDetail({ params }: MovieDetailProps) {
                           data-testid={`btn-download-${idx}`}
                         >
                           <Download className="w-3.5 h-3.5" />
-                          Download
+                          Descargar
                         </a>
                         <a
                           href={getMagnetUrl(torrent, movie.title)}
@@ -522,7 +522,7 @@ export default function MovieDetail({ params }: MovieDetailProps) {
                   ))}
                 </div>
               ) : (
-                <div className="p-6 text-center text-muted-foreground">No downloads available.</div>
+                <div className="p-6 text-center text-muted-foreground">No hay descargas disponibles.</div>
               )}
             </section>
           </div>
@@ -531,7 +531,7 @@ export default function MovieDetail({ params }: MovieDetailProps) {
         {/* Similar Movies */}
         {suggestionsData?.movies && suggestionsData.movies.length > 0 && (
           <div className="max-w-[1600px] mx-auto mt-16 border-t border-border pt-10">
-            <MovieCarousel title="Similar Movies">
+            <MovieCarousel title="Películas Similares">
               {suggestionsData.movies.map(m => (
                 <div key={m.id} className="w-[160px] md:w-[200px] lg:w-[240px] flex-none">
                   <MovieCard movie={m} />

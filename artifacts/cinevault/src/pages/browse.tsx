@@ -6,15 +6,22 @@ import { Filter } from "lucide-react";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 
 const GENRES = ["All", "Action", "Adventure", "Animation", "Comedy", "Crime", "Documentary", "Drama", "Family", "Fantasy", "History", "Horror", "Music", "Mystery", "Romance", "Sci-Fi", "Thriller", "War", "Western"];
+const GENRES_ES: Record<string, string> = {
+  All: "Todos", Action: "Acción", Adventure: "Aventura", Animation: "Animación",
+  Comedy: "Comedia", Crime: "Crimen", Documentary: "Documental", Drama: "Drama",
+  Family: "Familia", Fantasy: "Fantasía", History: "Historia", Horror: "Terror",
+  Music: "Música", Mystery: "Misterio", Romance: "Romance", "Sci-Fi": "Ciencia Ficción",
+  Thriller: "Suspenso", War: "Guerra", Western: "Western",
+};
 const QUALITIES = ["All", "720p", "1080p", "2160p", "3D"];
-const RATINGS = [{ label: "Any", value: "0" }, { label: "5+", value: "5" }, { label: "6+", value: "6" }, { label: "7+", value: "7" }, { label: "8+", value: "8" }, { label: "9+", value: "9" }];
+const RATINGS = [{ label: "Cualquiera", value: "0" }, { label: "5+", value: "5" }, { label: "6+", value: "6" }, { label: "7+", value: "7" }, { label: "8+", value: "8" }, { label: "9+", value: "9" }];
 const SORTS = [
-  { label: "Latest", value: "date_added" },
-  { label: "Rating", value: "rating" },
-  { label: "Year", value: "year" },
-  { label: "Title", value: "title" },
-  { label: "Downloads", value: "download_count" },
-  { label: "Likes", value: "like_count" }
+  { label: "Recientes", value: "date_added" },
+  { label: "Puntuación", value: "rating" },
+  { label: "Año", value: "year" },
+  { label: "Título", value: "title" },
+  { label: "Descargas", value: "download_count" },
+  { label: "Me Gusta", value: "like_count" }
 ];
 
 export default function Browse() {
@@ -78,13 +85,13 @@ export default function Browse() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <h1 className="text-4xl font-heading tracking-wide flex items-center gap-3">
             <span className="w-1.5 h-8 bg-primary block rounded-full"></span>
-            Browse Movies
+            Explorar Películas
           </h1>
           
           <div className="w-full md:w-auto bg-card border border-border p-3 rounded-xl shadow-lg flex flex-wrap gap-4 items-center">
             <div className="flex items-center gap-2 text-muted-foreground mr-2">
               <Filter className="w-4 h-4" />
-              <span className="text-sm font-bold uppercase tracking-wider hidden lg:inline">Filters</span>
+              <span className="text-sm font-bold uppercase tracking-wider hidden lg:inline">Filtros</span>
             </div>
             
             <select 
@@ -92,7 +99,7 @@ export default function Browse() {
               onChange={(e) => setGenre(e.target.value)}
               className="bg-background border border-border text-sm rounded-lg px-3 py-1.5 focus:border-primary focus:ring-1 focus:ring-primary outline-none"
             >
-              {GENRES.map(g => <option key={g} value={g}>{g}</option>)}
+              {GENRES.map(g => <option key={g} value={g}>{GENRES_ES[g] ?? g}</option>)}
             </select>
             
             <select 
@@ -100,7 +107,7 @@ export default function Browse() {
               onChange={(e) => setQuality(e.target.value)}
               className="bg-background border border-border text-sm rounded-lg px-3 py-1.5 focus:border-primary focus:ring-1 focus:ring-primary outline-none"
             >
-              {QUALITIES.map(q => <option key={q} value={q}>{q}</option>)}
+              {QUALITIES.map(q => <option key={q} value={q}>{q === "All" ? "Todos" : q}</option>)}
             </select>
             
             <select 
@@ -108,7 +115,7 @@ export default function Browse() {
               onChange={(e) => setMinimumRating(e.target.value)}
               className="bg-background border border-border text-sm rounded-lg px-3 py-1.5 focus:border-primary focus:ring-1 focus:ring-primary outline-none"
             >
-              {RATINGS.map(r => <option key={r.label} value={r.value}>{r.label} Rating</option>)}
+              {RATINGS.map(r => <option key={r.label} value={r.value}>{r.label === "Cualquiera" ? "Cualquier puntuación" : `${r.label} puntuación`}</option>)}
             </select>
             
             <select 
@@ -116,14 +123,14 @@ export default function Browse() {
               onChange={(e) => setSortBy(e.target.value)}
               className="bg-background border border-border text-sm rounded-lg px-3 py-1.5 focus:border-primary focus:ring-1 focus:ring-primary outline-none"
             >
-              {SORTS.map(s => <option key={s.label} value={s.value}>Sort: {s.label}</option>)}
+              {SORTS.map(s => <option key={s.label} value={s.value}>Ordenar: {s.label}</option>)}
             </select>
           </div>
         </div>
 
         {error && (
           <div className="py-20 text-center">
-            <h2 className="text-2xl font-heading text-destructive mb-2">Error Loading Movies</h2>
+            <h2 className="text-2xl font-heading text-destructive mb-2">Error al Cargar Películas</h2>
             <p className="text-muted-foreground">{error.message}</p>
           </div>
         )}
@@ -143,9 +150,9 @@ export default function Browse() {
             <div className="w-24 h-24 mb-6 rounded-full bg-card border border-border flex items-center justify-center opacity-50">
               <Filter className="w-10 h-10 text-muted-foreground" />
             </div>
-            <h2 className="text-3xl font-heading tracking-widest text-muted-foreground mb-2">No Movies Found</h2>
+            <h2 className="text-3xl font-heading tracking-widest text-muted-foreground mb-2">No se Encontraron Películas</h2>
             <p className="text-muted-foreground max-w-md mx-auto">
-              Try adjusting your filters to find what you're looking for.
+              Intenta ajustar los filtros para encontrar lo que buscas.
             </p>
           </div>
         )}
@@ -156,7 +163,7 @@ export default function Browse() {
               onClick={() => setPage(p => p + 1)}
               className="bg-card hover:bg-secondary border border-border text-foreground px-8 py-3 rounded-lg font-bold uppercase tracking-widest transition-all hover:border-primary hover:text-primary active:scale-95"
             >
-              Load More
+              Cargar Más
             </button>
           </div>
         )}

@@ -68,9 +68,9 @@ export default function Series() {
             <h1 className="text-5xl font-heading tracking-wide flex items-center gap-3 mb-2">
               <span className="w-1.5 h-10 bg-primary block rounded-full"></span>
               <Tv className="w-10 h-10 text-primary" />
-              TV Series
+              Series de TV
             </h1>
-            <p className="text-muted-foreground ml-8">Search and stream any TV series</p>
+            <p className="text-muted-foreground ml-8">Busca y transmite cualquier serie de televisión</p>
           </div>
 
           {/* Search */}
@@ -80,7 +80,7 @@ export default function Series() {
             </div>
             <input
               type="text"
-              placeholder="Search TV shows..."
+              placeholder="Buscar series de TV..."
               value={searchInput}
               onChange={e => setSearchInput(e.target.value)}
               className="w-full bg-card border border-border focus:border-primary focus:ring-1 focus:ring-primary text-foreground rounded-xl pl-12 pr-4 py-4 text-base outline-none placeholder:text-muted-foreground"
@@ -136,7 +136,7 @@ export default function Series() {
                     {show.externals.imdb ? (
                       <Play className="w-5 h-5 text-primary flex-shrink-0" />
                     ) : (
-                      <span className="text-xs text-muted-foreground flex-shrink-0">No IMDB</span>
+                      <span className="text-xs text-muted-foreground flex-shrink-0">Sin IMDb</span>
                     )}
                   </button>
                 ))}
@@ -145,7 +145,7 @@ export default function Series() {
 
             {debouncedQuery && !searchLoading && results.length === 0 && (
               <div className="absolute top-full left-0 right-0 z-50 mt-2 bg-card border border-border rounded-xl shadow-2xl p-8 text-center">
-                <p className="text-muted-foreground">No TV shows found for "{debouncedQuery}"</p>
+                <p className="text-muted-foreground">No se encontraron series para "{debouncedQuery}"</p>
               </div>
             )}
           </div>
@@ -153,7 +153,7 @@ export default function Series() {
           {/* Featured / Quick Access */}
           {!selectedImdb && !selectedShow && (
             <div className="mb-10">
-              <h2 className="text-2xl font-heading tracking-wide mb-4 text-muted-foreground">Quick Access</h2>
+              <h2 className="text-2xl font-heading tracking-wide mb-4 text-muted-foreground">Acceso Rápido</h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
                 {FEATURED_SHOWS.map(show => (
                   <button
@@ -210,29 +210,29 @@ export default function Series() {
                     onClick={() => { setSelectedShow(null); setSelectedImdb(null); }}
                     className="text-muted-foreground hover:text-foreground text-sm transition-colors"
                   >
-                    Change Show
+                    Cambiar Serie
                   </button>
                 </div>
               )}
 
               {!selectedShow && selectedImdb && (
                 <div className="flex items-center justify-between bg-card border border-border rounded-xl p-4">
-                  <p className="font-bold text-foreground">Streaming IMDB: {selectedImdb}</p>
+                  <p className="font-bold text-foreground">Transmitiendo IMDb: {selectedImdb}</p>
                   <button
                     onClick={() => setSelectedImdb(null)}
                     className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                   >
-                    Change
+                    Cambiar
                   </button>
                 </div>
               )}
 
               {/* Episode Selector */}
               <div className="bg-card border border-border rounded-2xl p-6">
-                <h3 className="text-xl font-heading tracking-wide mb-4">Select Episode</h3>
+                <h3 className="text-xl font-heading tracking-wide mb-4">Seleccionar Episodio</h3>
                 <div className="flex flex-wrap gap-4 items-center">
                   <div className="flex items-center gap-2">
-                    <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Season</label>
+                    <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Temporada</label>
                     <div className="relative">
                       <select
                         value={season}
@@ -241,7 +241,7 @@ export default function Series() {
                         data-testid="select-season"
                       >
                         {seasonOptions.map(s => (
-                          <option key={s.id} value={s.number}>Season {s.number}</option>
+                          <option key={s.id} value={s.number}>Temporada {s.number}</option>
                         ))}
                       </select>
                       <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
@@ -249,7 +249,7 @@ export default function Series() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Episode</label>
+                    <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Episodio</label>
                     <div className="relative">
                       <select
                         value={episode}
@@ -258,7 +258,7 @@ export default function Series() {
                         data-testid="select-episode"
                       >
                         {Array.from({ length: Math.max(episodeCount ?? 20, 1) }, (_, i) => (
-                          <option key={i + 1} value={i + 1}>Episode {i + 1}</option>
+                          <option key={i + 1} value={i + 1}>Episodio {i + 1}</option>
                         ))}
                       </select>
                       <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
@@ -269,7 +269,7 @@ export default function Series() {
 
               {/* Server Switcher */}
               <div className="flex items-center gap-3">
-                <span className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Server:</span>
+                <span className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Servidor:</span>
                 {SERVERS.map((srv, i) => (
                   <button
                     key={srv}

@@ -16,7 +16,7 @@ export default function Favorites() {
   };
 
   const clearAll = () => {
-    if (confirm("Remove all movies from My List?")) {
+    if (confirm("¿Eliminar todas las películas de Mi Lista?")) {
       setFavorites([]);
     }
   };
@@ -28,10 +28,10 @@ export default function Favorites() {
           <h1 className="text-4xl font-heading tracking-wide flex items-center gap-3">
             <span className="w-1.5 h-8 bg-red-500 block rounded-full"></span>
             <Heart className="w-8 h-8 text-red-500 fill-red-500" />
-            My List
+            Mi Lista
             {favorites.length > 0 && (
               <span className="text-xl text-muted-foreground font-sans">
-                ({favorites.length} {favorites.length === 1 ? "movie" : "movies"})
+                ({favorites.length} {favorites.length === 1 ? "película" : "películas"})
               </span>
             )}
           </h1>
@@ -43,7 +43,7 @@ export default function Favorites() {
               data-testid="btn-clear-favorites"
             >
               <Trash2 className="w-4 h-4" />
-              Clear All
+              Borrar Todo
             </button>
           )}
         </div>
@@ -53,9 +53,9 @@ export default function Favorites() {
             <div className="w-28 h-28 mb-6 rounded-full bg-card border border-border flex items-center justify-center">
               <Heart className="w-12 h-12 text-muted-foreground" />
             </div>
-            <h2 className="text-3xl font-heading tracking-widest text-muted-foreground mb-3">Your List is Empty</h2>
+            <h2 className="text-3xl font-heading tracking-widest text-muted-foreground mb-3">Tu Lista está Vacía</h2>
             <p className="text-muted-foreground max-w-md mx-auto leading-relaxed">
-              Hover over any movie card and click the heart icon to save it here for later.
+              Pasa el cursor sobre cualquier película y haz clic en el corazón para guardarla aquí.
             </p>
           </div>
         ) : (

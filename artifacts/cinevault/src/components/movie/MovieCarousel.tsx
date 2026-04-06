@@ -30,7 +30,7 @@ export function MovieCarousel({ title, children, viewAllLink }: MovieCarouselPro
         </h2>
         {viewAllLink && (
           <a href={viewAllLink} className="text-sm text-primary hover:text-white transition-colors font-medium uppercase tracking-wider">
-            View All
+            Ver Todo
           </a>
         )}
       </div>
@@ -39,7 +39,7 @@ export function MovieCarousel({ title, children, viewAllLink }: MovieCarouselPro
         <button 
           onClick={() => scroll("left")}
           className="absolute left-0 top-0 bottom-0 w-12 z-20 flex items-center justify-center bg-gradient-to-r from-background to-transparent opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-0 focus:outline-none"
-          aria-label="Scroll left"
+          aria-label="Desplazar izquierda"
         >
           <div className="w-8 h-8 rounded-full bg-black/50 border border-white/10 flex items-center justify-center backdrop-blur-md text-white hover:bg-primary hover:text-primary-foreground hover:scale-110 transition-all">
             <ChevronLeft className="w-5 h-5" />
@@ -57,7 +57,7 @@ export function MovieCarousel({ title, children, viewAllLink }: MovieCarouselPro
         <button 
           onClick={() => scroll("right")}
           className="absolute right-0 top-0 bottom-0 w-12 z-20 flex items-center justify-center bg-gradient-to-l from-background to-transparent opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-0 focus:outline-none"
-          aria-label="Scroll right"
+          aria-label="Desplazar derecha"
         >
           <div className="w-8 h-8 rounded-full bg-black/50 border border-white/10 flex items-center justify-center backdrop-blur-md text-white hover:bg-primary hover:text-primary-foreground hover:scale-110 transition-all">
             <ChevronRight className="w-5 h-5" />
