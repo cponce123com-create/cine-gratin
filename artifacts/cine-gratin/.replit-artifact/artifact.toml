@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/cine-gratin/"
+title = "Cine Gratín"
+version = "1.0.0"
+id = "artifacts/cine-gratin"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/cine-gratin/" ]
+localPort = 19777
+
+[services.development]
+run = "pnpm --filter @workspace/cine-gratin run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/cine-gratin", "run", "build" ]
+publicDir = "artifacts/cine-gratin/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19777"
+BASE_PATH = "/cine-gratin/"
