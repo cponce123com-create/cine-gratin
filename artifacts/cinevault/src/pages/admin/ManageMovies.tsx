@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
 import {
   Film, Search, Trash2, Edit2, Eye, Star, Trash, ChevronLeft, ChevronRight,
-  CheckSquare, Square, AlertTriangle, Filter, X, SortAsc, SortDesc
+  CheckSquare, Square, AlertTriangle, Filter, X, SortAsc, SortDesc, Wifi, ShieldCheck, ShieldOff, ShieldQuestion
 } from "lucide-react";
 import { LocalMovie } from "@/lib/admin-db";
-import { apiGetMovies, apiDeleteMovie, apiSaveMovie } from "@/lib/api-client";
+import { apiGetMovies, apiDeleteMovie, apiSaveMovie, apiVerifyVidsrc } from "@/lib/api-client";
 import { toast } from "sonner";
 
 interface ManageMoviesProps {
@@ -28,6 +28,28 @@ export function ManageMovies({ onEdit }: ManageMoviesProps) {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [vidsrcResults, setVidsrcResults] = useState<Map<string, boolean>>(new Map());
+
+  const handleVerifyVidsrc = async () => {
+    if (selected.size === 0) return;
+    setVerifying(true);
+    const selectedMovies = movies.filter(m => selected.has(m.id));
+    const imdbIds = selectedMovies.map(m => m.imdb_id).filter(Boolean);
+    try {
+      const results = await apiVerifyVidsrc(imdbIds, "movie");
+      const newMap = new Map(vidsrcResults);
+      results.forEach(r => newMap.set(r.imdb_id, r.available));
+      setVidsrcResults(newMap);
+      const active = results.filter(r => r.available).length;
+      const inactive = results.filter(r => !r.available).length;
+      toast.success(`Verificación: ${active} activos, ${inactive} inactivos`);
+      load();
+    } catch {
+      toast.error("Error al verificar disponibilidad");
+    }
+    setVerifying(false);
+  };
 
   const load = () => {
     setLoading(true);
@@ -165,6 +187,15 @@ export function ManageMovies({ onEdit }: ManageMoviesProps) {
               title="Limpiar selección"
             >
               <X className="w-4 h-4" />
+            </button>
+            <button
+              onClick={handleVerifyVidsrc}
+              disabled={verifying}
+              className="flex items-center gap-2 bg-[#1f6feb]/10 border border-[#1f6feb]/30 text-[#58a6ff] px-4 py-2 rounded-lg text-sm font-bold hover:bg-[#1f6feb]/20 transition-colors disabled:opacity-50"
+              title="Verificar disponibilidad en VidSrc"
+            >
+              <Wifi className={`w-4 h-4 ${verifying ? "animate-pulse" : ""}`} />
+              {verifying ? "Verificando..." : "Verificar VidSrc"}
             </button>
             <button
               onClick={() => setBulkDeleteConfirm(true)}
@@ -327,6 +358,21 @@ export function ManageMovies({ onEdit }: ManageMoviesProps) {
                           ))}
                           {movie.featured && (
                             <span className="text-[9px] bg-[#e3b341]/20 text-[#e3b341] px-1.5 py-0.5 rounded font-mono">★ Dest.</span>
+                          )}
+                          {movie.vidsrc_status === "active" && (
+                            <span className="flex items-center gap-0.5 text-[9px] bg-[#238636]/20 text-[#3fb950] px-1.5 py-0.5 rounded font-mono">
+                              <ShieldCheck className="w-2 h-2" /> VidSrc
+                            </span>
+                          )}
+                          {movie.vidsrc_status === "inactive" && (
+                            <span className="flex items-center gap-0.5 text-[9px] bg-[#da3633]/20 text-[#f85149] px-1.5 py-0.5 rounded font-mono">
+                              <ShieldOff className="w-2 h-2" /> Inactivo
+                            </span>
+                          )}
+                          {(!movie.vidsrc_status || movie.vidsrc_status === "unknown") && vidsrcResults.has(movie.imdb_id) && (
+                            <span className="flex items-center gap-0.5 text-[9px] bg-[#484f58]/20 text-[#8b949e] px-1.5 py-0.5 rounded font-mono">
+                              <ShieldQuestion className="w-2 h-2" /> ?
+                            </span>
                           )}
                         </div>
                       </td>

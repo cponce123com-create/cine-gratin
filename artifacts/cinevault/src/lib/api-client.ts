@@ -178,3 +178,42 @@ export const DEFAULT_SERVERS: VideoServer[] = [
   { id: "2embed", name: "2Embed", url_pattern: "https://www.2embed.cc/embed/{IMDB_ID}", active: true, order: 3 },
   { id: "embedsu", name: "EmbedSu", url_pattern: "https://embed.su/embed/movie/{IMDB_ID}", active: true, order: 4 },
 ];
+
+// ─── Auto-import ──────────────────────────────────────────────
+
+export interface AutoImportLog {
+  id: number;
+  run_at: string;
+  movies_imported: number;
+  series_imported: number;
+  total_checked: number;
+  status: string;
+  error_message?: string;
+}
+
+export interface AutoImportStatus {
+  enabled: boolean;
+  logs: AutoImportLog[];
+}
+
+export const apiGetAutoImportStatus = () =>
+  api<AutoImportStatus>("/admin/auto-import/status");
+
+export const apiToggleAutoImport = (enabled: boolean) =>
+  api<{ ok: boolean; enabled: boolean }>("/admin/auto-import/toggle", {
+    method: "POST",
+    body: JSON.stringify({ enabled }),
+  });
+
+export const apiRunAutoImport = () =>
+  api<{ ok: boolean; moviesImported: number; seriesImported: number; totalChecked: number }>("/admin/auto-import/run", {
+    method: "POST",
+  });
+
+// ─── VidSrc verify ────────────────────────────────────────────
+
+export const apiVerifyVidsrc = (imdb_ids: string[], type: "movie" | "series" = "movie") =>
+  api<{ imdb_id: string; available: boolean }[]>("/admin/verify-vidsrc", {
+    method: "POST",
+    body: JSON.stringify({ imdb_ids, type }),
+  });

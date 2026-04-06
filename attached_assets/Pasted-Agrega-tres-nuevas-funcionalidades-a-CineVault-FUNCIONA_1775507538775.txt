@@ -1,0 +1,57 @@
+Agrega tres nuevas funcionalidades a CineVault:
+
+## FUNCIONALIDAD 1 — Cron de auto-importación desde TMDB
+
+En `artifacts/api-server/src/`, crear archivo `jobs/auto-import.ts`:
+- Usar `node-cron` para ejecutar cada 24 horas (y al iniciar el servidor)
+- Consultar TMDB API:
+  - GET https://api.themoviedb.org/3/trending/movie/day con TMDB_API_KEY
+  - GET https://api.themoviedb.org/3/movie/upcoming
+  - GET https://api.themoviedb.org/3/tv/trending/all/day (para series)
+- Para cada resultado, obtener su imdb_id usando /find/{tmdb_id}?external_source=imdb_id
+- Si el imdb_id NO existe en la tabla movies/cv_series, llamar internamente al flujo de importación TMDB existente (ya está en /api/tmdb/movie/:imdbId)
+- Guardar en DB con campo extra: auto_imported = TRUE
+- Loguear cuántos se importaron cada vez
+- Instalar: pnpm --filter @workspace/api-server add node-cron @types/node-cron
+- Registrar el job en src/index.ts al arrancar el servidor
+
+Agregar en el Admin Dashboard una sección "Auto-import" que muestre:
+- Toggle para activar/desactivar el cron
+- Botón "Ejecutar ahora" que llama a POST /api/admin/auto-import/run
+- Log de las últimas 5 ejecuciones (fecha, cantidad importada)
+- Endpoint: GET /api/admin/auto-import/status y POST /api/admin/auto-import/run
+
+## FUNCIONALIDAD 2 — Verificador de disponibilidad VidSrc
+
+En `artifacts/api-server/src/routes/movies.ts`, agregar:
+- POST /api/admin/verify-vidsrc — recibe array de imdb_ids, hace HEAD request a https://vidsrc.pro/embed/movie/{imdb_id} para cada uno, devuelve {imdb_id, available: boolean}[]
+- Guardar resultado en una columna nueva `vidsrc_status` (TEXT: 'active'|'inactive'|'unknown') en tabla movies y cv_series
+- Agregar botón "Verificar disponibilidad" en ManageMovies.tsx que llame al endpoint para las películas seleccionadas y muestre un badge de estado en la tabla
+
+Migración SQL a ejecutar en startup:
+ALTER TABLE movies ADD COLUMN IF NOT EXISTS vidsrc_status TEXT DEFAULT 'unknown';
+ALTER TABLE cv_series ADD COLUMN IF NOT EXISTS vidsrc_status TEXT DEFAULT 'unknown';
+
+## FUNCIONALIDAD 3 — TV en vivo con canales hispanos
+
+Crear nueva página `artifacts/cinevault/src/pages/tv-live.tsx`:
+- Ruta: /tv
+- Usar la lista M3U pública: https://iptv-org.github.io/iptv/languages/spa.m3u (canales en español)
+- Parsear la lista M3U en el cliente (fetch + regex sobre las líneas #EXTINF y las URLs)
+- Mostrar grid de canales con: nombre del canal, logo (de la etiqueta tvg-logo en el M3U), país
+- Filtro por país: Perú, México, Colombia, Argentina, España, Internacional
+- Al hacer click en un canal, abrir el reproductor HLS:
+  - Instalar: pnpm --filter @workspace/cinevault add hls.js
+  - Usar hls.js para reproducir el stream M3U dentro de un <video> tag
+  - Player con controles: play/pause, volumen, fullscreen
+  - Si el stream falla, mostrar mensaje "Canal no disponible en este momento"
+- Diseño: misma estética dark de CineVault. Cards de canales con hover glow cyan
+- Agregar enlace "TV en Vivo" en el Navbar principal junto a los otros links
+- Badge "LIVE" rojo parpadeante en los canales que están transmitiendo (todos los que carguen exitosamente)
+
+En Navbar.tsx agregar: enlace a /tv con icono Tv de lucide-react y badge "EN VIVO"
+
+## NOTAS
+- Mantener monorepo pnpm, no romper nada existente
+- Todos los textos en español
+- La TV en vivo es solo para señales abiertas (legal), no streams de pago

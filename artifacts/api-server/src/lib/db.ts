@@ -74,6 +74,27 @@ export async function initDb() {
       date_added TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `);
+
+  // Migrations for new columns
+  await pool.query(`
+    ALTER TABLE movies ADD COLUMN IF NOT EXISTS vidsrc_status TEXT DEFAULT 'unknown';
+    ALTER TABLE movies ADD COLUMN IF NOT EXISTS auto_imported BOOLEAN DEFAULT FALSE;
+    ALTER TABLE cv_series ADD COLUMN IF NOT EXISTS vidsrc_status TEXT DEFAULT 'unknown';
+    ALTER TABLE cv_series ADD COLUMN IF NOT EXISTS auto_imported BOOLEAN DEFAULT FALSE;
+
+    CREATE TABLE IF NOT EXISTS cv_auto_import_log (
+      id SERIAL PRIMARY KEY,
+      run_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      movies_imported INTEGER NOT NULL DEFAULT 0,
+      series_imported INTEGER NOT NULL DEFAULT 0,
+      total_checked INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'success',
+      error_message TEXT
+    );
+
+    INSERT INTO cv_settings (key, value) VALUES ('auto_import_enabled', 'true')
+      ON CONFLICT (key) DO NOTHING;
+  `);
 }
 
 export { pool };

@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { initDb } from "./lib/db";
+import { startAutoImportCron } from "./jobs/auto-import";
 
 const rawPort = process.env["PORT"];
 
@@ -24,6 +25,7 @@ initDb()
         process.exit(1);
       }
       logger.info({ port }, "Server listening");
+      startAutoImportCron();
     });
   })
   .catch((err) => {

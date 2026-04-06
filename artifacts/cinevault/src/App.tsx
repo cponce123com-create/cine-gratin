@@ -17,6 +17,7 @@ import MovieDetail from "@/pages/movie-detail";
 import Favorites from "@/pages/favorites";
 import Series from "@/pages/series";
 import SeriesDetail from "@/pages/series-detail";
+import TvLive from "@/pages/tv-live";
 import AdminApp from "@/pages/admin/AdminApp";
 import NotFound from "@/pages/not-found";
 
@@ -35,6 +36,7 @@ function PublicRouter() {
         <Route path="/favorites" component={Favorites} />
         <Route path="/series" component={Series} />
         <Route path="/series/:id" component={SeriesDetail} />
+        <Route path="/tv" component={TvLive} />
         <Route component={NotFound} />
       </Switch>
     </AnimatePresence>

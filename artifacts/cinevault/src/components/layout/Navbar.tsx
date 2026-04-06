@@ -85,7 +85,8 @@ export function Navbar() {
   const navLinks = [
     { href: "/", label: "Inicio", match: (l: string) => l === "/" },
     { href: "/browse", label: "Explorar", match: (l: string) => l.startsWith("/browse") },
-    { href: "/series", label: "Series", match: (l: string) => l === "/series" },
+    { href: "/series", label: "Series", match: (l: string) => l === "/series" || l.startsWith("/series/") },
+    { href: "/tv", label: "TV en Vivo", match: (l: string) => l === "/tv", badge: "EN VIVO" },
   ];
 
   return (
@@ -113,11 +114,17 @@ export function Navbar() {
             <Link
               key={link.href}
               href={link.href}
-              className={`text-sm font-bold uppercase tracking-widest transition-colors ${
+              className={`flex items-center gap-1.5 text-sm font-bold uppercase tracking-widest transition-colors ${
                 link.match(location) ? "text-primary" : "text-muted-foreground hover:text-foreground"
               }`}
             >
               {link.label}
+              {link.badge && (
+                <span className="flex items-center gap-0.5 bg-red-500/20 text-red-400 text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-red-500/30">
+                  <span className="w-1 h-1 rounded-full bg-red-500 animate-pulse" />
+                  {link.badge}
+                </span>
+              )}
             </Link>
           ))}
         </nav>
@@ -256,8 +263,14 @@ export function Navbar() {
                 link.match(location) ? "bg-primary/10 text-primary" : "text-foreground hover:bg-secondary"
               }`}
             >
-              {link.href === "/series" && <Tv className="w-4 h-4" />}
+              {(link.href === "/series" || link.href === "/tv") && <Tv className="w-4 h-4" />}
               {link.label}
+              {link.badge && (
+                <span className="ml-auto flex items-center gap-0.5 bg-red-500/20 text-red-400 text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-red-500/30">
+                  <span className="w-1 h-1 rounded-full bg-red-500 animate-pulse" />
+                  {link.badge}
+                </span>
+              )}
             </Link>
           ))}
           <Link

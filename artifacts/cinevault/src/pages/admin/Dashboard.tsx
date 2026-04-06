@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { Film, Eye, TrendingUp, Activity, Database, Tv, Star, RefreshCw } from "lucide-react";
+import { Film, Eye, TrendingUp, Activity, Database, Tv, Star, RefreshCw, Download, ToggleLeft, ToggleRight, Zap, CheckCircle, XCircle, Clock } from "lucide-react";
 import { ActivityEntry, LocalMovie } from "@/lib/admin-db";
-import { apiGetMovies, apiGetSeries, type LocalSeries } from "@/lib/api-client";
+import { apiGetMovies, apiGetSeries, apiGetAutoImportStatus, apiToggleAutoImport, apiRunAutoImport, type LocalSeries, type AutoImportStatus } from "@/lib/api-client";
 
 export function Dashboard() {
   const [movies, setMovies] = useState<LocalMovie[]>([]);
@@ -9,6 +9,28 @@ export function Dashboard() {
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [autoImportStatus, setAutoImportStatus] = useState<AutoImportStatus | null>(null);
+  const [autoImportRunning, setAutoImportRunning] = useState(false);
+
+  const loadAutoImport = () => {
+    apiGetAutoImportStatus().then(setAutoImportStatus).catch(() => {});
+  };
+
+  const handleToggleAutoImport = async () => {
+    if (!autoImportStatus) return;
+    const newEnabled = !autoImportStatus.enabled;
+    await apiToggleAutoImport(newEnabled).catch(() => {});
+    setAutoImportStatus(prev => prev ? { ...prev, enabled: newEnabled } : prev);
+  };
+
+  const handleRunAutoImport = async () => {
+    setAutoImportRunning(true);
+    try {
+      await apiRunAutoImport();
+      await loadAutoImport();
+    } catch { /* ignore */ }
+    setAutoImportRunning(false);
+  };
 
   const load = () => {
     setLoading(true);
@@ -27,7 +49,7 @@ export function Dashboard() {
     } catch { /* ignore */ }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); loadAutoImport(); }, []);
 
   const totalMovieViews = movies.reduce((acc, m) => acc + (m.views || 0), 0);
   const totalSeriesViews = series.reduce((acc, s) => acc + (s.views || 0), 0);
@@ -243,6 +265,78 @@ export function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* Auto-import section */}
+      <div className="bg-[#161b22] border border-[#30363d] rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-[#30363d] flex items-center gap-2">
+          <Download className="w-4 h-4 text-[#58a6ff]" />
+          <h2 className="font-bold text-[#c9d1d9] text-sm">Auto-importación desde TMDB</h2>
+        </div>
+        <div className="p-5 space-y-4">
+          {/* Toggle + Run now */}
+          <div className="flex flex-wrap items-center gap-4">
+            <button
+              onClick={handleToggleAutoImport}
+              disabled={!autoImportStatus}
+              className="flex items-center gap-2 text-sm font-bold transition-colors disabled:opacity-50"
+            >
+              {autoImportStatus?.enabled
+                ? <ToggleRight className="w-6 h-6 text-[#238636]" />
+                : <ToggleLeft className="w-6 h-6 text-[#8b949e]" />
+              }
+              <span className={autoImportStatus?.enabled ? "text-[#238636]" : "text-[#8b949e]"}>
+                {autoImportStatus?.enabled ? "Activado" : "Desactivado"}
+              </span>
+            </button>
+
+            <button
+              onClick={handleRunAutoImport}
+              disabled={autoImportRunning}
+              className="flex items-center gap-2 bg-[#1f6feb]/10 border border-[#1f6feb]/30 text-[#58a6ff] hover:bg-[#1f6feb]/20 px-4 py-2 rounded-lg text-sm font-bold transition-colors disabled:opacity-50"
+            >
+              <Zap className={`w-4 h-4 ${autoImportRunning ? "animate-pulse" : ""}`} />
+              {autoImportRunning ? "Importando..." : "Ejecutar ahora"}
+            </button>
+
+            <span className="text-[#484f58] text-xs font-mono">Cron: diario a las 03:00</span>
+          </div>
+
+          {/* Log of last runs */}
+          {autoImportStatus && autoImportStatus.logs.length > 0 ? (
+            <div className="space-y-1.5">
+              <p className="text-[#8b949e] text-xs font-bold uppercase tracking-wider mb-2">Últimas ejecuciones</p>
+              {autoImportStatus.logs.map(log => (
+                <div key={log.id} className="flex items-start gap-3 text-xs font-mono bg-[#0d1117] rounded-lg px-3 py-2.5">
+                  <div className="flex-shrink-0 mt-0.5">
+                    {log.status === "success"
+                      ? <CheckCircle className="w-3.5 h-3.5 text-[#238636]" />
+                      : <XCircle className="w-3.5 h-3.5 text-[#f85149]" />
+                    }
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap gap-3 text-[#c9d1d9]">
+                      <span className="text-[#58a6ff]">+{log.movies_imported} películas</span>
+                      <span className="text-[#a371f7]">+{log.series_imported} series</span>
+                      <span className="text-[#8b949e]">{log.total_checked} revisados</span>
+                    </div>
+                    {log.error_message && (
+                      <p className="text-[#f85149] truncate mt-0.5">{log.error_message}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 text-[#484f58] flex-shrink-0">
+                    <Clock className="w-3 h-3" />
+                    <span>{new Date(log.run_at).toLocaleString("es", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : autoImportStatus && autoImportStatus.logs.length === 0 ? (
+            <p className="text-[#484f58] text-xs font-mono">Sin ejecuciones aún. Haz click en "Ejecutar ahora" para empezar.</p>
+          ) : (
+            <p className="text-[#484f58] text-xs font-mono">Cargando...</p>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

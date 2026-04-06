@@ -24,6 +24,8 @@ export interface LocalMovie {
   date_added: string;
   video_sources: VideoSource[];
   torrents: LocalTorrent[];
+  vidsrc_status?: string;
+  auto_imported?: boolean;
 }
 
 export interface VideoSource {
