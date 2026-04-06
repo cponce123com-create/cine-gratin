@@ -20,7 +20,7 @@ export function AdminLogin({ onLogin }: AdminLoginProps) {
       if (login(password)) {
         onLogin();
       } else {
-        setError("Incorrect password. Default is: admin123");
+        setError("Contraseña incorrecta. La contraseña predeterminada es: admin123");
       }
       setLoading(false);
     }, 400);
@@ -35,17 +35,17 @@ export function AdminLogin({ onLogin }: AdminLoginProps) {
             <Film className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-2xl font-bold text-white tracking-wider font-mono">CINEVAULT</h1>
-          <p className="text-[#8b949e] text-sm mt-1">Admin Panel</p>
+          <p className="text-[#8b949e] text-sm mt-1">Panel de Administración</p>
         </div>
 
         <form onSubmit={handleSubmit} className="bg-[#161b22] border border-[#30363d] rounded-xl p-8 space-y-4 shadow-2xl">
           <div className="flex items-center gap-2 mb-6 text-[#8b949e]">
             <ShieldCheck className="w-4 h-4 text-[#238636]" />
-            <span className="text-sm font-mono">Authentication Required</span>
+            <span className="text-sm font-mono">Autenticación Requerida</span>
           </div>
 
           <div>
-            <label className="block text-[#c9d1d9] text-sm font-medium mb-2 font-mono">Password</label>
+            <label className="block text-[#c9d1d9] text-sm font-medium mb-2 font-mono">Contraseña</label>
             <div className="relative">
               <div className="absolute inset-y-0 left-3 flex items-center">
                 <Lock className="w-4 h-4 text-[#8b949e]" />
@@ -54,7 +54,7 @@ export function AdminLogin({ onLogin }: AdminLoginProps) {
                 type={showPass ? "text" : "password"}
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                placeholder="Enter admin password"
+                placeholder="Ingresa la contraseña de admin"
                 className="w-full bg-[#0d1117] border border-[#30363d] focus:border-[#238636] focus:ring-1 focus:ring-[#238636] text-[#c9d1d9] rounded-lg pl-10 pr-10 py-3 text-sm outline-none font-mono placeholder:text-[#484f58] transition-colors"
                 data-testid="input-admin-password"
                 autoFocus
@@ -81,12 +81,12 @@ export function AdminLogin({ onLogin }: AdminLoginProps) {
             className="w-full bg-[#238636] hover:bg-[#2ea043] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-lg transition-colors font-mono uppercase tracking-wider text-sm"
             data-testid="btn-admin-login"
           >
-            {loading ? "Authenticating..." : "Sign In"}
+            {loading ? "Autenticando..." : "Ingresar"}
           </button>
         </form>
 
         <p className="text-center text-[#484f58] text-xs mt-6 font-mono">
-          CineVault Admin Panel v2.0
+          CineVault Panel de Admin v2.0
         </p>
       </div>
     </div>

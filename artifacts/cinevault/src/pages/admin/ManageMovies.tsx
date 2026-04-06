@@ -39,20 +39,20 @@ export function ManageMovies({ onEdit }: ManageMoviesProps) {
     deleteMovie(id);
     load();
     setDeleteConfirm(null);
-    toast.success("Movie deleted");
+    toast.success("Película eliminada");
   };
 
   const handleBulkDelete = () => {
-    if (!confirm(`Delete ${selected.size} selected movies?`)) return;
+    if (!confirm(`¿Eliminar ${selected.size} películas seleccionadas?`)) return;
     selected.forEach(id => deleteMovie(id));
     load();
-    toast.success(`${selected.size} movies deleted`);
+    toast.success(`${selected.size} películas eliminadas`);
   };
 
   const toggleFeatured = (movie: LocalMovie) => {
     updateMovie(movie.id, { featured: !movie.featured });
     load();
-    toast.success(movie.featured ? "Removed from featured" : "Set as featured");
+    toast.success(movie.featured ? "Quitada de destacados" : "Marcada como destacada");
   };
 
   const toggleSelect = (id: string) => {
@@ -76,8 +76,10 @@ export function ManageMovies({ onEdit }: ManageMoviesProps) {
     <div className="space-y-5">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[#c9d1d9] mb-1">Manage Movies</h1>
-          <p className="text-[#8b949e] text-sm">{movies.length} movie{movies.length !== 1 ? "s" : ""} in local database</p>
+          <h1 className="text-2xl font-bold text-[#c9d1d9] mb-1">Gestionar Películas</h1>
+          <p className="text-[#8b949e] text-sm">
+            {movies.length} película{movies.length !== 1 ? "s" : ""} en la base de datos
+          </p>
         </div>
 
         {selected.size > 0 && (
@@ -86,7 +88,7 @@ export function ManageMovies({ onEdit }: ManageMoviesProps) {
             className="flex items-center gap-2 bg-[#da3633]/10 border border-[#da3633]/30 text-[#f85149] px-4 py-2 rounded-lg text-sm font-bold hover:bg-[#da3633]/20 transition-colors"
           >
             <Trash className="w-4 h-4" />
-            Delete {selected.size} selected
+            Eliminar {selected.size} seleccionadas
           </button>
         )}
       </div>
@@ -97,7 +99,7 @@ export function ManageMovies({ onEdit }: ManageMoviesProps) {
         <input
           value={search}
           onChange={e => { setSearch(e.target.value); setPage(1); }}
-          placeholder="Search by title, IMDb ID, or year..."
+          placeholder="Buscar por título, ID de IMDb o año..."
           className="w-full bg-[#161b22] border border-[#30363d] focus:border-[#238636] text-[#c9d1d9] rounded-lg pl-10 pr-4 py-2.5 text-sm font-mono outline-none placeholder:text-[#484f58]"
           data-testid="input-search-movies"
         />
@@ -106,8 +108,8 @@ export function ManageMovies({ onEdit }: ManageMoviesProps) {
       {movies.length === 0 ? (
         <div className="bg-[#161b22] border border-[#30363d] rounded-xl py-16 text-center">
           <Film className="w-12 h-12 text-[#30363d] mx-auto mb-3" />
-          <p className="text-[#8b949e] font-mono text-sm">No movies in local database</p>
-          <p className="text-[#484f58] font-mono text-xs mt-1">Use "Add Movie" to get started</p>
+          <p className="text-[#8b949e] font-mono text-sm">No hay películas en la base de datos</p>
+          <p className="text-[#484f58] font-mono text-xs mt-1">Usa "Agregar Película" para empezar</p>
         </div>
       ) : (
         <>
@@ -125,12 +127,12 @@ export function ManageMovies({ onEdit }: ManageMoviesProps) {
                         className="accent-[#238636]"
                       />
                     </th>
-                    <th className="px-4 py-3 text-left text-[#8b949e] font-mono uppercase text-xs tracking-wider w-12">Poster</th>
-                    <th className="px-4 py-3 text-left text-[#8b949e] font-mono uppercase text-xs tracking-wider">Title</th>
+                    <th className="px-4 py-3 text-left text-[#8b949e] font-mono uppercase text-xs tracking-wider w-12">Póster</th>
+                    <th className="px-4 py-3 text-left text-[#8b949e] font-mono uppercase text-xs tracking-wider">Título</th>
                     <th className="px-4 py-3 text-left text-[#8b949e] font-mono uppercase text-xs tracking-wider hidden md:table-cell">IMDb ID</th>
-                    <th className="px-4 py-3 text-left text-[#8b949e] font-mono uppercase text-xs tracking-wider hidden lg:table-cell">Added</th>
-                    <th className="px-4 py-3 text-right text-[#8b949e] font-mono uppercase text-xs tracking-wider hidden sm:table-cell">Views</th>
-                    <th className="px-4 py-3 text-right text-[#8b949e] font-mono uppercase text-xs tracking-wider">Actions</th>
+                    <th className="px-4 py-3 text-left text-[#8b949e] font-mono uppercase text-xs tracking-wider hidden lg:table-cell">Añadida</th>
+                    <th className="px-4 py-3 text-right text-[#8b949e] font-mono uppercase text-xs tracking-wider hidden sm:table-cell">Vistas</th>
+                    <th className="px-4 py-3 text-right text-[#8b949e] font-mono uppercase text-xs tracking-wider">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#21262d]">
@@ -167,7 +169,7 @@ export function ManageMovies({ onEdit }: ManageMoviesProps) {
                                 {movie.rating}
                               </span>
                               {movie.featured && (
-                                <span className="text-[10px] bg-[#e3b341]/20 text-[#e3b341] border border-[#e3b341]/30 px-1.5 py-0.5 rounded font-mono">Featured</span>
+                                <span className="text-[10px] bg-[#e3b341]/20 text-[#e3b341] border border-[#e3b341]/30 px-1.5 py-0.5 rounded font-mono">Destacada</span>
                               )}
                             </div>
                           </div>
@@ -178,7 +180,7 @@ export function ManageMovies({ onEdit }: ManageMoviesProps) {
                       </td>
                       <td className="px-4 py-3 hidden lg:table-cell">
                         <span className="text-[#8b949e] font-mono text-xs">
-                          {new Date(movie.date_added).toLocaleDateString()}
+                          {new Date(movie.date_added).toLocaleDateString("es")}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right hidden sm:table-cell">
@@ -193,7 +195,7 @@ export function ManageMovies({ onEdit }: ManageMoviesProps) {
                                 ? "text-[#e3b341] bg-[#e3b341]/10 hover:bg-[#e3b341]/20"
                                 : "text-[#8b949e] hover:text-[#e3b341] hover:bg-[#e3b341]/10"
                             }`}
-                            title={movie.featured ? "Unfeature" : "Feature"}
+                            title={movie.featured ? "Quitar destacado" : "Destacar"}
                           >
                             <Star className={`w-4 h-4 ${movie.featured ? "fill-current" : ""}`} />
                           </button>
@@ -202,21 +204,21 @@ export function ManageMovies({ onEdit }: ManageMoviesProps) {
                             target="_blank"
                             rel="noopener noreferrer"
                             className="p-1.5 rounded text-[#8b949e] hover:text-[#58a6ff] hover:bg-[#58a6ff]/10 transition-colors"
-                            title="Preview"
+                            title="Vista previa"
                           >
                             <Eye className="w-4 h-4" />
                           </a>
                           <button
                             onClick={() => onEdit(movie.id)}
                             className="p-1.5 rounded text-[#8b949e] hover:text-[#3fb950] hover:bg-[#238636]/10 transition-colors"
-                            title="Edit"
+                            title="Editar"
                           >
                             <Edit2 className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => setDeleteConfirm(movie.id)}
                             className="p-1.5 rounded text-[#8b949e] hover:text-[#f85149] hover:bg-[#da3633]/10 transition-colors"
-                            title="Delete"
+                            title="Eliminar"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -232,7 +234,7 @@ export function ManageMovies({ onEdit }: ManageMoviesProps) {
             {totalPages > 1 && (
               <div className="px-4 py-3 border-t border-[#30363d] flex items-center justify-between">
                 <span className="text-[#8b949e] text-xs font-mono">
-                  Page {page} of {totalPages} · {filtered.length} results
+                  Página {page} de {totalPages} · {filtered.length} resultados
                 </span>
                 <div className="flex gap-2">
                   <button
@@ -260,9 +262,9 @@ export function ManageMovies({ onEdit }: ManageMoviesProps) {
       {deleteConfirm && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
           <div className="bg-[#161b22] border border-[#da3633]/30 rounded-xl p-6 max-w-sm w-full shadow-2xl">
-            <h3 className="text-[#c9d1d9] font-bold text-lg mb-2">Delete Movie?</h3>
+            <h3 className="text-[#c9d1d9] font-bold text-lg mb-2">¿Eliminar Película?</h3>
             <p className="text-[#8b949e] text-sm mb-6">
-              This will permanently remove the movie from your local database. This action cannot be undone.
+              Esto eliminará permanentemente la película de tu base de datos. Esta acción no se puede deshacer.
             </p>
             <div className="flex gap-3">
               <button
@@ -270,13 +272,13 @@ export function ManageMovies({ onEdit }: ManageMoviesProps) {
                 className="flex-1 bg-[#da3633] hover:bg-[#b62324] text-white py-2.5 rounded-lg font-bold text-sm transition-colors"
                 data-testid="btn-confirm-delete"
               >
-                Delete
+                Eliminar
               </button>
               <button
                 onClick={() => setDeleteConfirm(null)}
                 className="flex-1 bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d] py-2.5 rounded-lg font-bold text-sm transition-colors"
               >
-                Cancel
+                Cancelar
               </button>
             </div>
           </div>

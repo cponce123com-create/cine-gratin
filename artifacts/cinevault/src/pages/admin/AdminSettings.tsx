@@ -15,23 +15,23 @@ export function AdminSettings() {
 
   const save = () => {
     saveSettings(settings);
-    toast.success("Settings saved");
+    toast.success("Configuración guardada");
   };
 
   const handlePasswordChange = () => {
     if (!newPass) {
-      toast.error("Password cannot be empty");
+      toast.error("La contraseña no puede estar vacía");
       return;
     }
     if (newPass !== confirmPass) {
-      toast.error("Passwords do not match");
+      toast.error("Las contraseñas no coinciden");
       return;
     }
     saveSettings({ ...settings, admin_password: newPass });
     setSettings(s => ({ ...s, admin_password: newPass }));
     setNewPass("");
     setConfirmPass("");
-    toast.success("Password updated");
+    toast.success("Contraseña actualizada");
   };
 
   const exportDB = () => {
@@ -40,10 +40,10 @@ export function AdminSettings() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `cinevault_movies_${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `cinevault_peliculas_${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success("Database exported");
+    toast.success("Base de datos exportada");
   };
 
   const importDB = () => {
@@ -58,13 +58,13 @@ export function AdminSettings() {
         try {
           const data = JSON.parse(ev.target?.result as string);
           if (!Array.isArray(data)) {
-            toast.error("Invalid file format");
+            toast.error("Formato de archivo inválido");
             return;
           }
           localStorage.setItem("cinevault_movies", JSON.stringify(data));
-          toast.success(`Imported ${data.length} movies`);
+          toast.success(`${data.length} películas importadas`);
         } catch {
-          toast.error("Failed to parse JSON file");
+          toast.error("Error al leer el archivo JSON");
         }
       };
       reader.readAsText(file);
@@ -129,8 +129,8 @@ export function AdminSettings() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
-        <h1 className="text-2xl font-bold text-[#c9d1d9] mb-1">Settings</h1>
-        <p className="text-[#8b949e] text-sm">Configure your CineVault admin panel</p>
+        <h1 className="text-2xl font-bold text-[#c9d1d9] mb-1">Configuración</h1>
+        <p className="text-[#8b949e] text-sm">Configura tu panel de administración CineVault</p>
       </div>
 
       {/* General */}
@@ -141,47 +141,47 @@ export function AdminSettings() {
         </div>
         <div className="p-5 space-y-4">
           <Field
-            label="Site Name"
+            label="Nombre del Sitio"
             value={settings.site_name}
             onChange={v => setSettings(s => ({ ...s, site_name: v }))}
             placeholder="CineVault"
           />
           <Field
-            label="Site Logo URL"
+            label="URL del Logo"
             value={settings.site_logo}
             onChange={v => setSettings(s => ({ ...s, site_logo: v }))}
-            placeholder="https://example.com/logo.png"
+            placeholder="https://ejemplo.com/logo.png"
           />
           <div>
-            <label className="block text-[#8b949e] text-xs font-mono uppercase tracking-wider mb-1.5">Default Sort Order</label>
+            <label className="block text-[#8b949e] text-xs font-mono uppercase tracking-wider mb-1.5">Orden Predeterminado</label>
             <select
               value={settings.default_sort}
               onChange={e => setSettings(s => ({ ...s, default_sort: e.target.value }))}
               className="w-full bg-[#0d1117] border border-[#30363d] focus:border-[#238636] text-[#c9d1d9] rounded-lg px-3 py-2.5 text-sm font-mono outline-none"
             >
-              <option value="date_added">Date Added</option>
-              <option value="rating">Rating</option>
-              <option value="year">Year</option>
-              <option value="title">Title</option>
-              <option value="download_count">Downloads</option>
+              <option value="date_added">Fecha de Adición</option>
+              <option value="rating">Puntuación</option>
+              <option value="year">Año</option>
+              <option value="title">Título</option>
+              <option value="download_count">Descargas</option>
             </select>
           </div>
           <div>
-            <label className="block text-[#8b949e] text-xs font-mono uppercase tracking-wider mb-1.5">Featured Movie (IMDb ID)</label>
+            <label className="block text-[#8b949e] text-xs font-mono uppercase tracking-wider mb-1.5">Película Destacada (ID de IMDb)</label>
             <input
               value={settings.featured_movie_id}
               onChange={e => setSettings(s => ({ ...s, featured_movie_id: e.target.value }))}
               placeholder="tt0111161"
               className="w-full bg-[#0d1117] border border-[#30363d] focus:border-[#238636] text-[#c9d1d9] rounded-lg px-3 py-2.5 text-sm font-mono outline-none"
             />
-            <p className="text-[#8b949e] text-xs mt-1 font-mono">This movie appears in the homepage hero</p>
+            <p className="text-[#8b949e] text-xs mt-1 font-mono">Esta película aparece en el banner de inicio</p>
           </div>
           <button
             onClick={save}
             className="flex items-center gap-2 bg-[#238636] hover:bg-[#2ea043] text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-colors"
           >
             <Save className="w-4 h-4" />
-            Save Settings
+            Guardar Configuración
           </button>
         </div>
       </section>
@@ -189,24 +189,24 @@ export function AdminSettings() {
       {/* Content toggles */}
       <section className="bg-[#161b22] border border-[#30363d] rounded-xl overflow-hidden">
         <div className="px-5 py-4 border-b border-[#30363d]">
-          <h2 className="text-[#c9d1d9] font-bold text-sm">Content Sources</h2>
+          <h2 className="text-[#c9d1d9] font-bold text-sm">Fuentes de Contenido</h2>
         </div>
         <div className="px-5">
           <Toggle
-            label="Show YTS Movies"
-            description="Display movies from the YTS API in public catalog"
+            label="Mostrar películas de API externa"
+            description="Mostrar películas de APIs externas en el catálogo público"
             checked={settings.show_yts_movies}
             onChange={v => setSettings(s => ({ ...s, show_yts_movies: v }))}
           />
           <Toggle
-            label="Show Local DB Movies"
-            description="Display manually added movies in public catalog"
+            label="Mostrar películas locales"
+            description="Mostrar películas añadidas manualmente en el catálogo público"
             checked={settings.show_local_movies}
             onChange={v => setSettings(s => ({ ...s, show_local_movies: v }))}
           />
           <Toggle
-            label="Merge Both Sources"
-            description="Combine local and YTS results (local takes priority for duplicates)"
+            label="Combinar ambas fuentes"
+            description="Combinar películas locales y externas (las locales tienen prioridad en duplicados)"
             checked={settings.merge_sources}
             onChange={v => setSettings(s => ({ ...s, merge_sources: v }))}
           />
@@ -217,7 +217,7 @@ export function AdminSettings() {
             className="flex items-center gap-2 bg-[#238636] hover:bg-[#2ea043] text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-colors"
           >
             <Save className="w-4 h-4" />
-            Save
+            Guardar
           </button>
         </div>
       </section>
@@ -225,17 +225,17 @@ export function AdminSettings() {
       {/* Password */}
       <section className="bg-[#161b22] border border-[#30363d] rounded-xl overflow-hidden">
         <div className="px-5 py-4 border-b border-[#30363d]">
-          <h2 className="text-[#c9d1d9] font-bold text-sm">Change Password</h2>
+          <h2 className="text-[#c9d1d9] font-bold text-sm">Cambiar Contraseña</h2>
         </div>
         <div className="p-5 space-y-3">
           <div>
-            <label className="block text-[#8b949e] text-xs font-mono uppercase tracking-wider mb-1.5">New Password</label>
+            <label className="block text-[#8b949e] text-xs font-mono uppercase tracking-wider mb-1.5">Nueva Contraseña</label>
             <div className="relative">
               <input
                 type={showPass ? "text" : "password"}
                 value={newPass}
                 onChange={e => setNewPass(e.target.value)}
-                placeholder="New password"
+                placeholder="Nueva contraseña"
                 className="w-full bg-[#0d1117] border border-[#30363d] focus:border-[#238636] text-[#c9d1d9] rounded-lg px-3 pr-10 py-2.5 text-sm font-mono outline-none"
               />
               <button
@@ -248,12 +248,12 @@ export function AdminSettings() {
             </div>
           </div>
           <div>
-            <label className="block text-[#8b949e] text-xs font-mono uppercase tracking-wider mb-1.5">Confirm Password</label>
+            <label className="block text-[#8b949e] text-xs font-mono uppercase tracking-wider mb-1.5">Confirmar Contraseña</label>
             <input
               type="password"
               value={confirmPass}
               onChange={e => setConfirmPass(e.target.value)}
-              placeholder="Confirm new password"
+              placeholder="Confirmar nueva contraseña"
               className="w-full bg-[#0d1117] border border-[#30363d] focus:border-[#238636] text-[#c9d1d9] rounded-lg px-3 py-2.5 text-sm font-mono outline-none"
             />
           </div>
@@ -261,7 +261,7 @@ export function AdminSettings() {
             onClick={handlePasswordChange}
             className="bg-[#238636] hover:bg-[#2ea043] text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-colors"
           >
-            Update Password
+            Actualizar Contraseña
           </button>
         </div>
       </section>
@@ -269,7 +269,7 @@ export function AdminSettings() {
       {/* Database */}
       <section className="bg-[#161b22] border border-[#30363d] rounded-xl overflow-hidden">
         <div className="px-5 py-4 border-b border-[#30363d]">
-          <h2 className="text-[#c9d1d9] font-bold text-sm">Database</h2>
+          <h2 className="text-[#c9d1d9] font-bold text-sm">Base de Datos</h2>
         </div>
         <div className="p-5 flex flex-wrap gap-3">
           <button
@@ -278,7 +278,7 @@ export function AdminSettings() {
             data-testid="btn-export-db"
           >
             <Download className="w-4 h-4" />
-            Export JSON
+            Exportar JSON
           </button>
           <button
             onClick={importDB}
@@ -286,7 +286,7 @@ export function AdminSettings() {
             data-testid="btn-import-db"
           >
             <Upload className="w-4 h-4" />
-            Import JSON
+            Importar JSON
           </button>
         </div>
       </section>

@@ -15,11 +15,11 @@ interface AdminLayoutProps {
 }
 
 const NAV_ITEMS: { id: AdminPage; label: string; icon: typeof LayoutDashboard }[] = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { id: "add-movie", label: "Add Movie", icon: PlusCircle },
-  { id: "manage-movies", label: "Manage Movies", icon: Film },
-  { id: "video-servers", label: "Video Servers", icon: Server },
-  { id: "settings", label: "Settings", icon: Settings },
+  { id: "dashboard", label: "Panel de Control", icon: LayoutDashboard },
+  { id: "add-movie", label: "Agregar Película", icon: PlusCircle },
+  { id: "manage-movies", label: "Gestionar Películas", icon: Film },
+  { id: "video-servers", label: "Servidores de Video", icon: Server },
+  { id: "settings", label: "Configuración", icon: Settings },
 ];
 
 export function AdminLayout({
@@ -38,7 +38,7 @@ export function AdminLayout({
 
   const pageTitle =
     currentPage === "add-movie" && editMovieId
-      ? "Edit Movie"
+      ? "Editar Película"
       : NAV_ITEMS.find(n => n.id === currentPage)?.label ?? "Admin";
 
   return (
@@ -65,7 +65,7 @@ export function AdminLayout({
             </div>
             <div>
               <p className="text-white font-bold text-sm tracking-wider font-mono">CINEVAULT</p>
-              <p className="text-[#8b949e] text-[10px] font-mono uppercase tracking-wider">Admin Panel</p>
+              <p className="text-[#8b949e] text-[10px] font-mono uppercase tracking-wider">Panel Admin</p>
             </div>
           </div>
           <button
@@ -108,7 +108,7 @@ export function AdminLayout({
             data-testid="btn-logout"
           >
             <LogOut className="w-4 h-4 flex-shrink-0" />
-            Sign Out
+            Cerrar Sesión
           </button>
         </div>
       </aside>
@@ -138,7 +138,7 @@ export function AdminLayout({
               rel="noopener noreferrer"
               className="text-xs text-[#8b949e] hover:text-[#58a6ff] transition-colors font-mono hidden sm:block"
             >
-              ↗ View Site
+              ↗ Ver Sitio
             </a>
             <div className="w-7 h-7 rounded-full bg-[#238636] flex items-center justify-center">
               <span className="text-xs text-white font-bold">A</span>

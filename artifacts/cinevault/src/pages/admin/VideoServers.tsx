@@ -36,18 +36,18 @@ export function VideoServers() {
 
   const toggle = (id: string) => {
     persist(servers.map(s => s.id === id ? { ...s, active: !s.active } : s));
-    toast.success("Server status updated");
+    toast.success("Estado del servidor actualizado");
   };
 
   const remove = (id: string) => {
-    if (!confirm("Delete this server?")) return;
+    if (!confirm("¿Eliminar este servidor?")) return;
     persist(servers.filter(s => s.id !== id));
-    toast.success("Server removed");
+    toast.success("Servidor eliminado");
   };
 
   const addServer = () => {
     if (!newServer.name || !newServer.url_pattern) {
-      toast.error("Name and URL pattern are required");
+      toast.error("El nombre y el patrón de URL son requeridos");
       return;
     }
     persist([...servers, {
@@ -59,7 +59,7 @@ export function VideoServers() {
     }]);
     setNewServer({ name: "", url_pattern: "" });
     setShowAdd(false);
-    toast.success("Server added");
+    toast.success("Servidor agregado");
   };
 
   const resolveUrl = (pattern: string, imdb: string) =>
@@ -69,8 +69,8 @@ export function VideoServers() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[#c9d1d9] mb-1">Video Servers</h1>
-          <p className="text-[#8b949e] text-sm">Global embed server priority and management</p>
+          <h1 className="text-2xl font-bold text-[#c9d1d9] mb-1">Servidores de Video</h1>
+          <p className="text-[#8b949e] text-sm">Gestión y prioridad de servidores de streaming</p>
         </div>
         <button
           onClick={() => setShowAdd(!showAdd)}
@@ -78,14 +78,14 @@ export function VideoServers() {
           data-testid="btn-add-server"
         >
           <Plus className="w-4 h-4" />
-          Add Server
+          Agregar Servidor
         </button>
       </div>
 
       {/* Test bar */}
       <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-4 flex flex-wrap items-center gap-3">
         <TestTube className="w-4 h-4 text-[#e3b341] flex-shrink-0" />
-        <span className="text-sm text-[#8b949e] font-mono">Test with IMDB ID:</span>
+        <span className="text-sm text-[#8b949e] font-mono">Probar con ID de IMDb:</span>
         <input
           value={testImdb}
           onChange={e => setTestImdb(e.target.value)}
@@ -93,45 +93,45 @@ export function VideoServers() {
           placeholder="tt0111161"
         />
         <button
-          onClick={() => toast.info("Click 'Test' on individual servers below")}
+          onClick={() => toast.info("Haz clic en 'Probar' en cada servidor de la lista")}
           className="bg-[#e3b341]/10 border border-[#e3b341]/30 text-[#e3b341] px-4 py-1.5 rounded-lg text-sm font-bold hover:bg-[#e3b341]/20 transition-colors"
         >
-          Test All
+          Probar Todos
         </button>
       </div>
 
       {/* Add server form */}
       {showAdd && (
         <div className="bg-[#161b22] border border-[#238636]/30 rounded-xl p-5 space-y-3">
-          <h3 className="text-[#c9d1d9] font-bold text-sm">New Server</h3>
+          <h3 className="text-[#c9d1d9] font-bold text-sm">Nuevo Servidor</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-[#8b949e] font-mono block mb-1">Server Name</label>
+              <label className="text-xs text-[#8b949e] font-mono block mb-1">Nombre del Servidor</label>
               <input
                 value={newServer.name}
                 onChange={e => setNewServer(p => ({ ...p, name: e.target.value }))}
-                placeholder="MyServer"
+                placeholder="MiServidor"
                 className="w-full bg-[#0d1117] border border-[#30363d] focus:border-[#238636] text-[#c9d1d9] rounded-lg px-3 py-2 text-sm font-mono outline-none"
               />
             </div>
             <div>
               <label className="text-xs text-[#8b949e] font-mono block mb-1">
-                URL Pattern <span className="text-[#238636]">(use {"{IMDB_ID}"})</span>
+                Patrón de URL <span className="text-[#238636]">(usa {"{IMDB_ID}"})</span>
               </label>
               <input
                 value={newServer.url_pattern}
                 onChange={e => setNewServer(p => ({ ...p, url_pattern: e.target.value }))}
-                placeholder="https://example.com/embed/{IMDB_ID}"
+                placeholder="https://ejemplo.com/embed/{IMDB_ID}"
                 className="w-full bg-[#0d1117] border border-[#30363d] focus:border-[#238636] text-[#c9d1d9] rounded-lg px-3 py-2 text-sm font-mono outline-none"
               />
             </div>
           </div>
           <div className="flex gap-2 pt-1">
             <button onClick={addServer} className="bg-[#238636] hover:bg-[#2ea043] text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors">
-              Add
+              Agregar
             </button>
             <button onClick={() => setShowAdd(false)} className="bg-[#21262d] text-[#8b949e] hover:text-[#c9d1d9] px-4 py-2 rounded-lg text-sm font-bold transition-colors">
-              Cancel
+              Cancelar
             </button>
           </div>
         </div>
@@ -184,7 +184,7 @@ export function VideoServers() {
                 onClick={() => setTestingUrl(resolveUrl(server.url_pattern, testImdb))}
                 className="px-3 py-1.5 bg-[#21262d] hover:bg-[#e3b341]/10 hover:text-[#e3b341] text-[#8b949e] rounded-lg text-xs font-bold transition-colors border border-transparent hover:border-[#e3b341]/30"
               >
-                Test
+                Probar
               </button>
               <button
                 onClick={() => toggle(server.id)}
@@ -194,7 +194,7 @@ export function VideoServers() {
                     : "bg-[#21262d] text-[#8b949e] border-[#30363d] hover:text-[#c9d1d9]"
                 }`}
               >
-                {server.active ? "Active" : "Inactive"}
+                {server.active ? "Activo" : "Inactivo"}
               </button>
               <button
                 onClick={() => remove(server.id)}
@@ -207,7 +207,7 @@ export function VideoServers() {
         ))}
         {servers.length === 0 && (
           <div className="bg-[#161b22] border border-[#30363d] rounded-xl py-12 text-center text-[#8b949e] font-mono text-sm">
-            No servers configured
+            Sin servidores configurados
           </div>
         )}
       </div>
@@ -235,7 +235,7 @@ export function VideoServers() {
                 height="100%"
                 allowFullScreen
                 className="w-full h-full"
-                title="Server Test"
+                title="Probar servidor"
               />
             </div>
           </div>

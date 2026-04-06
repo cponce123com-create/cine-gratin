@@ -5,17 +5,10 @@ import { getMovies, getActivity, ActivityEntry, LocalMovie } from "@/lib/admin-d
 export function Dashboard() {
   const [movies, setMovies] = useState<LocalMovie[]>([]);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
-  const [ytsCount, setYtsCount] = useState<number | null>(null);
 
   useEffect(() => {
     setMovies(getMovies());
     setActivity(getActivity());
-
-    // Fetch total YTS movie count
-    fetch("https://yts.mx/api/v2/list_movies.json?limit=1")
-      .then(r => r.json())
-      .then(d => setYtsCount(d?.data?.movie_count ?? null))
-      .catch(() => setYtsCount(null));
   }, []);
 
   const mostViewed = [...movies].sort((a, b) => (b.views || 0) - (a.views || 0))[0];
@@ -23,21 +16,21 @@ export function Dashboard() {
 
   const stats = [
     {
-      label: "Local Movies",
+      label: "Películas",
       value: movies.length,
       icon: Database,
       color: "#238636",
       bg: "rgba(35,134,54,0.1)",
     },
     {
-      label: "YTS Catalog",
-      value: ytsCount !== null ? ytsCount.toLocaleString() : "—",
-      icon: Film,
+      label: "Total Vistas",
+      value: movies.reduce((acc, m) => acc + (m.views || 0), 0),
+      icon: Eye,
       color: "#58a6ff",
       bg: "rgba(88,166,255,0.1)",
     },
     {
-      label: "Most Watched",
+      label: "Más Vista",
       value: mostViewed ? mostViewed.title : "—",
       icon: TrendingUp,
       color: "#e3b341",
@@ -45,7 +38,7 @@ export function Dashboard() {
       small: true,
     },
     {
-      label: "Last Added",
+      label: "Última Añadida",
       value: lastAdded ? lastAdded.title : "—",
       icon: Clock,
       color: "#a371f7",
@@ -58,17 +51,17 @@ export function Dashboard() {
     const d = new Date(iso);
     const now = new Date();
     const diff = Math.floor((now.getTime() - d.getTime()) / 1000);
-    if (diff < 60) return `${diff}s ago`;
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    return d.toLocaleDateString();
+    if (diff < 60) return `hace ${diff}s`;
+    if (diff < 3600) return `hace ${Math.floor(diff / 60)}m`;
+    if (diff < 86400) return `hace ${Math.floor(diff / 3600)}h`;
+    return d.toLocaleDateString("es");
   };
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-[#c9d1d9] mb-1">Dashboard</h1>
-        <p className="text-[#8b949e] text-sm">Overview of your CineVault content</p>
+        <h1 className="text-2xl font-bold text-[#c9d1d9] mb-1">Panel de Control</h1>
+        <p className="text-[#8b949e] text-sm">Resumen del contenido de tu CineVault</p>
       </div>
 
       {/* Stats */}
@@ -94,10 +87,10 @@ export function Dashboard() {
               >
                 {stat.value}
               </p>
-              {mostViewed && stat.label === "Most Watched" && (
-                <p className="text-[#8b949e] text-xs mt-1 font-mono">{mostViewed.views || 0} views</p>
+              {mostViewed && stat.label === "Más Vista" && (
+                <p className="text-[#8b949e] text-xs mt-1 font-mono">{mostViewed.views || 0} vistas</p>
               )}
-              {lastAdded && stat.label === "Last Added" && (
+              {lastAdded && stat.label === "Última Añadida" && (
                 <p className="text-[#8b949e] text-xs mt-1 font-mono">{lastAdded.year}</p>
               )}
             </div>
@@ -110,10 +103,10 @@ export function Dashboard() {
         <div className="bg-[#161b22] border border-[#30363d] rounded-xl overflow-hidden">
           <div className="px-5 py-4 border-b border-[#30363d] flex items-center gap-2">
             <Activity className="w-4 h-4 text-[#238636]" />
-            <h2 className="font-bold text-[#c9d1d9] text-sm">Recent Activity</h2>
+            <h2 className="font-bold text-[#c9d1d9] text-sm">Actividad Reciente</h2>
           </div>
           {activity.length === 0 ? (
-            <div className="px-5 py-10 text-center text-[#8b949e] text-sm font-mono">No activity yet</div>
+            <div className="px-5 py-10 text-center text-[#8b949e] text-sm font-mono">Sin actividad aún</div>
           ) : (
             <div className="divide-y divide-[#21262d]">
               {activity.slice(0, 10).map(entry => (
@@ -134,10 +127,10 @@ export function Dashboard() {
         <div className="bg-[#161b22] border border-[#30363d] rounded-xl overflow-hidden">
           <div className="px-5 py-4 border-b border-[#30363d] flex items-center gap-2">
             <Eye className="w-4 h-4 text-[#58a6ff]" />
-            <h2 className="font-bold text-[#c9d1d9] text-sm">Top Movies by Views</h2>
+            <h2 className="font-bold text-[#c9d1d9] text-sm">Películas por Vistas</h2>
           </div>
           {movies.length === 0 ? (
-            <div className="px-5 py-10 text-center text-[#8b949e] text-sm font-mono">No local movies yet</div>
+            <div className="px-5 py-10 text-center text-[#8b949e] text-sm font-mono">Sin películas todavía</div>
           ) : (
             <div className="divide-y divide-[#21262d]">
               {[...movies].sort((a, b) => (b.views || 0) - (a.views || 0)).slice(0, 8).map(movie => (

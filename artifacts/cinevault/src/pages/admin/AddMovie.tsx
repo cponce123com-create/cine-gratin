@@ -23,7 +23,7 @@ const EMPTY_MOVIE: Omit<LocalMovie, "id" | "date_added" | "views"> = {
   rating: 0,
   runtime: 0,
   genres: [],
-  language: "en",
+  language: "es",
   synopsis: "",
   director: "",
   cast_list: [],
@@ -65,13 +65,13 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
 
   const update = (patch: Partial<typeof form>) => setForm(prev => ({ ...prev, ...patch }));
 
-  // ─── YTS Import ─────────────────────────────────────────────
+  // ─── Importar por IMDb ───────────────────────────────────────
 
-  const fetchFromYts = async () => {
+  const fetchFromImdb = async () => {
     const q = imdbQuery.trim();
-    if (!q) { toast.error("Enter an IMDb ID or URL"); return; }
+    if (!q) { toast.error("Ingresa un ID de IMDb o URL"); return; }
     const imdbId = q.includes("tt") ? q.match(/tt\d+/)?.[0] : q;
-    if (!imdbId) { toast.error("Could not extract IMDb ID"); return; }
+    if (!imdbId) { toast.error("No se pudo extraer el ID de IMDb"); return; }
 
     setFetching(true);
     try {
@@ -81,7 +81,7 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
       const json = await res.json();
       const movie = json?.data?.movies?.[0];
       if (!movie) {
-        toast.error("Movie not found on YTS");
+        toast.error("Película no encontrada. Intenta agregar manualmente.");
         setFetching(false);
         return;
       }
@@ -121,17 +121,17 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
       setGenreInput((movie.genres || []).join(", "));
       setCastInput((movie.cast || []).map((c: { name: string }) => c.name).join("\n"));
       setTab("manual");
-      toast.success(`Fetched: ${movie.title} (${movie.year})`);
+      toast.success(`Importado: ${movie.title} (${movie.year})`);
     } catch {
-      toast.error("Failed to fetch from YTS");
+      toast.error("Error al importar. Intenta agregar manualmente.");
     }
     setFetching(false);
   };
 
-  // ─── Video Sources ───────────────────────────────────────────
+  // ─── Fuentes de Video ────────────────────────────────────────
 
   const addSource = () => {
-    const sources = [...form.video_sources, { id: uid(), name: "Custom Server", url: "", active: true }];
+    const sources = [...form.video_sources, { id: uid(), name: "Servidor Personalizado", url: "", active: true }];
     update({ video_sources: sources });
   };
 
@@ -165,11 +165,11 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
     update({ torrents: form.torrents.filter(t => t.id !== id) });
   };
 
-  // ─── Save ────────────────────────────────────────────────────
+  // ─── Guardar ─────────────────────────────────────────────────
 
   const handleSave = (preview = false) => {
     if (!form.title || !form.imdb_id) {
-      toast.error("Title and IMDb ID are required");
+      toast.error("El título y el ID de IMDb son requeridos");
       return;
     }
     setSaving(true);
@@ -189,7 +189,7 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
     };
 
     addMovie(movie);
-    toast.success(editId ? "Movie updated!" : "Movie saved!");
+    toast.success(editId ? "¡Película actualizada!" : "¡Película guardada!");
     setSaving(false);
 
     if (preview) {
@@ -198,7 +198,7 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
     onSaved();
   };
 
-  // ─── UI helpers ──────────────────────────────────────────────
+  // ─── Componentes UI ──────────────────────────────────────────
 
   const InputField = ({
     label, value, onChange, placeholder, type = "text", mono = false
@@ -222,10 +222,10 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
     <div className="space-y-6 max-w-3xl">
       <div>
         <h1 className="text-2xl font-bold text-[#c9d1d9] mb-1">
-          {editId ? "Edit Movie" : "Add Movie"}
+          {editId ? "Editar Película" : "Agregar Película"}
         </h1>
         <p className="text-[#8b949e] text-sm">
-          {editId ? "Update existing movie data" : "Import from YTS or add manually"}
+          {editId ? "Actualizar datos de la película existente" : "Importar por ID de IMDb o agregar manualmente"}
         </p>
       </div>
 
@@ -242,7 +242,7 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
                   : "text-[#8b949e] hover:text-[#c9d1d9]"
               }`}
             >
-              {t === "import" ? "Import from YTS/IMDb" : "Add Manually"}
+              {t === "import" ? "Importar por IMDb" : "Agregar Manualmente"}
             </button>
           ))}
         </div>
@@ -251,28 +251,28 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
       {/* Import tab */}
       {tab === "import" && !editId && (
         <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-6 space-y-4">
-          <h2 className="text-[#c9d1d9] font-bold text-sm">Fetch from YTS/IMDb</h2>
+          <h2 className="text-[#c9d1d9] font-bold text-sm">Importar datos por ID de IMDb</h2>
           <div className="flex gap-3">
             <input
               value={imdbQuery}
               onChange={e => setImdbQuery(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && fetchFromYts()}
-              placeholder="IMDb ID (e.g. tt0072610) or YTS movie URL"
+              onKeyDown={e => e.key === "Enter" && fetchFromImdb()}
+              placeholder="ID de IMDb (ej. tt0072610) o URL de la película"
               className="flex-1 bg-[#0d1117] border border-[#30363d] focus:border-[#238636] text-[#c9d1d9] rounded-lg px-4 py-3 text-sm font-mono outline-none placeholder:text-[#484f58]"
               data-testid="input-imdb-query"
             />
             <button
-              onClick={fetchFromYts}
+              onClick={fetchFromImdb}
               disabled={fetching}
               className="flex items-center gap-2 bg-[#238636] hover:bg-[#2ea043] disabled:opacity-50 text-white px-5 py-3 rounded-lg text-sm font-bold transition-colors whitespace-nowrap"
               data-testid="btn-fetch-movie"
             >
               {fetching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              Fetch Data
+              Importar
             </button>
           </div>
           <p className="text-[#8b949e] text-xs font-mono">
-            Enter an IMDb ID like <span className="text-[#58a6ff]">tt0111161</span> or paste a YTS movie URL
+            Ingresa un ID como <span className="text-[#58a6ff]">tt0111161</span> para importar los datos automáticamente
           </p>
         </div>
       )}
@@ -282,20 +282,20 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
         <div className="space-y-6">
           {/* Core Info */}
           <section className="bg-[#161b22] border border-[#30363d] rounded-xl p-6 space-y-4">
-            <h2 className="text-[#c9d1d9] font-bold text-sm border-b border-[#30363d] pb-3">Basic Info</h2>
+            <h2 className="text-[#c9d1d9] font-bold text-sm border-b border-[#30363d] pb-3">Información Básica</h2>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2">
-                <InputField label="Title *" value={form.title} onChange={v => update({ title: v })} placeholder="Movie title" />
+                <InputField label="Título *" value={form.title} onChange={v => update({ title: v })} placeholder="Título de la película" />
               </div>
-              <InputField label="IMDb ID *" value={form.imdb_id} onChange={v => update({ imdb_id: v })} placeholder="tt0111161" mono />
-              <InputField label="Slug" value={form.slug} onChange={v => update({ slug: v })} placeholder="auto-generated if empty" mono />
-              <InputField label="Year" value={String(form.year)} onChange={v => update({ year: Number(v) })} type="number" />
-              <InputField label="IMDb Rating" value={String(form.rating)} onChange={v => update({ rating: Number(v) })} type="number" placeholder="0-10" />
-              <InputField label="Runtime (min)" value={String(form.runtime)} onChange={v => update({ runtime: Number(v) })} type="number" />
-              <InputField label="Language" value={form.language} onChange={v => update({ language: v })} placeholder="en" />
+              <InputField label="ID de IMDb *" value={form.imdb_id} onChange={v => update({ imdb_id: v })} placeholder="tt0111161" mono />
+              <InputField label="Slug" value={form.slug} onChange={v => update({ slug: v })} placeholder="se genera automáticamente" mono />
+              <InputField label="Año" value={String(form.year)} onChange={v => update({ year: Number(v) })} type="number" />
+              <InputField label="Puntuación IMDb" value={String(form.rating)} onChange={v => update({ rating: Number(v) })} type="number" placeholder="0-10" />
+              <InputField label="Duración (min)" value={String(form.runtime)} onChange={v => update({ runtime: Number(v) })} type="number" />
+              <InputField label="Idioma" value={form.language} onChange={v => update({ language: v })} placeholder="es" />
               <div>
-                <label className="block text-[#8b949e] text-xs font-mono uppercase tracking-wider mb-1.5">MPA Rating</label>
+                <label className="block text-[#8b949e] text-xs font-mono uppercase tracking-wider mb-1.5">Clasificación MPA</label>
                 <select
                   value={form.mpa_rating}
                   onChange={e => update({ mpa_rating: e.target.value })}
@@ -308,34 +308,34 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
 
             <div>
               <label className="block text-[#8b949e] text-xs font-mono uppercase tracking-wider mb-1.5">
-                Genres (comma-separated)
+                Géneros (separados por coma)
               </label>
               <input
                 value={genreInput}
                 onChange={e => setGenreInput(e.target.value)}
-                placeholder="Action, Drama, Thriller"
+                placeholder="Acción, Drama, Thriller"
                 className="w-full bg-[#0d1117] border border-[#30363d] focus:border-[#238636] text-[#c9d1d9] rounded-lg px-3 py-2.5 text-sm outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-[#8b949e] text-xs font-mono uppercase tracking-wider mb-1.5">Synopsis</label>
+              <label className="block text-[#8b949e] text-xs font-mono uppercase tracking-wider mb-1.5">Sinopsis</label>
               <textarea
                 value={form.synopsis}
                 onChange={e => update({ synopsis: e.target.value })}
-                placeholder="Movie description..."
+                placeholder="Descripción de la película..."
                 rows={4}
                 className="w-full bg-[#0d1117] border border-[#30363d] focus:border-[#238636] text-[#c9d1d9] rounded-lg px-3 py-2.5 text-sm outline-none resize-none"
               />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <InputField label="Director" value={form.director} onChange={v => update({ director: v })} placeholder="Director name" />
-              <InputField label="YouTube Trailer Code" value={form.yt_trailer_code} onChange={v => update({ yt_trailer_code: v })} placeholder="dQw4w9WgXcQ" mono />
+              <InputField label="Director" value={form.director} onChange={v => update({ director: v })} placeholder="Nombre del director" />
+              <InputField label="Código de Tráiler (YouTube)" value={form.yt_trailer_code} onChange={v => update({ yt_trailer_code: v })} placeholder="dQw4w9WgXcQ" mono />
             </div>
 
             <div>
-              <label className="block text-[#8b949e] text-xs font-mono uppercase tracking-wider mb-1.5">Cast (one per line)</label>
+              <label className="block text-[#8b949e] text-xs font-mono uppercase tracking-wider mb-1.5">Reparto (uno por línea)</label>
               <textarea
                 value={castInput}
                 onChange={e => setCastInput(e.target.value)}
@@ -348,18 +348,18 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
 
           {/* Media */}
           <section className="bg-[#161b22] border border-[#30363d] rounded-xl p-6 space-y-4">
-            <h2 className="text-[#c9d1d9] font-bold text-sm border-b border-[#30363d] pb-3">Media</h2>
+            <h2 className="text-[#c9d1d9] font-bold text-sm border-b border-[#30363d] pb-3">Multimedia</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <InputField label="Poster URL" value={form.poster_url} onChange={v => update({ poster_url: v })} placeholder="https://..." />
+                <InputField label="URL del Póster" value={form.poster_url} onChange={v => update({ poster_url: v })} placeholder="https://..." />
                 {form.poster_url && (
-                  <img src={form.poster_url} alt="Poster preview" className="h-40 object-cover rounded-lg border border-[#30363d]" />
+                  <img src={form.poster_url} alt="Vista previa del póster" className="h-40 object-cover rounded-lg border border-[#30363d]" />
                 )}
               </div>
               <div className="space-y-2">
-                <InputField label="Background/Banner URL" value={form.background_url} onChange={v => update({ background_url: v })} placeholder="https://..." />
+                <InputField label="URL del Fondo/Banner" value={form.background_url} onChange={v => update({ background_url: v })} placeholder="https://..." />
                 {form.background_url && (
-                  <img src={form.background_url} alt="Background preview" className="h-40 w-full object-cover rounded-lg border border-[#30363d]" />
+                  <img src={form.background_url} alt="Vista previa del fondo" className="h-40 w-full object-cover rounded-lg border border-[#30363d]" />
                 )}
               </div>
             </div>
@@ -368,19 +368,19 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
           {/* Video Sources */}
           <section className="bg-[#161b22] border border-[#30363d] rounded-xl p-6 space-y-4">
             <div className="flex items-center justify-between border-b border-[#30363d] pb-3">
-              <h2 className="text-[#c9d1d9] font-bold text-sm">Video Sources</h2>
+              <h2 className="text-[#c9d1d9] font-bold text-sm">Fuentes de Video</h2>
               <button
                 onClick={addSource}
                 className="flex items-center gap-1.5 bg-[#238636]/10 border border-[#238636]/30 text-[#3fb950] px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-[#238636]/20 transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
-                Add Source
+                Agregar Fuente
               </button>
             </div>
 
             {form.video_sources.length === 0 && (
               <p className="text-[#8b949e] text-sm font-mono text-center py-4">
-                No video sources yet. Add one or fetch from YTS to auto-fill.
+                Sin fuentes de video. Agrega una manualmente o importa por IMDb.
               </p>
             )}
 
@@ -399,7 +399,7 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
                   <input
                     value={src.name}
                     onChange={e => updateSource(src.id, { name: e.target.value })}
-                    placeholder="Server name"
+                    placeholder="Nombre del servidor"
                     className="flex-1 bg-[#161b22] border border-[#30363d] focus:border-[#238636] text-[#c9d1d9] rounded-lg px-3 py-1.5 text-sm font-mono outline-none"
                   />
                   <button
@@ -407,7 +407,7 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
                     className="flex items-center gap-1 text-[#8b949e] hover:text-[#e3b341] bg-[#21262d] hover:bg-[#e3b341]/10 border border-[#30363d] hover:border-[#e3b341]/30 px-2 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap"
                   >
                     <TestTube className="w-3 h-3" />
-                    Test
+                    Probar
                   </button>
                   <button
                     onClick={() => removeSource(src.id)}
@@ -429,25 +429,25 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
           {/* Torrents */}
           <section className="bg-[#161b22] border border-[#30363d] rounded-xl p-6 space-y-4">
             <div className="flex items-center justify-between border-b border-[#30363d] pb-3">
-              <h2 className="text-[#c9d1d9] font-bold text-sm">Torrent Links</h2>
+              <h2 className="text-[#c9d1d9] font-bold text-sm">Enlaces de Descarga</h2>
               <button
                 onClick={addTorrent}
                 className="flex items-center gap-1.5 bg-[#238636]/10 border border-[#238636]/30 text-[#3fb950] px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-[#238636]/20 transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
-                Add Torrent
+                Agregar Torrent
               </button>
             </div>
 
             {form.torrents.length === 0 && (
-              <p className="text-[#8b949e] text-sm font-mono text-center py-4">No torrents added yet</p>
+              <p className="text-[#8b949e] text-sm font-mono text-center py-4">Sin torrents añadidos aún</p>
             )}
 
             {form.torrents.map(torrent => (
               <div key={torrent.id} className="bg-[#0d1117] border border-[#30363d] rounded-xl p-4">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
                   <div>
-                    <label className="text-[#8b949e] text-[10px] font-mono uppercase block mb-1">Quality</label>
+                    <label className="text-[#8b949e] text-[10px] font-mono uppercase block mb-1">Calidad</label>
                     <select
                       value={torrent.quality}
                       onChange={e => updateTorrent(torrent.id, { quality: e.target.value })}
@@ -457,7 +457,7 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
                     </select>
                   </div>
                   <div>
-                    <label className="text-[#8b949e] text-[10px] font-mono uppercase block mb-1">Source</label>
+                    <label className="text-[#8b949e] text-[10px] font-mono uppercase block mb-1">Fuente</label>
                     <select
                       value={torrent.source}
                       onChange={e => updateTorrent(torrent.id, { source: e.target.value })}
@@ -467,7 +467,7 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
                     </select>
                   </div>
                   <div>
-                    <label className="text-[#8b949e] text-[10px] font-mono uppercase block mb-1">File Size</label>
+                    <label className="text-[#8b949e] text-[10px] font-mono uppercase block mb-1">Tamaño</label>
                     <input
                       value={torrent.size}
                       onChange={e => updateTorrent(torrent.id, { size: e.target.value })}
@@ -481,16 +481,16 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
                       className="flex items-center gap-1 text-[#8b949e] hover:text-[#f85149] border border-[#30363d] hover:border-[#da3633]/30 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
                     >
                       <Trash2 className="w-3 h-3" />
-                      Remove
+                      Eliminar
                     </button>
                   </div>
                 </div>
                 <div>
-                  <label className="text-[#8b949e] text-[10px] font-mono uppercase block mb-1">Torrent URL or Magnet Link</label>
+                  <label className="text-[#8b949e] text-[10px] font-mono uppercase block mb-1">URL del Torrent o Enlace Magnet</label>
                   <input
                     value={torrent.url}
                     onChange={e => updateTorrent(torrent.id, { url: e.target.value })}
-                    placeholder="https://yts.mx/torrent/download/... or magnet:?xt=urn:btih:..."
+                    placeholder="https://... o magnet:?xt=urn:btih:..."
                     className="w-full bg-[#161b22] border border-[#30363d] focus:border-[#238636] text-[#c9d1d9] rounded-lg px-3 py-2 text-xs font-mono outline-none"
                   />
                 </div>
@@ -501,8 +501,8 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
           {/* Featured toggle */}
           <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-5 flex items-center justify-between">
             <div>
-              <p className="text-[#c9d1d9] font-medium text-sm">Featured on Homepage</p>
-              <p className="text-[#8b949e] text-xs mt-0.5">Show this movie in the hero section</p>
+              <p className="text-[#c9d1d9] font-medium text-sm">Destacada en el Inicio</p>
+              <p className="text-[#8b949e] text-xs mt-0.5">Mostrar esta película en el banner principal</p>
             </div>
             <button
               onClick={() => update({ featured: !form.featured })}
@@ -517,20 +517,22 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
             <button
               onClick={() => handleSave(false)}
               disabled={saving}
-              className="flex items-center gap-2 bg-[#238636] hover:bg-[#2ea043] disabled:opacity-50 text-white px-6 py-3 rounded-lg font-bold text-sm transition-colors"
+              className="flex items-center gap-2 bg-[#238636] hover:bg-[#2ea043] disabled:opacity-50 text-white px-6 py-3 rounded-lg text-sm font-bold transition-colors"
               data-testid="btn-save-movie"
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              {editId ? "Update Movie" : "Save Movie"}
+              {editId ? "Guardar Cambios" : "Guardar y Salir"}
             </button>
-            <button
-              onClick={() => handleSave(true)}
-              disabled={saving}
-              className="flex items-center gap-2 bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] text-[#c9d1d9] px-6 py-3 rounded-lg font-bold text-sm transition-colors"
-              data-testid="btn-save-preview"
-            >
-              Save & Preview
-            </button>
+            {!editId && (
+              <button
+                onClick={() => handleSave(true)}
+                disabled={saving}
+                className="flex items-center gap-2 bg-[#21262d] hover:bg-[#30363d] text-[#c9d1d9] px-6 py-3 rounded-lg text-sm font-bold transition-colors border border-[#30363d]"
+                data-testid="btn-save-preview"
+              >
+                Guardar y Ver
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -541,15 +543,25 @@ export function AddMovie({ editId, onSaved }: AddMovieProps) {
           className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
           onClick={() => setTestEmbedUrl(null)}
         >
-          <div className="w-full max-w-3xl" onClick={e => e.stopPropagation()}>
+          <div
+            className="w-full max-w-3xl"
+            onClick={e => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between mb-3">
               <p className="text-[#8b949e] font-mono text-xs truncate flex-1 mr-4">{testEmbedUrl}</p>
-              <button onClick={() => setTestEmbedUrl(null)} className="text-white p-1 hover:text-[#f85149]">
+              <button onClick={() => setTestEmbedUrl(null)} className="text-white hover:text-[#f85149]">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="w-full aspect-video rounded-xl overflow-hidden bg-black border border-[#30363d]">
-              <iframe src={testEmbedUrl} width="100%" height="100%" allowFullScreen className="w-full h-full" title="Embed Test" />
+              <iframe
+                src={testEmbedUrl}
+                width="100%"
+                height="100%"
+                allowFullScreen
+                className="w-full h-full"
+                title="Probar fuente de video"
+              />
             </div>
           </div>
         </div>
