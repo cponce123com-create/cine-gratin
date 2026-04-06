@@ -114,9 +114,24 @@ export default function SeriesDetail() {
             )}
 
             {series.synopsis && (
-              <p className="text-gray-300 text-sm sm:text-base leading-relaxed max-w-2xl">
+              <p className="text-gray-300 text-sm sm:text-base leading-relaxed max-w-2xl mb-6">
                 {series.synopsis}
               </p>
+            )}
+
+            {/* Primary play button */}
+            {series.imdb_id && (
+              <button
+                onClick={() =>
+                  navigate(
+                    `/player/series/${series.imdb_id}?season=1&episode=1&title=${encodeURIComponent(series.title)}`
+                  )
+                }
+                className="flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
+              >
+                <PlayIcon />
+                Ver ahora
+              </button>
             )}
           </div>
         </div>
@@ -171,7 +186,19 @@ export default function SeriesDetail() {
 
                       {/* Source buttons */}
                       <div className="flex items-center gap-2 flex-shrink-0">
-                        {ep.video_sources && ep.video_sources.length > 0 ? (
+                        {series.imdb_id ? (
+                          <button
+                            onClick={() =>
+                              navigate(
+                                `/player/series/${series.imdb_id}?season=${currentSeason.number}&episode=${ep.number ?? idx + 1}&title=${encodeURIComponent(series.title)}`
+                              )
+                            }
+                            className="flex items-center gap-1.5 text-xs font-semibold py-1.5 px-3 rounded bg-brand-red hover:bg-red-700 text-white transition-colors"
+                          >
+                            <PlayIcon />
+                            Ver
+                          </button>
+                        ) : ep.video_sources && ep.video_sources.length > 0 ? (
                           ep.video_sources.map((src, si) => (
                             <button
                               key={si}

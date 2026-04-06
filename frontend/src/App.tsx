@@ -7,6 +7,8 @@ import SeriesList from "@/pages/SeriesList";
 import MovieDetail from "@/pages/MovieDetail";
 import SeriesDetail from "@/pages/SeriesDetail";
 import Player from "@/pages/Player";
+import MoviePlayer from "@/pages/player/MoviePlayer";
+import SeriesPlayer from "@/pages/player/SeriesPlayer";
 import NotFound from "@/pages/NotFound";
 import AdminLogin from "@/pages/admin/Login";
 import AdminDashboard from "@/pages/admin/Dashboard";
@@ -16,6 +18,8 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         {/* Standalone routes (no Navbar) */}
+        <Route path="/player/movie/:imdbId" element={<MoviePlayer />} />
+        <Route path="/player/series/:imdbId" element={<SeriesPlayer />} />
         <Route path="/player" element={<Player />} />
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route

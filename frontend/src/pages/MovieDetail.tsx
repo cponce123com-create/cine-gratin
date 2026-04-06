@@ -136,7 +136,20 @@ export default function MovieDetail() {
 
             {/* Action buttons */}
             <div className="flex flex-wrap gap-3">
-              {firstSource && (
+              {/* VidSrc primary button */}
+              {movie.imdb_id ? (
+                <button
+                  onClick={() =>
+                    navigate(
+                      `/player/movie/${movie.imdb_id}?title=${encodeURIComponent(movie.title)}`
+                    )
+                  }
+                  className="flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
+                >
+                  <PlayIcon />
+                  Ver ahora
+                </button>
+              ) : firstSource ? (
                 <button
                   onClick={() =>
                     navigate(
@@ -148,8 +161,9 @@ export default function MovieDetail() {
                   <PlayIcon />
                   Ver ahora
                 </button>
-              )}
+              ) : null}
 
+              {/* Secondary sources */}
               {movie.video_sources && movie.video_sources.length > 1 && (
                 <div className="flex flex-wrap gap-2">
                   {movie.video_sources.slice(1).map((src, i) => (

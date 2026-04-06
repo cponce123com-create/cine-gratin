@@ -37,6 +37,7 @@ export interface VideoSource {
 
 export interface Movie {
   id: string | number;
+  imdb_id?: string;
   title: string;
   synopsis?: string;
   year?: number;
@@ -64,6 +65,7 @@ export interface Season {
 
 export interface Series {
   id: string | number;
+  imdb_id?: string;
   title: string;
   synopsis?: string;
   year?: number;

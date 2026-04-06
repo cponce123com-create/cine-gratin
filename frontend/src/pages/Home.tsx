@@ -87,7 +87,19 @@ export default function Home() {
 
             {/* Actions */}
             <div className="flex flex-wrap gap-3">
-              {heroItem.video_sources && heroItem.video_sources.length > 0 && (
+              {heroItem.imdb_id ? (
+                <button
+                  onClick={() =>
+                    navigate(
+                      `/player/movie/${heroItem.imdb_id}?title=${encodeURIComponent(heroItem.title)}`
+                    )
+                  }
+                  className="flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white font-bold py-3 px-6 rounded transition-colors"
+                >
+                  <PlayIcon />
+                  Reproducir
+                </button>
+              ) : heroItem.video_sources && heroItem.video_sources.length > 0 ? (
                 <button
                   onClick={() =>
                     navigate(
@@ -99,7 +111,7 @@ export default function Home() {
                   <PlayIcon />
                   Reproducir
                 </button>
-              )}
+              ) : null}
               <Link
                 to={`/pelicula/${heroItem.id}`}
                 className="flex items-center gap-2 bg-white/10 hover:bg-white/20 border border-white/30 text-white font-bold py-3 px-6 rounded transition-colors backdrop-blur-sm"
