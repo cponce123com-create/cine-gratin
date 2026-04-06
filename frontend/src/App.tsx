@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Navbar from "@/components/Navbar";
+import ProtectedRoute from "@/components/ProtectedRoute";
 import Home from "@/pages/Home";
 import Movies from "@/pages/Movies";
 import SeriesList from "@/pages/SeriesList";
@@ -7,12 +8,26 @@ import MovieDetail from "@/pages/MovieDetail";
 import SeriesDetail from "@/pages/SeriesDetail";
 import Player from "@/pages/Player";
 import NotFound from "@/pages/NotFound";
+import AdminLogin from "@/pages/admin/Login";
+import AdminDashboard from "@/pages/admin/Dashboard";
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Standalone routes (no Navbar) */}
         <Route path="/player" element={<Player />} />
+        <Route path="/admin/login" element={<AdminLogin />} />
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute>
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Public site (with Navbar) */}
         <Route
           path="/*"
           element={

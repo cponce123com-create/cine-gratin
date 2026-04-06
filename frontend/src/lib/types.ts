@@ -1,3 +1,34 @@
+// ── Admin types ──────────────────────────────────────────────────────────────
+
+export interface AutoImportLog {
+  id: string | number;
+  run_at: string;
+  status: "success" | "error";
+  movies_imported: number;
+  series_imported: number;
+  total_checked: number;
+  error_message?: string;
+}
+
+export interface AutoImportStatus {
+  enabled: boolean;
+  logs: AutoImportLog[];
+}
+
+export interface RunImportResult {
+  movies_imported: number;
+  series_imported: number;
+  total_checked: number;
+  status?: string;
+}
+
+export interface VidsrcResult {
+  imdb_id: string;
+  available: boolean;
+}
+
+// ── Media types ───────────────────────────────────────────────────────────────
+
 export interface VideoSource {
   label: string;
   url: string;
