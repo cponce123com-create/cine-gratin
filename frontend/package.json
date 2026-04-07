@@ -4,29 +4,22 @@
   "private": true,
   "type": "module",
   "scripts": {
-  "build": "vite build",
-  "typecheck": "tsc --noEmit"
-}
+    "build": "vite build",
+    "typecheck": "tsc --noEmit"
+  },
   "dependencies": {
-  "react": "catalog:",
-  "react-dom": "catalog:",
-  "@tanstack/react-query": "catalog:"
-},
-"devDependencies": {
-  "@types/react": "catalog:",
-  "@types/react-dom": "catalog:",
-  "@vitejs/plugin-react": "catalog:",
-  "vite": "catalog:",
-  "typescript": "~5.9.2"
-}
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "@tanstack/react-query": "catalog:"
+  },
   "devDependencies": {
-    "@types/react": "^18.3.12",
-    "@types/react-dom": "^18.3.1",
-    "@vitejs/plugin-react": "^4.3.4",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "vite": "catalog:",
+    "typescript": "~5.9.2",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.49",
-    "tailwindcss": "^3.4.17",
-    "typescript": "^5.7.2",
-    "vite": "^6.0.5"
+    "tailwindcss": "^3.4.17"
   }
 }
