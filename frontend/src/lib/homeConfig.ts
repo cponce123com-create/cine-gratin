@@ -1,0 +1,126 @@
+/**
+ * Home page section configuration.
+ * Edit this file to add, remove or reorder sections without touching Home.tsx.
+ */
+
+// ── Genre sections ────────────────────────────────────────────────────────────
+// keywords: matched against each item's genres[] (case-insensitive substring)
+// Content from TMDB arrives in Spanish (es-MX) so use Spanish genre names.
+
+export interface GenreSection {
+  id: string;
+  label: string;
+  keywords: string[];
+}
+
+export const GENRE_SECTIONS: GenreSection[] = [
+  {
+    id: "accion",
+    label: "Acción",
+    keywords: ["acción", "action", "acción y aventura", "action & adventure", "aventura", "adventure"],
+  },
+  {
+    id: "comedia",
+    label: "Comedia",
+    keywords: ["comedia", "comedy"],
+  },
+  {
+    id: "drama",
+    label: "Drama",
+    keywords: ["drama"],
+  },
+  {
+    id: "terror",
+    label: "Terror",
+    keywords: ["terror", "horror"],
+  },
+  {
+    id: "scifi",
+    label: "Ciencia ficción",
+    keywords: [
+      "ciencia ficción",
+      "science fiction",
+      "sci-fi & fantasy",
+      "ciencia ficción y fantasía",
+      "fantasía",
+      "fantasy",
+    ],
+  },
+  {
+    id: "animacion",
+    label: "Animación",
+    keywords: ["animación", "animation", "infantil", "familiar", "family"],
+  },
+  {
+    id: "documental",
+    label: "Documentales",
+    keywords: ["documental", "documentary"],
+  },
+  {
+    id: "crimen",
+    label: "Crimen",
+    keywords: ["crimen", "crime"],
+  },
+  {
+    id: "suspenso",
+    label: "Suspenso",
+    keywords: ["suspenso", "thriller", "misterio", "mystery"],
+  },
+  {
+    id: "romance",
+    label: "Romance",
+    keywords: ["romance", "romantic"],
+  },
+];
+
+// ── Platform sections (future) ────────────────────────────────────────────────
+// Requires a 'networks' field stored in the DB.
+// Once the backend saves network/studio data, enable these in Home.tsx.
+
+export interface PlatformSection {
+  id: string;
+  label: string;
+  /** Colour used for the platform badge */
+  accent: string;
+  /** Network names to match against item.networks[] */
+  networks: string[];
+}
+
+export const PLATFORM_SECTIONS: PlatformSection[] = [
+  {
+    id: "netflix",
+    label: "Netflix",
+    accent: "#E50914",
+    networks: ["Netflix"],
+  },
+  {
+    id: "disney",
+    label: "Disney+",
+    accent: "#0063E5",
+    networks: ["Disney+", "Disney Channel", "National Geographic", "Freeform"],
+  },
+  {
+    id: "hbo",
+    label: "HBO / Max",
+    accent: "#8B2FC9",
+    networks: ["HBO", "Max", "Cinemax"],
+  },
+  {
+    id: "amazon",
+    label: "Prime Video",
+    accent: "#00A8E1",
+    networks: ["Amazon", "Prime Video", "Amazon Prime Video"],
+  },
+  {
+    id: "apple",
+    label: "Apple TV+",
+    accent: "#555555",
+    networks: ["Apple TV+", "Apple TV Plus"],
+  },
+  {
+    id: "paramount",
+    label: "Paramount+",
+    accent: "#0064FF",
+    networks: ["Paramount+", "Paramount Network", "Paramount"],
+  },
+];
