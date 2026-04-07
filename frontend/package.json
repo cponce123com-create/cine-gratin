@@ -4,10 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
-  },
+  "build": "vite build",
+  "typecheck": "tsc --noEmit"
+}
   "dependencies": {
   "react": "catalog:",
   "react-dom": "catalog:",
