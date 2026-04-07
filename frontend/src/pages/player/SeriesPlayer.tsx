@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { getSeriesById, trackSeriesView } from "@/lib/api";
+import { useContinueWatching } from "@/hooks/useContinueWatching";
 import type { SeasonData } from "@/lib/types";
 
 interface Server {
@@ -42,6 +43,7 @@ export default function SeriesPlayer() {
 
   const [totalSeasons, setTotalSeasons] = useState<number | null>(null);
   const [seasonsData, setSeasonsData] = useState<SeasonData[]>([]);
+  const { saveItem } = useContinueWatching();
 
   useEffect(() => {
     if (imdbId) trackSeriesView(imdbId).catch(() => {});
@@ -54,9 +56,31 @@ export default function SeriesPlayer() {
         const parsed = parseSeasons(s.seasons_data);
         setSeasonsData(parsed);
         setTotalSeasons(s.total_seasons ?? parsed.length ?? 1);
+        
+        // Save to continue watching
+        saveItem({
+          id: s.id,
+          imdbId: imdbId,
+          title: s.title,
+          type: "series",
+          poster_url: s.poster_url,
+          season,
+          episode,
+        });
       })
-      .catch(() => setTotalSeasons(10));
-  }, [imdbId]);
+      .catch(() => {
+        setTotalSeasons(10);
+        // Fallback save
+        saveItem({
+          id: imdbId,
+          imdbId: imdbId,
+          title: title,
+          type: "series",
+          season,
+          episode,
+        });
+      });
+  }, [imdbId, season, episode, title]);
 
   const resolvedTotalSeasons = totalSeasons ?? 1;
   const episodesInSeason = seasonsData.find((s) => s.season === season)?.episodes ?? 30;

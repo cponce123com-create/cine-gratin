@@ -8,7 +8,7 @@ export interface MixedItem {
 }
 
 interface GenreCarouselProps {
-  id: string;
+  id?: string;
   title: string;
   items: MixedItem[];
 }
@@ -16,7 +16,7 @@ interface GenreCarouselProps {
 export default function GenreCarousel({ id, title, items }: GenreCarouselProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  if (items.length < 2) return null;
+  if (items.length === 0) return null;
 
   const scroll = (dir: "left" | "right") => {
     if (!scrollRef.current) return;
@@ -25,7 +25,7 @@ export default function GenreCarousel({ id, title, items }: GenreCarouselProps) 
   };
 
   return (
-    <section id={`genre-${id}`} className="mb-10 scroll-mt-4">
+    <section id={id ? `genre-${id}` : undefined} className="mb-10 scroll-mt-4">
       <div className="flex items-center justify-between mb-4 px-4 sm:px-6 lg:px-8">
         <h2 className="text-lg sm:text-xl font-bold text-white">{title}</h2>
         <div className="flex gap-2">

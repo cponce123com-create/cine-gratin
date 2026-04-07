@@ -8,6 +8,7 @@ import GenreCarousel, { type MixedItem } from "@/components/GenreCarousel";
 import { SkeletonHero } from "@/components/SkeletonCard";
 import { GENRE_SECTIONS, PLATFORM_SECTIONS } from "@/lib/homeConfig";
 import type { Movie, Series } from "@/lib/types";
+import { useContinueWatching } from "@/hooks/useContinueWatching";
 
 const FALLBACK_BG =
   "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=1400&auto=format&fit=crop";
@@ -66,6 +67,50 @@ export default function Home() {
   const heroItem = useMemo(() => {
     return allMovies.find((m) => m.featured) ?? allMovies[0] ?? null;
   }, [allMovies]);
+
+  const { items: continueWatching } = useContinueWatching();
+
+  const continueWatchingItems = useMemo(() => {
+    return continueWatching.map((item) => {
+      // Create a partial Movie/Series object that MediaCard can handle
+      const base = {
+        id: item.id,
+        imdb_id: item.imdbId,
+        title: item.title,
+        poster_url: item.poster_url,
+        // Add extra info for the label if it's a series
+        ...(item.type === "series" && item.season && item.episode
+          ? { year: `T${item.season} E${item.episode}` as any }
+          : {}),
+      };
+      return { item: base, type: item.type } as MixedItem;
+    });
+  }, [continueWatching]);
+
+  const mostViewed = useMemo(() => {
+    const mixed = buildMixed(allMovies, allSeries, () => true, () => true);
+    return mixed.sort((a, b) => (b.item.views || 0) - (a.item.views || 0)).slice(0, 20);
+  }, [allMovies, allSeries]);
+
+  const recentlyAdded = useMemo(() => {
+    const mixed = buildMixed(allMovies, allSeries, () => true, () => true);
+    return mixed.sort((a, b) => {
+      const dateA = a.item.date_added ? new Date(a.item.date_added).getTime() : 0;
+      const dateB = b.item.date_added ? new Date(b.item.date_added).getTime() : 0;
+      return dateB - dateA;
+    }).slice(0, 20);
+  }, [allMovies, allSeries]);
+
+  const trending = useMemo(() => {
+    // For trends, we can use a mix of views and recency, or just a subset of most viewed
+    // Here we'll take items with high views but also relatively recent
+    const mixed = buildMixed(allMovies, allSeries, () => true, () => true);
+    return mixed
+      .sort((a, b) => (b.item.views || 0) - (a.item.views || 0))
+      .slice(0, 40)
+      .sort(() => Math.random() - 0.5) // Shuffle a bit to make it feel "dynamic"
+      .slice(0, 20);
+  }, [allMovies, allSeries]);
 
   const popularMovies = useMemo(() => allMovies.slice(0, 20), [allMovies]);
   const popularSeries = useMemo(() => allSeries.slice(0, 20), [allSeries]);
@@ -203,6 +248,22 @@ export default function Home() {
 
       {/* ── Main content ──────────────────────────────────────────── */}
       <div className="pt-8 pb-16">
+        {continueWatchingItems.length > 0 && (
+          <GenreCarousel title="Seguir viendo" items={continueWatchingItems} />
+        )}
+
+        {mostViewed.length > 0 && (
+          <GenreCarousel title="Las más vistas" items={mostViewed} />
+        )}
+
+        {trending.length > 0 && (
+          <GenreCarousel title="Tendencias" items={trending} />
+        )}
+
+        {recentlyAdded.length > 0 && (
+          <GenreCarousel title="Añadidas recientemente" items={recentlyAdded} />
+        )}
+
         {errorMovies ? (
           <p className="text-red-400 text-center py-8">No se pudieron cargar las películas.</p>
         ) : (
@@ -212,9 +273,6 @@ export default function Home() {
           <p className="text-red-400 text-center py-8">No se pudieron cargar las series.</p>
         ) : (
           <Carousel title="Series populares" items={popularSeries} type="series" />
-        )}
-        {allMovies.length > 20 && (
-          <Carousel title="Más películas" items={allMovies.slice(20, 40)} type="movie" />
         )}
 
         {/* ── Genre & Platform sections ─────────────────────────────── */}

@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
-import { trackMovieView } from "@/lib/api";
+import { trackMovieView, getMovie } from "@/lib/api";
+import { useContinueWatching } from "@/hooks/useContinueWatching";
 
 interface Server {
   label: string;
@@ -23,10 +24,34 @@ export default function MoviePlayer() {
 
   const title = searchParams.get("title") ?? "Reproduciendo";
   const [activeServer, setActiveServer] = useState(0);
+  const { saveItem } = useContinueWatching();
 
   useEffect(() => {
-    if (imdbId) trackMovieView(imdbId).catch(() => {});
-  }, [imdbId]);
+    if (imdbId) {
+      trackMovieView(imdbId).catch(() => {});
+      
+      // Get full movie data to have the poster and internal ID
+      getMovie(imdbId)
+        .then((movie) => {
+          saveItem({
+            id: movie.id,
+            imdbId: imdbId,
+            title: movie.title,
+            type: "movie",
+            poster_url: movie.poster_url,
+          });
+        })
+        .catch(() => {
+          // Fallback if API fails, at least save basic info
+          saveItem({
+            id: imdbId,
+            imdbId: imdbId,
+            title: title,
+            type: "movie",
+          });
+        });
+    }
+  }, [imdbId, title]);
 
   const src = SERVERS[activeServer].url(imdbId!);
 
