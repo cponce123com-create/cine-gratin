@@ -36,6 +36,13 @@ export const toggleAutoImport = (enabled: boolean): Promise<{ enabled: boolean }
   apiPost("/api/admin/auto-import/toggle", { enabled });
 export const runAutoImport = (): Promise<RunImportResult> =>
   apiPost("/api/admin/auto-import/run", {});
+
+export const runAutoImportWithIds = (
+  imdb_ids: string[],
+  type: "movie" | "series"
+): Promise<RunImportResult> =>
+  apiPost("/api/admin/auto-import/run", { imdb_ids, type });
+
 export const verifyVidsrc = (
   imdb_ids: string[],
   type: "movie" | "series"
