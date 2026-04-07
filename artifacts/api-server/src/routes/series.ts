@@ -20,6 +20,8 @@ const toSeries = (row: Record<string, unknown>) => ({
   poster_url: row.poster_url,
   background_url: row.background_url,
   yt_trailer_code: row.yt_trailer_code,
+  videos: row.videos ?? [],
+  reviews: row.reviews ?? [],
   status: row.status,
   total_seasons: Number(row.total_seasons),
   seasons_data: row.seasons_data,
@@ -86,18 +88,21 @@ router.post("/series", async (req, res) => {
   try {
     await pool.query(
       `INSERT INTO cv_series (id, imdb_id, tmdb_id, title, year, end_year, rating, genres, language,
-        synopsis, creators, cast_list, poster_url, background_url, yt_trailer_code, status,
-        total_seasons, seasons_data, video_sources, featured, views, date_added)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
+        synopsis, creators, cast_list, networks, poster_url, background_url, yt_trailer_code,
+        videos, reviews, status, total_seasons, seasons_data, video_sources, featured, views, date_added)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
        ON CONFLICT (id) DO UPDATE SET
          imdb_id=$2, tmdb_id=$3, title=$4, year=$5, end_year=$6, rating=$7, genres=$8, language=$9,
-         synopsis=$10, creators=$11, cast_list=$12, poster_url=$13, background_url=$14,
-         yt_trailer_code=$15, status=$16, total_seasons=$17, seasons_data=$18,
-         video_sources=$19, featured=$20, views=$21`,
+         synopsis=$10, creators=$11, cast_list=$12, networks=$13, poster_url=$14, background_url=$15,
+         yt_trailer_code=$16, videos=$17, reviews=$18, status=$19, total_seasons=$20,
+         seasons_data=$21, video_sources=$22, featured=$23, views=$24`,
       [
         s.id, s.imdb_id, s.tmdb_id || null, s.title, s.year, s.end_year || null,
         s.rating, s.genres, s.language, s.synopsis, s.creators, s.cast_list,
-        s.poster_url, s.background_url, s.yt_trailer_code, s.status || "",
+        s.networks ?? [],
+        s.poster_url, s.background_url, s.yt_trailer_code,
+        JSON.stringify(s.videos ?? []), JSON.stringify(s.reviews ?? []),
+        s.status || "",
         s.total_seasons, JSON.stringify(s.seasons_data || []),
         JSON.stringify(s.video_sources || []),
         s.featured || false, s.views || 0,

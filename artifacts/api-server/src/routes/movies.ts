@@ -19,6 +19,8 @@ const toMovie = (row: Record<string, unknown>) => ({
   poster_url: row.poster_url,
   background_url: row.background_url,
   yt_trailer_code: row.yt_trailer_code,
+  videos: row.videos ?? [],
+  reviews: row.reviews ?? [],
   mpa_rating: row.mpa_rating,
   slug: row.slug,
   featured: row.featured,
@@ -114,18 +116,22 @@ router.post("/movies", async (req, res) => {
   try {
     await pool.query(
       `INSERT INTO movies (id, imdb_id, title, year, rating, runtime, genres, language, synopsis,
-        director, cast_list, poster_url, background_url, yt_trailer_code, mpa_rating, slug,
-        featured, video_sources, torrents, views, date_added)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+        director, cast_list, networks, poster_url, background_url, yt_trailer_code, videos, reviews,
+        mpa_rating, slug, featured, video_sources, torrents, views, date_added)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
        ON CONFLICT (id) DO UPDATE SET
          imdb_id=$2, title=$3, year=$4, rating=$5, runtime=$6, genres=$7, language=$8, synopsis=$9,
-         director=$10, cast_list=$11, poster_url=$12, background_url=$13, yt_trailer_code=$14,
-         mpa_rating=$15, slug=$16, featured=$17, video_sources=$18, torrents=$19, views=$20`,
+         director=$10, cast_list=$11, networks=$12, poster_url=$13, background_url=$14,
+         yt_trailer_code=$15, videos=$16, reviews=$17, mpa_rating=$18, slug=$19, featured=$20,
+         video_sources=$21, torrents=$22, views=$23`,
       [
         m.id, m.imdb_id, m.title, m.year, m.rating, m.runtime,
         m.genres, m.language, m.synopsis, m.director, m.cast_list,
-        m.poster_url, m.background_url, m.yt_trailer_code, m.mpa_rating,
-        m.slug, m.featured, JSON.stringify(m.video_sources), JSON.stringify(m.torrents),
+        m.networks ?? [],
+        m.poster_url, m.background_url, m.yt_trailer_code,
+        JSON.stringify(m.videos ?? []), JSON.stringify(m.reviews ?? []),
+        m.mpa_rating, m.slug, m.featured,
+        JSON.stringify(m.video_sources), JSON.stringify(m.torrents),
         m.views || 0, m.date_added || new Date().toISOString(),
       ]
     );

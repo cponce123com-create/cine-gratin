@@ -29,23 +29,66 @@ export function makeSlug(title: string, year: number): string {
     + (year ? `-${year}` : "");
 }
 
+interface TmdbVideoRaw {
+  type: string;
+  site: string;
+  key: string;
+  name: string;
+  official: boolean;
+  published_at?: string;
+}
+
+interface TmdbReviewRaw {
+  author: string;
+  content: string;
+  author_details: { rating: number | null };
+  created_at: string;
+}
+
+const VIDEO_TYPES_WANTED = ["Trailer", "Teaser", "Clip", "Featurette", "Behind the Scenes", "Bloopers"];
+
+function parseVideos(videoList: TmdbVideoRaw[]) {
+  return videoList
+    .filter(v => v.site === "YouTube" && VIDEO_TYPES_WANTED.includes(v.type))
+    .slice(0, 12)
+    .map(v => ({
+      key: v.key,
+      name: v.name,
+      type: v.type,
+      official: v.official ?? false,
+    }));
+}
+
+function parseReviews(reviewList: TmdbReviewRaw[]) {
+  return reviewList
+    .slice(0, 5)
+    .map(r => ({
+      author: r.author,
+      content: (r.content || "").slice(0, 600),
+      rating: r.author_details?.rating ?? null,
+      created_at: r.created_at,
+    }));
+}
+
 export async function fetchMovieByTmdbId(tmdbId: number): Promise<Record<string, unknown> | null> {
   try {
-    const [detailsRes, creditsRes, videosRes, extIdsRes] = await Promise.all([
+    const [detailsRes, creditsRes, videosRes, extIdsRes, reviewsRes] = await Promise.all([
       tmdbFetch(`/movie/${tmdbId}?language=es-MX`),
       tmdbFetch(`/movie/${tmdbId}/credits?language=es-MX`),
       tmdbFetch(`/movie/${tmdbId}/videos?language=es-MX&include_video_language=es,en`),
       tmdbFetch(`/movie/${tmdbId}/external_ids`),
+      tmdbFetch(`/movie/${tmdbId}/reviews?language=es-MX`),
     ]);
 
     if (!detailsRes.ok || !extIdsRes.ok) return null;
 
-    const [details, credits, videos, extIds] = await Promise.all([
+    const [details, credits, videos, extIds, reviews] = await Promise.all([
       detailsRes.json(),
-      creditsRes.json(),
-      videosRes.json(),
+      creditsRes.ok ? creditsRes.json() : Promise.resolve({ crew: [], cast: [] }),
+      videosRes.ok ? videosRes.json() : Promise.resolve({ results: [] }),
       extIdsRes.json(),
-    ]) as [Record<string, unknown>, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>];
+      reviewsRes.ok ? reviewsRes.json() : Promise.resolve({ results: [] }),
+    ]) as [Record<string, unknown>, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>];
 
     const imdbId = extIds.imdb_id as string | null;
     if (!imdbId) return null;
@@ -64,10 +107,15 @@ export async function fetchMovieByTmdbId(tmdbId: number): Promise<Record<string,
     const castRaw = (credits.cast as Array<{ name: string }>) || [];
     const castList = castRaw.slice(0, 12).map(c => c.name);
 
-    const videoList = (videos.results as Array<{ type: string; site: string; key: string; official: boolean; published_at: string }>) || [];
+    const videoList = (videos.results as TmdbVideoRaw[]) || [];
+    const allVideos = parseVideos(videoList);
+    // Pick main trailer for yt_trailer_code
     const trailer = videoList
       .filter(v => v.type === "Trailer" && v.site === "YouTube")
       .sort((a, b) => (b.official ? 1 : 0) - (a.official ? 1 : 0))[0];
+
+    const reviewList = (reviews.results as TmdbReviewRaw[]) || [];
+    const allReviews = parseReviews(reviewList);
 
     const genreList = (details.genres as Array<{ name: string }>) || [];
     const posterPath = details.poster_path as string | null;
@@ -97,6 +145,8 @@ export async function fetchMovieByTmdbId(tmdbId: number): Promise<Record<string,
       poster_url: posterPath ? `${TMDB_IMG}/w500${posterPath}` : "",
       background_url: backdropPath ? `${TMDB_IMG}/original${backdropPath}` : "",
       yt_trailer_code: trailer?.key || "",
+      videos: allVideos,
+      reviews: allReviews,
       mpa_rating: "NR",
       slug: makeSlug(title, year),
     };
@@ -107,21 +157,23 @@ export async function fetchMovieByTmdbId(tmdbId: number): Promise<Record<string,
 
 export async function fetchSeriesByTmdbId(tmdbId: number): Promise<Record<string, unknown> | null> {
   try {
-    const [detailsRes, creditsRes, videosRes, extIdsRes] = await Promise.all([
+    const [detailsRes, creditsRes, videosRes, extIdsRes, reviewsRes] = await Promise.all([
       tmdbFetch(`/tv/${tmdbId}?language=es-MX`),
       tmdbFetch(`/tv/${tmdbId}/credits?language=es-MX`),
       tmdbFetch(`/tv/${tmdbId}/videos?language=es-MX&include_video_language=es,en`),
       tmdbFetch(`/tv/${tmdbId}/external_ids`),
+      tmdbFetch(`/tv/${tmdbId}/reviews?language=es-MX`),
     ]);
 
     if (!detailsRes.ok || !extIdsRes.ok) return null;
 
-    const [details, credits, videos, extIds] = await Promise.all([
+    const [details, credits, videos, extIds, reviews] = await Promise.all([
       detailsRes.json(),
-      creditsRes.json(),
-      videosRes.json(),
+      creditsRes.ok ? creditsRes.json() : Promise.resolve({ crew: [], cast: [] }),
+      videosRes.ok ? videosRes.json() : Promise.resolve({ results: [] }),
       extIdsRes.json(),
-    ]) as [Record<string, unknown>, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>];
+      reviewsRes.ok ? reviewsRes.json() : Promise.resolve({ results: [] }),
+    ]) as [Record<string, unknown>, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>, Record<string, unknown>];
 
     const imdbId = extIds.imdb_id as string | null;
     if (!imdbId) return null;
@@ -144,9 +196,13 @@ export async function fetchSeriesByTmdbId(tmdbId: number): Promise<Record<string
       if (director) creatorNames.push(director);
     }
 
-    const videoList = (videos.results as Array<{ type: string; site: string; key: string; official: boolean }>) || [];
+    const videoList = (videos.results as TmdbVideoRaw[]) || [];
+    const allVideos = parseVideos(videoList);
     const trailer = videoList.filter(v => v.type === "Trailer" && v.site === "YouTube")
       .sort((a, b) => (b.official ? 1 : 0) - (a.official ? 1 : 0))[0];
+
+    const reviewList = (reviews.results as TmdbReviewRaw[]) || [];
+    const allReviews = parseReviews(reviewList);
 
     const genreList = (details.genres as Array<{ name: string }>) || [];
     const posterPath = details.poster_path as string | null;
@@ -188,6 +244,8 @@ export async function fetchSeriesByTmdbId(tmdbId: number): Promise<Record<string
       poster_url: posterPath ? `${TMDB_IMG}/w500${posterPath}` : "",
       background_url: backdropPath ? `${TMDB_IMG}/original${backdropPath}` : "",
       yt_trailer_code: trailer?.key || "",
+      videos: allVideos,
+      reviews: allReviews,
       status: tvStatus,
       total_seasons: (details.number_of_seasons as number) || seasons.length,
       seasons_data: seasons,

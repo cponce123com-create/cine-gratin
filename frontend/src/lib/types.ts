@@ -35,6 +35,22 @@ export interface VideoSource {
   type?: string;
 }
 
+/** TMDB video clip (trailer, teaser, clip, etc.) */
+export interface TmdbVideo {
+  key: string;
+  name: string;
+  type: string;
+  official: boolean;
+}
+
+/** TMDB user review */
+export interface TmdbReview {
+  author: string;
+  content: string;
+  rating: number | null;
+  created_at: string;
+}
+
 /** One season entry from TMDB — stores episode COUNT, not episode objects */
 export interface SeasonData {
   season: number;
@@ -67,6 +83,10 @@ export interface Movie {
   yt_trailer_code?: string;
   /** Legacy full URL — may not be populated */
   trailer_url?: string;
+  /** All TMDB videos (trailers, teasers, clips…) */
+  videos?: TmdbVideo[];
+  /** TMDB user reviews */
+  reviews?: TmdbReview[];
   video_sources?: VideoSource[];
   featured?: boolean;
   views?: number;
@@ -91,6 +111,10 @@ export interface Series {
   background_url?: string;
   /** YouTube video key (e.g. "dQw4w9WgXcQ") */
   yt_trailer_code?: string;
+  /** All TMDB videos (trailers, teasers, clips…) */
+  videos?: TmdbVideo[];
+  /** TMDB user reviews */
+  reviews?: TmdbReview[];
   status?: string;
   total_seasons?: number;
   /** Season metadata from TMDB: season number + episode count */

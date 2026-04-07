@@ -139,7 +139,7 @@ export default function SeriesPlayer() {
             </button>
           </div>
 
-          {/* Row 2: server buttons */}
+          {/* Row 2: server buttons + fullscreen */}
           <div className="flex items-center gap-1.5 flex-wrap">
             {SERVERS.map((srv, idx) => (
               <button
@@ -154,6 +154,22 @@ export default function SeriesPlayer() {
                 {srv.label}
               </button>
             ))}
+            <div className="ml-auto flex items-center gap-1.5">
+              <button
+                onClick={() => document.documentElement.requestFullscreen?.()}
+                title="Pantalla completa"
+                className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md border bg-white/5 border-white/10 text-white/60 hover:bg-white/15 hover:text-white hover:border-white/25 transition-all"
+              >
+                <FullscreenIcon /> <span className="hidden sm:inline">Pantalla completa</span>
+              </button>
+              <button
+                onClick={() => window.open(iframeSrc, "_blank")}
+                title="Abrir en nueva pestaña"
+                className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md border bg-white/5 border-white/10 text-white/60 hover:bg-white/15 hover:text-white hover:border-white/25 transition-all"
+              >
+                <ExternalLinkIcon /> <span className="hidden sm:inline">Abrir enlace</span>
+              </button>
+            </div>
           </div>
 
           {/* Episode selector panel */}
@@ -307,6 +323,27 @@ function ChevronLeftIcon() {
   return (
     <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
       <path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function FullscreenIcon() {
+  return (
+    <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M8 3H5a2 2 0 0 0-2 2v3" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M21 8V5a2 2 0 0 0-2-2h-3" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M3 16v3a2 2 0 0 0 2 2h3" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M16 21h3a2 2 0 0 0 2-2v-3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ExternalLinkIcon() {
+  return (
+    <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" strokeLinecap="round" strokeLinejoin="round" />
+      <polyline points="15 3 21 3 21 9" strokeLinecap="round" strokeLinejoin="round" />
+      <line x1="10" y1="14" x2="21" y2="3" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
