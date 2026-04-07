@@ -4,14 +4,10 @@ set -e
 echo "=== Installing workspace dependencies ==="
 pnpm install --frozen-lockfile
 
-echo "=== Installing frontend dependencies ==="
-cd frontend
-npm install
-cd ..
-
 echo "=== Building frontend ==="
 cd frontend
-npm run build
+pnpm install
+pnpm run build
 cd ..
 
 echo "=== Copying frontend dist to API server public/ ==="
