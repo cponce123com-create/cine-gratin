@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { trackMovieView } from "@/lib/api";
@@ -16,8 +16,6 @@ const SERVERS: Server[] = [
   { label: "Servidor 5", url: (id) => `https://vidsrc.mov/embed/movie/${id}` },
 ];
 
-const TIMEOUT_MS = 12000;
-
 export default function MoviePlayer() {
   const { imdbId } = useParams<{ imdbId: string }>();
   const [searchParams] = useSearchParams();
@@ -25,26 +23,12 @@ export default function MoviePlayer() {
 
   const title = searchParams.get("title") ?? "Reproduciendo";
   const [activeServer, setActiveServer] = useState(0);
-  const [timedOut, setTimedOut] = useState(false);
-
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (imdbId) trackMovieView(imdbId).catch(() => {});
   }, [imdbId]);
 
-  useEffect(() => {
-    setTimedOut(false);
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => setTimedOut(true), TIMEOUT_MS);
-    return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); };
-  }, [activeServer]);
-
   const src = SERVERS[activeServer].url(imdbId!);
-
-  const switchToNext = () => {
-    if (activeServer < SERVERS.length - 1) setActiveServer((s) => s + 1);
-  };
 
   return (
     <div className="fixed inset-0 bg-black flex flex-col">
@@ -53,7 +37,7 @@ export default function MoviePlayer() {
       </Helmet>
 
       {/* Controls bar — always on top, never overlaps the iframe */}
-      <div className="flex-shrink-0 bg-gradient-to-b from-black/95 to-black/70 px-3 pt-3 pb-2.5 space-y-2">
+      <div className="flex-shrink-0 bg-black border-b border-white/10 px-3 pt-3 pb-2.5 space-y-2">
         {/* Row 1: back + title */}
         <div className="flex items-center gap-3">
           <button
@@ -67,7 +51,7 @@ export default function MoviePlayer() {
           </h1>
         </div>
 
-        {/* Row 2: servers + fullscreen */}
+        {/* Row 2: servers + utility buttons */}
         <div className="flex items-center gap-1.5 flex-wrap">
           {SERVERS.map((srv, idx) => (
             <button
@@ -101,53 +85,33 @@ export default function MoviePlayer() {
             </button>
           </div>
         </div>
+
+        {/* Row 3: black screen hint — always visible */}
+        <div className="flex items-center justify-between text-[11px]">
+          <span className="text-white/35">
+            ¿Pantalla en negro? Prueba otro servidor arriba.
+          </span>
+          {activeServer < SERVERS.length - 1 && (
+            <button
+              onClick={() => setActiveServer((s) => s + 1)}
+              className="text-brand-red hover:text-red-400 font-semibold transition-colors flex items-center gap-1"
+            >
+              Siguiente servidor <ChevronRightIcon />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Iframe area — below controls, no overlap */}
       <div className="relative flex-1">
-        {/* Timeout overlay */}
-        {timedOut && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-            <div className="bg-gray-900 border border-gray-700 rounded-2xl p-8 max-w-sm text-center shadow-2xl mx-4">
-              <div className="text-4xl mb-4">⚠️</div>
-              <p className="text-white font-semibold text-base mb-2">
-                Este servidor no respondió.
-              </p>
-              <p className="text-gray-400 text-sm mb-6">
-                Prueba con otro servidor para ver este contenido.
-              </p>
-              {activeServer < SERVERS.length - 1 ? (
-                <button
-                  onClick={switchToNext}
-                  className="w-full bg-brand-red hover:bg-red-700 text-white font-bold py-2.5 rounded-lg transition-colors"
-                >
-                  Probar {SERVERS[activeServer + 1].label}
-                </button>
-              ) : (
-                <p className="text-gray-500 text-sm">No hay más servidores disponibles.</p>
-              )}
-              <button
-                onClick={() => setTimedOut(false)}
-                className="mt-3 text-gray-500 hover:text-white text-xs transition-colors"
-              >
-                Seguir esperando
-              </button>
-            </div>
-          </div>
-        )}
-
         <iframe
-          key={src}
+          key={`${src}-${activeServer}`}
           src={src}
           className="absolute inset-0 w-full h-full border-0"
           allowFullScreen
           allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
           referrerPolicy="origin"
           title={title}
-          onLoad={() => {
-            if (timeoutRef.current) clearTimeout(timeoutRef.current);
-            setTimedOut(false);
-          }}
         />
       </div>
     </div>
@@ -159,6 +123,14 @@ function BackIcon() {
     <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
       <path d="M19 12H5" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M12 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ChevronRightIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+      <path d="M9 18l6-6-6-6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
