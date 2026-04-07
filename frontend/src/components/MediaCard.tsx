@@ -19,6 +19,8 @@ export default function MediaCard({ item, type, size = "md" }: MediaCardProps) {
     lg: "w-44 md:w-52",
   };
 
+  const hasRating = item.rating !== undefined && item.rating !== null && Number(item.rating) > 0;
+
   return (
     <Link to={href} className={`group flex-shrink-0 ${sizeClasses[size]}`}>
       <div className="relative overflow-hidden rounded-lg bg-brand-surface card-hover">
@@ -35,27 +37,25 @@ export default function MediaCard({ item, type, size = "md" }: MediaCardProps) {
           />
         </div>
 
+        {/* Rating badge — always visible, top-right corner */}
+        {hasRating && (
+          <div className="absolute top-1.5 right-1.5 bg-black/70 backdrop-blur-sm rounded-md px-1.5 py-0.5 flex items-center gap-0.5">
+            <span className="text-brand-gold text-[10px] leading-none">★</span>
+            <span className="text-white text-[10px] font-bold leading-none">
+              {Number(item.rating).toFixed(1)}
+            </span>
+          </div>
+        )}
+
         {/* Hover overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-3">
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-3">
           <p className="text-white text-xs font-semibold line-clamp-2 leading-snug">
             {item.title}
           </p>
-          {item.rating !== undefined && (
-            <div className="flex items-center gap-1 mt-1">
-              <span className="text-brand-gold text-xs">&#9733;</span>
-              <span className="text-gray-300 text-xs">{Number(item.rating).toFixed(1)}</span>
-            </div>
-          )}
           {item.year && (
             <span className="text-gray-400 text-xs mt-0.5">{item.year}</span>
           )}
         </div>
-
-        {/* Rating badge */}
-        {item.rating !== undefined && (
-          <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-sm rounded px-1.5 py-0.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-0">
-          </div>
-        )}
       </div>
       <p className="mt-2 text-xs text-gray-400 truncate px-0.5 group-hover:text-gray-200 transition-colors">
         {item.title}

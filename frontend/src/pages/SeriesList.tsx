@@ -115,11 +115,11 @@ export default function SeriesList() {
                         &#9733; {Number(item.rating).toFixed(1)}
                       </span>
                     )}
-                    {item.seasons && (
+                    {item.total_seasons ? (
                       <span className="text-xs text-gray-500">
-                        {item.seasons.length} temp.
+                        {item.total_seasons} temp.
                       </span>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               </Link>

@@ -1,35 +1,28 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { getMovie } from "@/lib/api";
 import { useFetch } from "@/hooks/useFetch";
-import { useMemo } from "react";
 
 const FALLBACK_BG =
   "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=1400&auto=format&fit=crop";
 const FALLBACK_POSTER =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='300' viewBox='0 0 200 300'%3E%3Crect width='200' height='300' fill='%231a1a1a'/%3E%3Ctext x='100' y='150' font-family='sans-serif' font-size='14' fill='%23555' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E";
 
-function isYouTube(url: string) {
-  return url.includes("youtube.com") || url.includes("youtu.be");
-}
-
-function toEmbedUrl(url: string) {
-  if (url.includes("/embed/")) return url;
-  const watchMatch = url.match(/[?&]v=([^&]+)/);
-  if (watchMatch) return `https://www.youtube.com/embed/${watchMatch[1]}`;
-  const shortMatch = url.match(/youtu\.be\/([^?]+)/);
-  if (shortMatch) return `https://www.youtube.com/embed/${shortMatch[1]}`;
-  return url;
-}
-
 export default function MovieDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: movie, loading, error } = useFetch(() => getMovie(id!), [id]);
 
-  const embedUrl = useMemo(() => {
-    if (!movie?.trailer_url) return null;
-    return toEmbedUrl(movie.trailer_url);
-  }, [movie?.trailer_url]);
+  // Runtime from TMDB (minutes)
+  const runtimeMin = movie?.runtime ?? movie?.duration_min ?? null;
+  const runtimeLabel = runtimeMin
+    ? runtimeMin >= 60
+      ? `${Math.floor(runtimeMin / 60)}h ${runtimeMin % 60}m`
+      : `${runtimeMin} min`
+    : null;
+
+  // Trailer: prefer yt_trailer_code (TMDB key), fallback to legacy trailer_url
+  const trailerKey = movie?.yt_trailer_code ?? null;
+  const trailerLegacyUrl = movie?.trailer_url ?? null;
 
   const firstSource = movie?.video_sources?.[0];
 
@@ -48,9 +41,9 @@ export default function MovieDetail() {
     return (
       <div className="min-h-screen bg-brand-dark flex items-center justify-center pt-16">
         <div className="text-center">
-          <p className="text-red-400 text-lg">No se pudo cargar la pelicula.</p>
+          <p className="text-red-400 text-lg">No se pudo cargar la película.</p>
           <Link to="/peliculas" className="mt-4 inline-block text-brand-red hover:text-red-400 underline">
-            Volver a peliculas
+            Volver a películas
           </Link>
         </div>
       </div>
@@ -101,15 +94,18 @@ export default function MovieDetail() {
 
             {/* Meta */}
             <div className="flex flex-wrap items-center gap-3 mb-4">
-              {movie.rating !== undefined && (
+              {movie.rating !== undefined && Number(movie.rating) > 0 && (
                 <span className="flex items-center gap-1 text-brand-gold font-bold">
                   <span>&#9733;</span>
                   <span>{Number(movie.rating).toFixed(1)}</span>
                 </span>
               )}
               {movie.year && <span className="text-gray-400">{movie.year}</span>}
-              {movie.duration_min && (
-                <span className="text-gray-400">{movie.duration_min} min</span>
+              {runtimeLabel && <span className="text-gray-400">{runtimeLabel}</span>}
+              {movie.mpa_rating && movie.mpa_rating !== "NR" && (
+                <span className="text-xs border border-gray-600 text-gray-400 px-1.5 py-0.5 rounded">
+                  {movie.mpa_rating}
+                </span>
               )}
             </div>
 
@@ -129,14 +125,30 @@ export default function MovieDetail() {
 
             {/* Synopsis */}
             {movie.synopsis && (
-              <p className="text-gray-300 text-sm sm:text-base leading-relaxed mb-6 max-w-2xl">
+              <p className="text-gray-300 text-sm sm:text-base leading-relaxed mb-5 max-w-2xl">
                 {movie.synopsis}
+              </p>
+            )}
+
+            {/* Director / Cast */}
+            {movie.director && (
+              <p className="text-gray-400 text-sm mb-2">
+                <span className="text-gray-500">Director: </span>
+                {movie.director}
+              </p>
+            )}
+            {movie.cast_list && movie.cast_list.length > 0 && (
+              <p className="text-gray-400 text-sm mb-5">
+                <span className="text-gray-500">Elenco: </span>
+                {movie.cast_list.slice(0, 6).join(", ")}
+                {movie.cast_list.length > 6 && (
+                  <span className="text-gray-600"> y {movie.cast_list.length - 6} más</span>
+                )}
               </p>
             )}
 
             {/* Action buttons */}
             <div className="flex flex-wrap gap-3">
-              {/* VidSrc primary button */}
               {movie.imdb_id ? (
                 <button
                   onClick={() =>
@@ -163,7 +175,6 @@ export default function MovieDetail() {
                 </button>
               ) : null}
 
-              {/* Secondary sources */}
               {movie.video_sources && movie.video_sources.length > 1 && (
                 <div className="flex flex-wrap gap-2">
                   {movie.video_sources.slice(1).map((src, i) => (
@@ -186,25 +197,34 @@ export default function MovieDetail() {
         </div>
 
         {/* YouTube Trailer */}
-        {embedUrl && (
+        {(trailerKey || trailerLegacyUrl) && (
           <div className="mt-12">
-            <h2 className="text-xl font-bold text-white mb-4">Trailer</h2>
+            <h2 className="text-xl font-bold text-white mb-4">Tráiler</h2>
             <div className="relative aspect-video w-full max-w-3xl rounded-xl overflow-hidden bg-brand-surface shadow-2xl">
-              {isYouTube(embedUrl) ? (
+              {trailerKey ? (
                 <iframe
-                  src={embedUrl}
-                  title={`Trailer de ${movie.title}`}
+                  src={`https://www.youtube.com/embed/${trailerKey}`}
+                  title={`Tráiler de ${movie.title}`}
                   className="absolute inset-0 w-full h-full"
                   allowFullScreen
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 />
-              ) : (
-                <video
-                  src={embedUrl}
-                  controls
-                  className="absolute inset-0 w-full h-full"
-                />
-              )}
+              ) : trailerLegacyUrl ? (
+                trailerLegacyUrl.includes("youtube") || trailerLegacyUrl.includes("youtu.be") ? (
+                  <iframe
+                    src={(() => {
+                      const m = trailerLegacyUrl.match(/[?&]v=([^&]+)/) ?? trailerLegacyUrl.match(/youtu\.be\/([^?]+)/);
+                      return m ? `https://www.youtube.com/embed/${m[1]}` : trailerLegacyUrl;
+                    })()}
+                    title={`Tráiler de ${movie.title}`}
+                    className="absolute inset-0 w-full h-full"
+                    allowFullScreen
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  />
+                ) : (
+                  <video src={trailerLegacyUrl} controls className="absolute inset-0 w-full h-full" />
+                )
+              ) : null}
             </div>
           </div>
         )}

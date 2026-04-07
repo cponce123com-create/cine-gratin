@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
-
-const MAX_SEASONS = 20;
-const MAX_EPISODES = 50;
+import { getSeriesById } from "@/lib/api";
+import type { SeasonData } from "@/lib/types";
 
 interface Server {
   label: string;
@@ -20,6 +19,14 @@ const SERVERS: Server[] = [
   },
 ];
 
+function parseSeasons(raw: unknown): SeasonData[] {
+  if (!raw) return [];
+  if (typeof raw === "string") {
+    try { return JSON.parse(raw) as SeasonData[]; } catch { return []; }
+  }
+  return Array.isArray(raw) ? (raw as SeasonData[]) : [];
+}
+
 export default function SeriesPlayer() {
   const { imdbId } = useParams<{ imdbId: string }>();
   const [searchParams] = useSearchParams();
@@ -35,7 +42,31 @@ export default function SeriesPlayer() {
   const [controlsVisible, setControlsVisible] = useState(true);
   const [showSelectors, setShowSelectors] = useState(false);
 
-  // Derived iframe src — changes whenever server, season or episode changes
+  // Real season/episode counts from the API
+  const [totalSeasons, setTotalSeasons] = useState<number | null>(null);
+  const [seasonsData, setSeasonsData] = useState<SeasonData[]>([]);
+
+  useEffect(() => {
+    if (!imdbId) return;
+    getSeriesById(imdbId)
+      .then((s) => {
+        const parsed = parseSeasons(s.seasons_data);
+        setSeasonsData(parsed);
+        setTotalSeasons(s.total_seasons ?? parsed.length ?? 1);
+      })
+      .catch(() => {
+        setTotalSeasons(10);
+      });
+  }, [imdbId]);
+
+  const resolvedTotalSeasons = totalSeasons ?? 1;
+
+  // How many episodes in the currently selected season
+  const episodesInSeason = (() => {
+    const found = seasonsData.find((s) => s.season === season);
+    return found ? found.episodes : 30;
+  })();
+
   const iframeSrc = SERVERS[activeServer].url(imdbId!, season, episode);
 
   // Auto-hide controls after 5 s (paused while selectors panel is open)
@@ -45,8 +76,37 @@ export default function SeriesPlayer() {
     return () => clearTimeout(timer);
   }, [controlsVisible, showSelectors]);
 
-  const seasonOptions = Array.from({ length: MAX_SEASONS }, (_, i) => i + 1);
-  const episodeOptions = Array.from({ length: MAX_EPISODES }, (_, i) => i + 1);
+  const seasonOptions = Array.from({ length: resolvedTotalSeasons }, (_, i) => i + 1);
+  const episodeOptions = Array.from({ length: episodesInSeason }, (_, i) => i + 1);
+
+  const handleSeasonChange = (newSeason: number) => {
+    setSeason(newSeason);
+    setEpisode(1);
+  };
+
+  const handlePrevEpisode = () => {
+    if (episode > 1) {
+      setEpisode((e) => e - 1);
+    } else if (season > 1) {
+      const prevSeason = season - 1;
+      const prevSeasonData = seasonsData.find((s) => s.season === prevSeason);
+      const lastEp = prevSeasonData ? prevSeasonData.episodes : 1;
+      setSeason(prevSeason);
+      setEpisode(lastEp);
+    }
+  };
+
+  const handleNextEpisode = () => {
+    if (episode < episodesInSeason) {
+      setEpisode((e) => e + 1);
+    } else if (season < resolvedTotalSeasons) {
+      setSeason((s) => s + 1);
+      setEpisode(1);
+    }
+  };
+
+  const isFirst = season === 1 && episode <= 1;
+  const isLast = season >= resolvedTotalSeasons && episode >= episodesInSeason;
 
   return (
     <div
@@ -115,20 +175,24 @@ export default function SeriesPlayer() {
               <div>
                 <label className="block text-white/50 text-xs font-medium mb-1.5 uppercase tracking-wider">
                   Temporada
+                  {totalSeasons === null && (
+                    <span className="ml-1 text-white/30 normal-case tracking-normal">cargando...</span>
+                  )}
                 </label>
                 <select
                   value={season}
-                  onChange={(e) => {
-                    setSeason(Number(e.target.value));
-                    setEpisode(1);
-                  }}
+                  onChange={(e) => handleSeasonChange(Number(e.target.value))}
                   className="bg-white/10 border border-white/10 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-white/30"
                 >
-                  {seasonOptions.map((s) => (
-                    <option key={s} value={s} className="bg-gray-900">
-                      Temporada {s}
-                    </option>
-                  ))}
+                  {seasonOptions.map((s) => {
+                    const sd = seasonsData.find((d) => d.season === s);
+                    return (
+                      <option key={s} value={s} className="bg-gray-900">
+                        {sd?.name && sd.name !== `Season ${s}` ? sd.name : `Temporada ${s}`}
+                        {sd ? ` (${sd.episodes} eps)` : ""}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 
@@ -137,7 +201,7 @@ export default function SeriesPlayer() {
                   Episodio
                 </label>
                 <select
-                  value={episode}
+                  value={Math.min(episode, episodesInSeason)}
                   onChange={(e) => setEpisode(Number(e.target.value))}
                   className="bg-white/10 border border-white/10 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-white/30"
                 >
@@ -160,19 +224,19 @@ export default function SeriesPlayer() {
             {/* Prev / next episode quick nav */}
             <div className="flex items-center gap-3 mt-4 pt-3 border-t border-white/10">
               <button
-                onClick={() => setEpisode((e) => Math.max(1, e - 1))}
-                disabled={episode <= 1}
+                onClick={handlePrevEpisode}
+                disabled={isFirst}
                 className="flex items-center gap-1.5 text-white/70 hover:text-white text-xs disabled:opacity-30 transition-colors"
               >
                 <ChevronLeftIcon />
                 Anterior
               </button>
               <span className="text-white/40 text-xs flex-1 text-center">
-                T{season} · E{episode}
+                T{season} · E{episode} / {episodesInSeason}
               </span>
               <button
-                onClick={() => setEpisode((e) => Math.min(MAX_EPISODES, e + 1))}
-                disabled={episode >= MAX_EPISODES}
+                onClick={handleNextEpisode}
+                disabled={isLast}
                 className="flex items-center gap-1.5 text-white/70 hover:text-white text-xs disabled:opacity-30 transition-colors"
               >
                 Siguiente

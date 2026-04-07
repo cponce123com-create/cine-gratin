@@ -2,23 +2,41 @@ import { useState, useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { getSeriesById } from "@/lib/api";
 import { useFetch } from "@/hooks/useFetch";
-import type { Season, Episode } from "@/lib/types";
+import type { SeasonData } from "@/lib/types";
 
 const FALLBACK_BG =
   "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=1400&auto=format&fit=crop";
 const FALLBACK_POSTER =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='300' viewBox='0 0 200 300'%3E%3Crect width='200' height='300' fill='%231a1a1a'/%3E%3Ctext x='100' y='150' font-family='sans-serif' font-size='14' fill='%23555' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E";
 
+function parseSeasons(raw: unknown): SeasonData[] {
+  if (!raw) return [];
+  if (typeof raw === "string") {
+    try { return JSON.parse(raw) as SeasonData[]; } catch { return []; }
+  }
+  return Array.isArray(raw) ? (raw as SeasonData[]) : [];
+}
+
 export default function SeriesDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: series, loading, error } = useFetch(() => getSeriesById(id!), [id]);
 
-  const [selectedSeason, setSelectedSeason] = useState(0);
+  const [selectedSeasonIdx, setSelectedSeasonIdx] = useState(0);
 
-  const seasons: Season[] = useMemo(() => series?.seasons ?? [], [series]);
-  const currentSeason = seasons[selectedSeason];
-  const episodes: Episode[] = currentSeason?.episodes ?? [];
+  const seasonsData: SeasonData[] = useMemo(
+    () => parseSeasons(series?.seasons_data),
+    [series?.seasons_data]
+  );
+
+  const currentSeason = seasonsData[selectedSeasonIdx] ?? null;
+  const episodeCount = currentSeason?.episodes ?? 0;
+  const episodes = useMemo(
+    () => Array.from({ length: episodeCount }, (_, i) => i + 1),
+    [episodeCount]
+  );
+
+  const trailerKey = series?.yt_trailer_code ?? null;
 
   if (loading) {
     return (
@@ -43,6 +61,13 @@ export default function SeriesDetail() {
       </div>
     );
   }
+
+  const statusLabel =
+    series.status === "Ended"
+      ? "Finalizada"
+      : series.status === "Returning Series"
+      ? "En emisión"
+      : series.status || null;
 
   return (
     <div className="min-h-screen bg-brand-dark">
@@ -85,21 +110,46 @@ export default function SeriesDetail() {
               {series.title}
             </h1>
 
+            {/* Meta row */}
             <div className="flex flex-wrap items-center gap-3 mb-4">
-              {series.rating !== undefined && (
+              {series.rating !== undefined && Number(series.rating) > 0 && (
                 <span className="flex items-center gap-1 text-brand-gold font-bold">
                   <span>&#9733;</span>
                   <span>{Number(series.rating).toFixed(1)}</span>
                 </span>
               )}
-              {series.year && <span className="text-gray-400">{series.year}</span>}
-              {seasons.length > 0 && (
+              {series.year && (
                 <span className="text-gray-400">
-                  {seasons.length} temporada{seasons.length !== 1 ? "s" : ""}
+                  {series.year}
+                  {series.end_year && series.end_year !== series.year
+                    ? `–${series.end_year}`
+                    : ""}
+                </span>
+              )}
+              {seasonsData.length > 0 && (
+                <span className="text-gray-400">
+                  {seasonsData.length} temporada{seasonsData.length !== 1 ? "s" : ""}
+                </span>
+              )}
+              {series.total_seasons && seasonsData.length === 0 && (
+                <span className="text-gray-400">
+                  {series.total_seasons} temporada{series.total_seasons !== 1 ? "s" : ""}
+                </span>
+              )}
+              {statusLabel && (
+                <span
+                  className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${
+                    statusLabel === "En emisión"
+                      ? "bg-green-900/30 text-green-400 border-green-800/50"
+                      : "bg-gray-800 text-gray-400 border-gray-700"
+                  }`}
+                >
+                  {statusLabel}
                 </span>
               )}
             </div>
 
+            {/* Genres */}
             {series.genres && series.genres.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-5">
                 {series.genres.map((g) => (
@@ -113,13 +163,31 @@ export default function SeriesDetail() {
               </div>
             )}
 
+            {/* Synopsis */}
             {series.synopsis && (
-              <p className="text-gray-300 text-sm sm:text-base leading-relaxed max-w-2xl mb-6">
+              <p className="text-gray-300 text-sm sm:text-base leading-relaxed max-w-2xl mb-5">
                 {series.synopsis}
               </p>
             )}
 
-            {/* Primary play button */}
+            {/* Creators / Cast */}
+            {series.creators && series.creators.length > 0 && (
+              <p className="text-gray-400 text-sm mb-2">
+                <span className="text-gray-500">Creadores: </span>
+                {series.creators.join(", ")}
+              </p>
+            )}
+            {series.cast_list && series.cast_list.length > 0 && (
+              <p className="text-gray-400 text-sm mb-5">
+                <span className="text-gray-500">Elenco: </span>
+                {series.cast_list.slice(0, 6).join(", ")}
+                {series.cast_list.length > 6 && (
+                  <span className="text-gray-600"> y {series.cast_list.length - 6} más</span>
+                )}
+              </p>
+            )}
+
+            {/* Play button */}
             {series.imdb_id && (
               <button
                 onClick={() =>
@@ -137,21 +205,22 @@ export default function SeriesDetail() {
         </div>
 
         {/* Season selector + Episodes */}
-        {seasons.length > 0 && (
+        {seasonsData.length > 0 && (
           <div className="mt-12">
             {/* Season tabs */}
-            <div className="flex items-center gap-3 mb-6 overflow-x-auto pb-1">
-              {seasons.map((season, idx) => (
+            <div className="flex items-center gap-2 mb-6 overflow-x-auto pb-1">
+              {seasonsData.map((season, idx) => (
                 <button
-                  key={season.number}
-                  onClick={() => setSelectedSeason(idx)}
+                  key={season.season}
+                  onClick={() => setSelectedSeasonIdx(idx)}
                   className={`flex-shrink-0 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-                    selectedSeason === idx
+                    selectedSeasonIdx === idx
                       ? "bg-brand-red text-white"
                       : "bg-brand-surface border border-brand-border text-gray-400 hover:text-white hover:border-gray-500"
                   }`}
                 >
-                  Temporada {season.number}
+                  T{season.season}
+                  <span className="ml-1.5 text-xs opacity-60">{season.episodes}ep</span>
                 </button>
               ))}
             </div>
@@ -160,78 +229,67 @@ export default function SeriesDetail() {
             {episodes.length === 0 ? (
               <p className="text-gray-500 text-sm">Sin episodios disponibles.</p>
             ) : (
-              <div className="space-y-2">
-                {episodes.map((ep, idx) => {
-                  const firstSource = ep.video_sources?.[0];
-                  return (
-                    <div
-                      key={ep.number ?? idx}
-                      className="flex items-center justify-between gap-4 bg-brand-surface border border-brand-border rounded-lg px-4 py-3 hover:border-gray-600 transition-colors group"
-                    >
-                      <div className="flex items-center gap-4 min-w-0">
-                        {/* Episode number */}
-                        <span className="text-brand-red font-black text-sm w-8 text-center flex-shrink-0">
-                          {ep.number ?? idx + 1}
-                        </span>
-                        {/* Title */}
-                        <div className="min-w-0">
-                          <p className="text-gray-200 text-sm font-medium truncate group-hover:text-white transition-colors">
-                            {ep.title || `Episodio ${ep.number ?? idx + 1}`}
-                          </p>
-                          {ep.duration_min && (
-                            <p className="text-gray-500 text-xs mt-0.5">{ep.duration_min} min</p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Source buttons */}
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        {series.imdb_id ? (
-                          <button
-                            onClick={() =>
-                              navigate(
-                                `/player/series/${series.imdb_id}?season=${currentSeason.number}&episode=${ep.number ?? idx + 1}&title=${encodeURIComponent(series.title)}`
-                              )
-                            }
-                            className="flex items-center gap-1.5 text-xs font-semibold py-1.5 px-3 rounded bg-brand-red hover:bg-red-700 text-white transition-colors"
-                          >
-                            <PlayIcon />
-                            Ver
-                          </button>
-                        ) : ep.video_sources && ep.video_sources.length > 0 ? (
-                          ep.video_sources.map((src, si) => (
-                            <button
-                              key={si}
-                              onClick={() =>
-                                navigate(
-                                  `/player?url=${encodeURIComponent(src.url)}&title=${encodeURIComponent(`${series.title} — Ep. ${ep.number ?? idx + 1}`)}&label=${encodeURIComponent(src.label)}`
-                                )
-                              }
-                              className={`flex items-center gap-1.5 text-xs font-semibold py-1.5 px-3 rounded transition-colors ${
-                                si === 0
-                                  ? "bg-brand-red hover:bg-red-700 text-white"
-                                  : "bg-brand-border hover:bg-gray-600 text-gray-300"
-                              }`}
-                            >
-                              <PlayIcon />
-                              {(ep.video_sources?.length ?? 0) > 1 ? src.label : "Ver"}
-                            </button>
-                          ))
-                        ) : (
-                          <span className="text-xs text-gray-600 italic">No disponible</span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {episodes.map((epNum) => (
+                  <button
+                    key={epNum}
+                    onClick={() => {
+                      if (series.imdb_id) {
+                        navigate(
+                          `/player/series/${series.imdb_id}?season=${currentSeason.season}&episode=${epNum}&title=${encodeURIComponent(series.title)}`
+                        );
+                      }
+                    }}
+                    className="flex items-center gap-3 bg-brand-surface border border-brand-border rounded-lg px-4 py-3 hover:border-brand-red hover:bg-brand-surface/80 transition-all group text-left"
+                  >
+                    <span className="text-brand-red font-black text-sm w-7 text-center flex-shrink-0">
+                      {epNum}
+                    </span>
+                    <span className="text-gray-300 text-sm group-hover:text-white transition-colors truncate">
+                      Episodio {epNum}
+                    </span>
+                    <span className="ml-auto flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <PlayIcon />
+                    </span>
+                  </button>
+                ))}
               </div>
             )}
           </div>
         )}
 
-        {seasons.length === 0 && (
+        {seasonsData.length === 0 && (
           <div className="mt-12 text-center py-12 border border-brand-border rounded-xl">
-            <p className="text-gray-500">No hay temporadas disponibles para esta serie.</p>
+            <p className="text-gray-500">No hay información de temporadas disponible.</p>
+            {series.imdb_id && (
+              <button
+                onClick={() =>
+                  navigate(
+                    `/player/series/${series.imdb_id}?season=1&episode=1&title=${encodeURIComponent(series.title)}`
+                  )
+                }
+                className="mt-4 flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white font-bold py-2 px-5 rounded-lg transition-colors mx-auto"
+              >
+                <PlayIcon />
+                Ver T1 E1
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* YouTube Trailer */}
+        {trailerKey && (
+          <div className="mt-12">
+            <h2 className="text-xl font-bold text-white mb-4">Tráiler</h2>
+            <div className="relative aspect-video w-full max-w-3xl rounded-xl overflow-hidden bg-brand-surface shadow-2xl">
+              <iframe
+                src={`https://www.youtube.com/embed/${trailerKey}`}
+                title={`Tráiler de ${series.title}`}
+                className="absolute inset-0 w-full h-full"
+                allowFullScreen
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              />
+            </div>
           </div>
         )}
       </div>
@@ -241,7 +299,7 @@ export default function SeriesDetail() {
 
 function PlayIcon() {
   return (
-    <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
       <path d="M8 5v14l11-7z" />
     </svg>
   );
