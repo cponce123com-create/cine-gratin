@@ -39,7 +39,6 @@ export default function SeriesPlayer() {
   const [season, setSeason] = useState(initSeason);
   const [episode, setEpisode] = useState(initEpisode);
   const [activeServer, setActiveServer] = useState(0);
-  const [controlsVisible, setControlsVisible] = useState(true);
   const [showSelectors, setShowSelectors] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
 
@@ -48,7 +47,6 @@ export default function SeriesPlayer() {
 
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Track view on mount
   useEffect(() => {
     if (imdbId) trackSeriesView(imdbId).catch(() => {});
   }, [imdbId]);
@@ -64,7 +62,6 @@ export default function SeriesPlayer() {
       .catch(() => setTotalSeasons(10));
   }, [imdbId]);
 
-  // Reset timeout whenever server, season, or episode changes
   useEffect(() => {
     setTimedOut(false);
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
@@ -103,196 +100,187 @@ export default function SeriesPlayer() {
   };
 
   return (
-    <div
-      className="fixed inset-0 bg-black flex flex-col cursor-pointer"
-      onClick={() => setControlsVisible(true)}
-    >
+    <div className="fixed inset-0 bg-black flex flex-col">
       <Helmet>
         <title>{title} T{season}E{episode} — Cine Gratín</title>
       </Helmet>
 
-      {/* Top controls */}
-      <div
-        className={`absolute top-0 inset-x-0 z-20 transition-opacity duration-300 ${
-          controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none"
-        }`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="bg-gradient-to-b from-black/90 via-black/60 to-transparent pb-10 px-4 pt-3 space-y-2.5">
-          {/* Row 1: back + title + episodes toggle */}
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate(-1)}
-              className="flex items-center gap-1.5 text-white/80 hover:text-white transition-colors text-sm font-medium flex-shrink-0"
-            >
-              <BackIcon /> Volver
-            </button>
-            <h1 className="text-white/90 font-bold text-sm sm:text-base truncate flex-1 min-w-0">
-              {title}
-              <span className="text-white/50 font-normal ml-2 text-xs">T{season} · E{episode}</span>
-            </h1>
-            <button
-              onClick={() => setShowSelectors((v) => !v)}
-              className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 border border-white/10 text-white text-[11px] font-semibold px-2.5 py-1 rounded-md transition-colors flex-shrink-0"
-            >
-              <ListIcon /> Episodios
-            </button>
-          </div>
-
-          {/* Row 2: server buttons + fullscreen */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {SERVERS.map((srv, idx) => (
-              <button
-                key={idx}
-                onClick={() => setActiveServer(idx)}
-                className={`text-[11px] font-semibold px-2.5 py-1 rounded-md border transition-all ${
-                  activeServer === idx
-                    ? "bg-brand-red border-red-700 text-white shadow-sm"
-                    : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white/80 hover:border-white/20"
-                }`}
-              >
-                {srv.label}
-              </button>
-            ))}
-            <div className="ml-auto flex items-center gap-1.5">
-              <button
-                onClick={() => document.documentElement.requestFullscreen?.()}
-                title="Pantalla completa"
-                className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md border bg-white/5 border-white/10 text-white/60 hover:bg-white/15 hover:text-white hover:border-white/25 transition-all"
-              >
-                <FullscreenIcon /> <span className="hidden sm:inline">Pantalla completa</span>
-              </button>
-              <button
-                onClick={() => window.open(iframeSrc, "_blank")}
-                title="Abrir en nueva pestaña"
-                className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md border bg-white/5 border-white/10 text-white/60 hover:bg-white/15 hover:text-white hover:border-white/25 transition-all"
-              >
-                <ExternalLinkIcon /> <span className="hidden sm:inline">Abrir enlace</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Episode selector panel */}
-          {showSelectors && (
-            <div className="bg-black/90 border border-white/10 rounded-xl p-4">
-              <div className="flex flex-wrap gap-4 items-end">
-                <div>
-                  <label className="block text-white/50 text-xs font-medium mb-1.5 uppercase tracking-wider">
-                    Temporada
-                    {totalSeasons === null && <span className="ml-1 text-white/30 normal-case tracking-normal">cargando...</span>}
-                  </label>
-                  <select
-                    value={season}
-                    onChange={(e) => handleSeasonChange(Number(e.target.value))}
-                    className="bg-white/10 border border-white/10 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-white/30"
-                  >
-                    {seasonOptions.map((s) => {
-                      const sd = seasonsData.find((d) => d.season === s);
-                      return (
-                        <option key={s} value={s} className="bg-gray-900">
-                          {sd?.name && sd.name !== `Season ${s}` ? sd.name : `Temporada ${s}`}
-                          {sd ? ` (${sd.episodes} eps)` : ""}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-white/50 text-xs font-medium mb-1.5 uppercase tracking-wider">
-                    Episodio
-                  </label>
-                  <select
-                    value={Math.min(episode, episodesInSeason)}
-                    onChange={(e) => setEpisode(Number(e.target.value))}
-                    className="bg-white/10 border border-white/10 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-white/30"
-                  >
-                    {episodeOptions.map((ep) => (
-                      <option key={ep} value={ep} className="bg-gray-900">Episodio {ep}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <button
-                  onClick={() => setShowSelectors(false)}
-                  className="bg-brand-red hover:bg-red-700 text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors"
-                >
-                  Reproducir
-                </button>
-              </div>
-
-              <div className="flex items-center gap-3 mt-4 pt-3 border-t border-white/10">
-                <button
-                  onClick={handlePrev}
-                  disabled={isFirst}
-                  className="flex items-center gap-1.5 text-white/70 hover:text-white text-xs disabled:opacity-30 transition-colors"
-                >
-                  <ChevronLeftIcon /> Anterior
-                </button>
-                <span className="text-white/40 text-xs flex-1 text-center">
-                  T{season} · E{episode} / {episodesInSeason}
-                </span>
-                <button
-                  onClick={handleNext}
-                  disabled={isLast}
-                  className="flex items-center gap-1.5 text-white/70 hover:text-white text-xs disabled:opacity-30 transition-colors"
-                >
-                  Siguiente <ChevronRightIcon />
-                </button>
-              </div>
-            </div>
-          )}
+      {/* Controls bar — always on top, never overlaps the iframe */}
+      <div className="flex-shrink-0 bg-gradient-to-b from-black/95 to-black/70 px-3 pt-3 pb-2.5 space-y-2">
+        {/* Row 1: back + title + episodes toggle */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate(-1)}
+            className="flex items-center gap-1.5 text-white/80 hover:text-white transition-colors text-sm font-medium flex-shrink-0"
+          >
+            <BackIcon /> Volver
+          </button>
+          <h1 className="text-white/90 font-bold text-sm sm:text-base truncate flex-1 min-w-0">
+            {title}
+            <span className="text-white/50 font-normal ml-2 text-xs">T{season} · E{episode}</span>
+          </h1>
+          <button
+            onClick={() => setShowSelectors((v) => !v)}
+            className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 border border-white/10 text-white text-[11px] font-semibold px-2.5 py-1 rounded-md transition-colors flex-shrink-0"
+          >
+            <ListIcon /> Episodios
+          </button>
         </div>
+
+        {/* Row 2: servers + fullscreen */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {SERVERS.map((srv, idx) => (
+            <button
+              key={idx}
+              onClick={() => setActiveServer(idx)}
+              className={`text-[11px] font-semibold px-2.5 py-1 rounded-md border transition-all ${
+                activeServer === idx
+                  ? "bg-brand-red border-red-700 text-white shadow-sm"
+                  : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white/80 hover:border-white/20"
+              }`}
+            >
+              {srv.label}
+            </button>
+          ))}
+          <div className="ml-auto flex items-center gap-1.5">
+            <button
+              onClick={() => document.documentElement.requestFullscreen?.()}
+              title="Pantalla completa"
+              className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md border bg-white/5 border-white/10 text-white/60 hover:bg-white/15 hover:text-white hover:border-white/25 transition-all"
+            >
+              <FullscreenIcon />
+              <span className="hidden sm:inline">Pantalla completa</span>
+            </button>
+            <button
+              onClick={() => window.open(iframeSrc, "_blank")}
+              title="Abrir en nueva pestaña"
+              className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md border bg-white/5 border-white/10 text-white/60 hover:bg-white/15 hover:text-white hover:border-white/25 transition-all"
+            >
+              <ExternalLinkIcon />
+              <span className="hidden sm:inline">Abrir enlace</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Episode selector panel */}
+        {showSelectors && (
+          <div className="bg-black/90 border border-white/10 rounded-xl p-4">
+            <div className="flex flex-wrap gap-4 items-end">
+              <div>
+                <label className="block text-white/50 text-xs font-medium mb-1.5 uppercase tracking-wider">
+                  Temporada
+                  {totalSeasons === null && <span className="ml-1 text-white/30 normal-case tracking-normal">cargando...</span>}
+                </label>
+                <select
+                  value={season}
+                  onChange={(e) => handleSeasonChange(Number(e.target.value))}
+                  className="bg-white/10 border border-white/10 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-white/30"
+                >
+                  {seasonOptions.map((s) => {
+                    const sd = seasonsData.find((d) => d.season === s);
+                    return (
+                      <option key={s} value={s} className="bg-gray-900">
+                        {sd?.name && sd.name !== `Season ${s}` ? sd.name : `Temporada ${s}`}
+                        {sd ? ` (${sd.episodes} eps)` : ""}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-white/50 text-xs font-medium mb-1.5 uppercase tracking-wider">
+                  Episodio
+                </label>
+                <select
+                  value={Math.min(episode, episodesInSeason)}
+                  onChange={(e) => setEpisode(Number(e.target.value))}
+                  className="bg-white/10 border border-white/10 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-white/30"
+                >
+                  {episodeOptions.map((ep) => (
+                    <option key={ep} value={ep} className="bg-gray-900">Episodio {ep}</option>
+                  ))}
+                </select>
+              </div>
+
+              <button
+                onClick={() => setShowSelectors(false)}
+                className="bg-brand-red hover:bg-red-700 text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors"
+              >
+                Reproducir
+              </button>
+            </div>
+
+            <div className="flex items-center gap-3 mt-4 pt-3 border-t border-white/10">
+              <button
+                onClick={handlePrev}
+                disabled={isFirst}
+                className="flex items-center gap-1.5 text-white/70 hover:text-white text-xs disabled:opacity-30 transition-colors"
+              >
+                <ChevronLeftIcon /> Anterior
+              </button>
+              <span className="text-white/40 text-xs flex-1 text-center">
+                T{season} · E{episode} / {episodesInSeason}
+              </span>
+              <button
+                onClick={handleNext}
+                disabled={isLast}
+                className="flex items-center gap-1.5 text-white/70 hover:text-white text-xs disabled:opacity-30 transition-colors"
+              >
+                Siguiente <ChevronRightIcon />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Timeout overlay */}
-      {timedOut && (
-        <div
-          className="absolute inset-0 z-10 flex items-center justify-center bg-black/70 backdrop-blur-sm"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="bg-brand-card border border-brand-border rounded-2xl p-8 max-w-sm text-center shadow-2xl">
-            <div className="text-4xl mb-4">⚠️</div>
-            <p className="text-white font-semibold text-base mb-2">
-              Este servidor no respondió.
-            </p>
-            <p className="text-gray-400 text-sm mb-6">
-              Prueba con otro servidor para ver este contenido.
-            </p>
-            {activeServer < SERVERS.length - 1 ? (
+      {/* Iframe area — below controls, no overlap */}
+      <div className="relative flex-1">
+        {/* Timeout overlay */}
+        {timedOut && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+            <div className="bg-gray-900 border border-gray-700 rounded-2xl p-8 max-w-sm text-center shadow-2xl mx-4">
+              <div className="text-4xl mb-4">⚠️</div>
+              <p className="text-white font-semibold text-base mb-2">
+                Este servidor no respondió.
+              </p>
+              <p className="text-gray-400 text-sm mb-6">
+                Prueba con otro servidor para ver este contenido.
+              </p>
+              {activeServer < SERVERS.length - 1 ? (
+                <button
+                  onClick={switchToNext}
+                  className="w-full bg-brand-red hover:bg-red-700 text-white font-bold py-2.5 rounded-lg transition-colors"
+                >
+                  Probar {SERVERS[activeServer + 1].label}
+                </button>
+              ) : (
+                <p className="text-gray-500 text-sm">No hay más servidores disponibles.</p>
+              )}
               <button
-                onClick={switchToNext}
-                className="w-full bg-brand-red hover:bg-red-700 text-white font-bold py-2.5 rounded-lg transition-colors"
+                onClick={() => setTimedOut(false)}
+                className="mt-3 text-gray-500 hover:text-white text-xs transition-colors"
               >
-                Probar {SERVERS[activeServer + 1].label}
+                Seguir esperando
               </button>
-            ) : (
-              <p className="text-gray-500 text-sm">No hay más servidores disponibles.</p>
-            )}
-            <button
-              onClick={() => setTimedOut(false)}
-              className="mt-3 text-gray-500 hover:text-white text-xs transition-colors"
-            >
-              Seguir esperando
-            </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Fullscreen iframe */}
-      <iframe
-        key={iframeSrc}
-        src={iframeSrc}
-        className="w-full h-full border-0"
-        allowFullScreen
-        allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
-        referrerPolicy="origin"
-        title={`${title} T${season}E${episode}`}
-        onLoad={() => {
-          if (timeoutRef.current) clearTimeout(timeoutRef.current);
-          setTimedOut(false);
-        }}
-      />
+        <iframe
+          key={iframeSrc}
+          src={iframeSrc}
+          className="absolute inset-0 w-full h-full border-0"
+          allowFullScreen
+          allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+          referrerPolicy="origin"
+          title={`${title} T${season}E${episode}`}
+          onLoad={() => {
+            if (timeoutRef.current) clearTimeout(timeoutRef.current);
+            setTimedOut(false);
+          }}
+        />
+      </div>
     </div>
   );
 }
@@ -327,6 +315,14 @@ function ChevronLeftIcon() {
   );
 }
 
+function ChevronRightIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+      <path d="M9 18l6-6-6-6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function FullscreenIcon() {
   return (
     <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -344,14 +340,6 @@ function ExternalLinkIcon() {
       <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" strokeLinecap="round" strokeLinejoin="round" />
       <polyline points="15 3 21 3 21 9" strokeLinecap="round" strokeLinejoin="round" />
       <line x1="10" y1="14" x2="21" y2="3" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function ChevronRightIcon() {
-  return (
-    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-      <path d="M9 18l6-6-6-6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

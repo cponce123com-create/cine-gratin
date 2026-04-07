@@ -25,17 +25,14 @@ export default function MoviePlayer() {
 
   const title = searchParams.get("title") ?? "Reproduciendo";
   const [activeServer, setActiveServer] = useState(0);
-  const [controlsVisible, setControlsVisible] = useState(true);
   const [timedOut, setTimedOut] = useState(false);
 
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Track view on mount
   useEffect(() => {
     if (imdbId) trackMovieView(imdbId).catch(() => {});
   }, [imdbId]);
 
-  // Reset timeout whenever server changes
   useEffect(() => {
     setTimedOut(false);
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
@@ -50,118 +47,109 @@ export default function MoviePlayer() {
   };
 
   return (
-    <div
-      className="fixed inset-0 bg-black flex flex-col cursor-pointer"
-      onClick={() => setControlsVisible(true)}
-    >
+    <div className="fixed inset-0 bg-black flex flex-col">
       <Helmet>
         <title>{title} — Cine Gratín</title>
       </Helmet>
 
-      {/* Top controls */}
-      <div
-        className={`absolute top-0 inset-x-0 z-20 transition-opacity duration-300 ${
-          controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none"
-        }`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="bg-gradient-to-b from-black/90 via-black/60 to-transparent pb-10 px-4 pt-3 space-y-2.5">
-          {/* Row 1: back + title */}
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate(-1)}
-              className="flex items-center gap-1.5 text-white/80 hover:text-white transition-colors text-sm font-medium flex-shrink-0"
-            >
-              <BackIcon /> Volver
-            </button>
-            <h1 className="text-white/90 font-bold text-sm sm:text-base truncate flex-1 min-w-0">
-              {title}
-            </h1>
-          </div>
+      {/* Controls bar — always on top, never overlaps the iframe */}
+      <div className="flex-shrink-0 bg-gradient-to-b from-black/95 to-black/70 px-3 pt-3 pb-2.5 space-y-2">
+        {/* Row 1: back + title */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate(-1)}
+            className="flex items-center gap-1.5 text-white/80 hover:text-white transition-colors text-sm font-medium flex-shrink-0"
+          >
+            <BackIcon /> Volver
+          </button>
+          <h1 className="text-white/90 font-bold text-sm sm:text-base truncate flex-1 min-w-0">
+            {title}
+          </h1>
+        </div>
 
-          {/* Row 2: server buttons + fullscreen */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {SERVERS.map((srv, idx) => (
-              <button
-                key={idx}
-                onClick={() => setActiveServer(idx)}
-                className={`text-[11px] font-semibold px-2.5 py-1 rounded-md border transition-all ${
-                  activeServer === idx
-                    ? "bg-brand-red border-red-700 text-white shadow-sm"
-                    : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white/80 hover:border-white/20"
-                }`}
-              >
-                {srv.label}
-              </button>
-            ))}
-            <div className="ml-auto flex items-center gap-1.5">
-              <button
-                onClick={() => document.documentElement.requestFullscreen?.()}
-                title="Pantalla completa"
-                className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md border bg-white/5 border-white/10 text-white/60 hover:bg-white/15 hover:text-white hover:border-white/25 transition-all"
-              >
-                <FullscreenIcon /> <span className="hidden sm:inline">Pantalla completa</span>
-              </button>
-              <button
-                onClick={() => window.open(src, "_blank")}
-                title="Abrir en nueva pestaña"
-                className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md border bg-white/5 border-white/10 text-white/60 hover:bg-white/15 hover:text-white hover:border-white/25 transition-all"
-              >
-                <ExternalLinkIcon /> <span className="hidden sm:inline">Abrir enlace</span>
-              </button>
-            </div>
+        {/* Row 2: servers + fullscreen */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {SERVERS.map((srv, idx) => (
+            <button
+              key={idx}
+              onClick={() => setActiveServer(idx)}
+              className={`text-[11px] font-semibold px-2.5 py-1 rounded-md border transition-all ${
+                activeServer === idx
+                  ? "bg-brand-red border-red-700 text-white shadow-sm"
+                  : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white/80 hover:border-white/20"
+              }`}
+            >
+              {srv.label}
+            </button>
+          ))}
+          <div className="ml-auto flex items-center gap-1.5">
+            <button
+              onClick={() => document.documentElement.requestFullscreen?.()}
+              title="Pantalla completa"
+              className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md border bg-white/5 border-white/10 text-white/60 hover:bg-white/15 hover:text-white hover:border-white/25 transition-all"
+            >
+              <FullscreenIcon />
+              <span className="hidden sm:inline">Pantalla completa</span>
+            </button>
+            <button
+              onClick={() => window.open(src, "_blank")}
+              title="Abrir en nueva pestaña"
+              className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md border bg-white/5 border-white/10 text-white/60 hover:bg-white/15 hover:text-white hover:border-white/25 transition-all"
+            >
+              <ExternalLinkIcon />
+              <span className="hidden sm:inline">Abrir enlace</span>
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Timeout overlay */}
-      {timedOut && (
-        <div
-          className="absolute inset-0 z-10 flex items-center justify-center bg-black/70 backdrop-blur-sm"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="bg-brand-card border border-brand-border rounded-2xl p-8 max-w-sm text-center shadow-2xl">
-            <div className="text-4xl mb-4">⚠️</div>
-            <p className="text-white font-semibold text-base mb-2">
-              Este servidor no respondió.
-            </p>
-            <p className="text-gray-400 text-sm mb-6">
-              Prueba con otro servidor para ver este contenido.
-            </p>
-            {activeServer < SERVERS.length - 1 ? (
+      {/* Iframe area — below controls, no overlap */}
+      <div className="relative flex-1">
+        {/* Timeout overlay */}
+        {timedOut && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+            <div className="bg-gray-900 border border-gray-700 rounded-2xl p-8 max-w-sm text-center shadow-2xl mx-4">
+              <div className="text-4xl mb-4">⚠️</div>
+              <p className="text-white font-semibold text-base mb-2">
+                Este servidor no respondió.
+              </p>
+              <p className="text-gray-400 text-sm mb-6">
+                Prueba con otro servidor para ver este contenido.
+              </p>
+              {activeServer < SERVERS.length - 1 ? (
+                <button
+                  onClick={switchToNext}
+                  className="w-full bg-brand-red hover:bg-red-700 text-white font-bold py-2.5 rounded-lg transition-colors"
+                >
+                  Probar {SERVERS[activeServer + 1].label}
+                </button>
+              ) : (
+                <p className="text-gray-500 text-sm">No hay más servidores disponibles.</p>
+              )}
               <button
-                onClick={switchToNext}
-                className="w-full bg-brand-red hover:bg-red-700 text-white font-bold py-2.5 rounded-lg transition-colors"
+                onClick={() => setTimedOut(false)}
+                className="mt-3 text-gray-500 hover:text-white text-xs transition-colors"
               >
-                Probar {SERVERS[activeServer + 1].label}
+                Seguir esperando
               </button>
-            ) : (
-              <p className="text-gray-500 text-sm">No hay más servidores disponibles.</p>
-            )}
-            <button
-              onClick={() => setTimedOut(false)}
-              className="mt-3 text-gray-500 hover:text-white text-xs transition-colors"
-            >
-              Seguir esperando
-            </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Fullscreen iframe */}
-      <iframe
-        key={src}
-        src={src}
-        className="w-full h-full border-0"
-        allowFullScreen
-        allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
-        referrerPolicy="origin"
-        title={title}
-        onLoad={() => {
-          if (timeoutRef.current) clearTimeout(timeoutRef.current);
-          setTimedOut(false);
-        }}
-      />
+        <iframe
+          key={src}
+          src={src}
+          className="absolute inset-0 w-full h-full border-0"
+          allowFullScreen
+          allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+          referrerPolicy="origin"
+          title={title}
+          onLoad={() => {
+            if (timeoutRef.current) clearTimeout(timeoutRef.current);
+            setTimedOut(false);
+          }}
+        />
+      </div>
     </div>
   );
 }
