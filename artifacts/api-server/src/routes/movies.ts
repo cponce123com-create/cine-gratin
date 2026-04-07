@@ -111,7 +111,7 @@ router.get("/movies/:id", async (req, res) => {
 });
 
 // POST /api/admin/movies/:id — upsert (create or update)
-router.post("/admin/movies/:id?", async (req, res) => {
+router.post(["/admin/movies", "/admin/movies/:id"], async (req, res) => {
   const m = req.body;
   const id = req.params.id || m.id;
   try {

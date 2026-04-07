@@ -83,7 +83,7 @@ router.get("/series/:id", async (req, res) => {
 });
 
 // POST /api/admin/series/:id — upsert
-router.post("/admin/series/:id?", async (req, res) => {
+router.post(["/admin/series", "/admin/series/:id"], async (req, res) => {
   const s = req.body;
   const id = req.params.id || s.id;
   try {
