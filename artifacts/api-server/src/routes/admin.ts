@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { pool } from "../lib/db";
 import { runAutoImport, importByImdbId } from "../jobs/auto-import";
+import { fetchMovieByTmdbId, fetchSeriesByTmdbId, tmdbFetch } from "../lib/tmdb-client";
 
 const router = Router();
 
@@ -175,6 +176,89 @@ router.post("/admin/verify-vidsrc", async (req, res) => {
   }
 
   res.json(results);
+});
+
+// POST /api/admin/scan-networks — scan existing media to update networks/production companies
+router.post("/admin/scan-networks", async (req, res) => {
+  const { type = "movie", limit = 100 } = req.body as { type?: "movie" | "series"; limit?: number };
+  const table = type === "series" ? "cv_series" : "movies";
+
+  try {
+    // Get items that have empty networks or we want to refresh
+    const { rows: items } = await pool.query(
+      `SELECT id, imdb_id, title, networks FROM ${table} ORDER BY date_added DESC LIMIT $1`,
+      [limit]
+    );
+
+    const results = [];
+    for (const item of items) {
+      try {
+        if (!item.imdb_id) {
+          results.push({ id: item.id, title: item.title, status: "error", error: "No IMDb ID" });
+          continue;
+        }
+
+        // Find TMDB ID first
+        const findRes = await tmdbFetch(`/find/${item.imdb_id}?external_source=imdb_id`);
+        if (!findRes.ok) {
+          results.push({ id: item.id, title: item.title, status: "error", error: "TMDB find failed" });
+          continue;
+        }
+        const findData = await findRes.json() as any;
+        const tmdbResults = type === "series" ? findData.tv_results : findData.movie_results;
+
+        if (!tmdbResults || tmdbResults.length === 0) {
+          results.push({ id: item.id, title: item.title, status: "error", error: "Not found on TMDB" });
+          continue;
+        }
+
+        const tmdbId = tmdbResults[0].id;
+        const data = type === "series" ? await fetchSeriesByTmdbId(tmdbId) : await fetchMovieByTmdbId(tmdbId);
+
+        if (!data || !data.networks) {
+          results.push({ id: item.id, title: item.title, status: "error", error: "Could not fetch details" });
+          continue;
+        }
+
+        const newNetworks = data.networks as string[];
+        const oldNetworks = (item.networks || []) as string[];
+
+        // Check if they are different
+        const isDifferent = JSON.stringify([...newNetworks].sort()) !== JSON.stringify([...oldNetworks].sort());
+
+        if (isDifferent) {
+          await pool.query(`UPDATE ${table} SET networks = $1 WHERE id = $2`, [newNetworks, item.id]);
+          results.push({
+            id: item.id,
+            title: item.title,
+            old_networks: oldNetworks,
+            new_networks: newNetworks,
+            status: "updated"
+          });
+        } else {
+          results.push({
+            id: item.id,
+            title: item.title,
+            old_networks: oldNetworks,
+            new_networks: newNetworks,
+            status: "no_change"
+          });
+        }
+      } catch (err) {
+        results.push({ id: item.id, title: item.title, status: "error", error: String(err) });
+      }
+    }
+
+    const summary = {
+      updated: results.filter(r => r.status === "updated").length,
+      no_change: results.filter(r => r.status === "no_change").length,
+      error: results.filter(r => r.status === "error").length,
+    };
+
+    res.json({ ok: true, results, summary });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
 });
 
 // GET /api/m3u-proxy — proxy IPTV-org Spanish playlist to avoid CORS
