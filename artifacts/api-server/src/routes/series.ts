@@ -82,9 +82,10 @@ router.get("/series/:id", async (req, res) => {
   }
 });
 
-// POST /api/series — upsert
-router.post("/series", async (req, res) => {
+// POST /api/admin/series/:id — upsert
+router.post("/admin/series/:id?", async (req, res) => {
   const s = req.body;
+  const id = req.params.id || s.id;
   try {
     await pool.query(
       `INSERT INTO cv_series (id, imdb_id, tmdb_id, title, year, end_year, rating, genres, language,
@@ -97,7 +98,7 @@ router.post("/series", async (req, res) => {
          yt_trailer_code=$16, videos=$17, reviews=$18, status=$19, total_seasons=$20,
          seasons_data=$21, video_sources=$22, featured=$23, views=$24`,
       [
-        s.id, s.imdb_id, s.tmdb_id || null, s.title, s.year, s.end_year || null,
+        id, s.imdb_id, s.tmdb_id || null, s.title, s.year, s.end_year || null,
         s.rating, s.genres, s.language, s.synopsis, s.creators, s.cast_list,
         s.networks ?? [],
         s.poster_url, s.background_url, s.yt_trailer_code,
@@ -109,15 +110,15 @@ router.post("/series", async (req, res) => {
         s.date_added || new Date().toISOString(),
       ]
     );
-    const { rows } = await pool.query("SELECT * FROM cv_series WHERE id = $1", [s.id]);
+    const { rows } = await pool.query("SELECT * FROM cv_series WHERE id = $1", [id]);
     res.json(toSeries(rows[0]));
   } catch (e) {
     res.status(500).json({ error: String(e) });
   }
 });
 
-// DELETE /api/series/:id
-router.delete("/series/:id", async (req, res) => {
+// DELETE /api/admin/series/:id
+router.delete("/admin/series/:id", async (req, res) => {
   try {
     await pool.query("DELETE FROM cv_series WHERE id = $1", [req.params.id]);
     res.json({ ok: true });

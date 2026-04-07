@@ -110,9 +110,10 @@ router.get("/movies/:id", async (req, res) => {
   }
 });
 
-// POST /api/movies — upsert (create or update)
-router.post("/movies", async (req, res) => {
+// POST /api/admin/movies/:id — upsert (create or update)
+router.post("/admin/movies/:id?", async (req, res) => {
   const m = req.body;
+  const id = req.params.id || m.id;
   try {
     await pool.query(
       `INSERT INTO movies (id, imdb_id, title, year, rating, runtime, genres, language, synopsis,
@@ -125,7 +126,7 @@ router.post("/movies", async (req, res) => {
          yt_trailer_code=$15, videos=$16, reviews=$17, mpa_rating=$18, slug=$19, featured=$20,
          video_sources=$21, torrents=$22, views=$23`,
       [
-        m.id, m.imdb_id, m.title, m.year, m.rating, m.runtime,
+        id, m.imdb_id, m.title, m.year, m.rating, m.runtime,
         m.genres, m.language, m.synopsis, m.director, m.cast_list,
         m.networks ?? [],
         m.poster_url, m.background_url, m.yt_trailer_code,
@@ -135,15 +136,15 @@ router.post("/movies", async (req, res) => {
         m.views || 0, m.date_added || new Date().toISOString(),
       ]
     );
-    const { rows } = await pool.query("SELECT * FROM movies WHERE id = $1", [m.id]);
+    const { rows } = await pool.query("SELECT * FROM movies WHERE id = $1", [id]);
     res.json(toMovie(rows[0]));
   } catch (e) {
     res.status(500).json({ error: String(e) });
   }
 });
 
-// DELETE /api/movies/:id
-router.delete("/movies/:id", async (req, res) => {
+// DELETE /api/admin/movies/:id
+router.delete("/admin/movies/:id", async (req, res) => {
   try {
     await pool.query("DELETE FROM movies WHERE id = $1", [req.params.id]);
     res.json({ ok: true });
