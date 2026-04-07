@@ -2,69 +2,79 @@
 
 ## Overview
 
-pnpm workspace monorepo using TypeScript. **Cine Gratín** is a premium dark-themed Spanish-language movie and TV series streaming site with a full admin panel.
+pnpm workspace monorepo using TypeScript. **Cine Gratín** is a premium dark-themed Spanish-language movie and TV series streaming platform deployed on Render.
 
 ## Stack
 
 - **Monorepo tool**: pnpm workspaces
 - **Node.js version**: 24
 - **Package manager**: pnpm
-- **Frontend**: React + Vite (CineVault/Cine Gratín)
-- **API framework**: Express 5 (api-server)
+- **Production Frontend**: React + Vite + Tailwind (`frontend/` — `cine-gratin-frontend`)
+- **API framework**: Express 5 (`artifacts/api-server/`)
 - **Database**: PostgreSQL (raw pg pool, no ORM)
-- **Build**: esbuild (api-server)
+- **Build**: esbuild (api-server), vite (frontend)
+- **State management**: @tanstack/react-query v5
+- **SEO**: react-helmet-async
 
 ## Artifacts
 
-### API Server (`artifacts/api-server`)
-- **Port**: 8080
-- **Routes**: `/api/movies`, `/api/movies/trending`, `/api/movies/search`, `/api/movies/by-slug/:slug`, `/api/series`, `/api/series/trending`, `/api/series/search`, `/api/settings`, `/api/servers`, `/api/auth`, `/api/tmdb/*`, `/api/health`
-- **DB Tables**: `movies`, `cv_settings`, `cv_servers`, `cv_auth`, `cv_series`
-
-### Cine Gratín (`artifacts/cinevault`)
-- **Type**: react-vite, served at `/`
-- **Purpose**: Premium movie and TV series streaming site in Spanish
-- **Theme**: Ultra-dark cinematic (#0a0a0f bg, #00d4ff cyan accent), Bebas Neue headings, DM Sans body
+### Production Cine Gratín Frontend (`frontend/`)
+- **Package**: `cine-gratin-frontend`
+- **Deployed to**: `https://cine-gratin.onrender.com`
+- **Theme**: Dark cinematic, brand-red (#dc2626), brand-gold (#d4af37)
 - **Public Pages**:
-  - `/` — Home with auto-rotating hero carousel, trending section, "¿Qué veo hoy?" random picker
-  - `/browse` — Full catalog with filters (year, genre, rating, sort)
-  - `/series` — TV series catalog (DB-backed) + TVMaze search + integrated player
-  - `/series/:id` — Dedicated series detail page with season/episode selector and player
-  - `/movie/:id` — Movie detail with embedded video player, fullscreen support
-  - `/search/:query` — Unified search (movies + series) with tabs
-  - `/favorites` — Favorites list (localStorage)
-- **Admin Panel** (`/admin`, password: `admin123`):
-  - Dashboard with real stats (movies + series counts, views, top content)
-  - Add/Edit Movie (TMDB import by IMDb ID)
-  - Bulk Import (sequential or list mode, movies + series)
-  - Manage Movies (with filters, sortable columns, bulk delete)
-  - Add/Edit Series (TMDB import for TV series)
-  - Manage Series (with search, bulk delete, featured toggle)
-  - Video Servers (movie + TV server management)
-  - Settings
+  - `/` — Home: hero banner, popular carousels, genre/platform filter chips
+  - `/peliculas` — Movie catalog with search + genre filter
+  - `/series` — Series catalog with search + genre filter
+  - `/pelicula/:id` — Movie detail (React Query, Helmet SEO, trailer)
+  - `/serie/:id` — Series detail (React Query, Helmet SEO, season/episode selector)
+  - `/search/:query` — Unified search page (movies + series tabs)
+  - `/player/movie/:imdbId` — Movie player (5 servers, view tracking, 12s timeout overlay)
+  - `/player/series/:imdbId` — Series player (5 servers, view tracking, prev/next, 12s timeout)
+- **Admin Panel** (`/admin/login`, default: admin / admin123):
+  - Token-based auth via API (stores `cg_admin_token` in localStorage)
+  - Protected by `ADMIN_SECRET` env var on backend
+  - Dashboard, Import by IDs, VidSrc verification
 
-## Video Player
-- Movies: `{IMDB_ID}` placeholder in server URL patterns
-- TV Series: `{IMDB_ID}`, `{SEASON}`, `{EPISODE}` placeholders
-- Default movie servers: VidSrc Pro, VidSrc.to, VidSrc.xyz, 2Embed, EmbedSu
-- Default TV servers: VidSrc Pro, VidSrc.to, VidSrc.xyz, 2Embed
-- Fullscreen modal with ESC support, server switcher overlay
-- Auto-next episode with countdown overlay
-- Progress saved to localStorage per series
+### API Server (`artifacts/api-server`)
+- **Port**: 8080 (local), deployed on Render
+- **Auth**: POST `/api/auth/login` → returns `{ ok, token }` (token = ADMIN_SECRET)
+- **Admin middleware**: Checks `Authorization: Bearer <ADMIN_SECRET>` on all `/admin/*` routes
+- **Routes**: `/api/movies`, `/api/movies/search`, `/api/movies/:id/view`, `/api/series`, `/api/series/search`, `/api/series/:id/view`, `/api/admin/*`, `/api/auth/login`, `/api/health`
+- **DB Tables**: `movies`, `cv_series`, `cv_auth`, `cv_settings`, `cv_servers`
 
-## Navbar Search
-- Live autocomplete dropdown showing movies + series as user types
-- Shows poster thumbnails, year, season count for quick preview
-- "Ver todos los resultados" links to full search page
-- Supports Enter key to go directly to search results page
+### Local Preview (`artifacts/cine-gratin/`)
+- **Package**: `@workspace/cine-gratin`
+- **Purpose**: Simplified local Replit preview (not the production app)
+- **Served at**: `/cine-gratin/` via Replit proxy
 
-## "¿Qué veo hoy?" Feature
-- Random content picker button visible after hero section
-- Modal shows poster, title, year, rating, synopsis of random pick
-- "Ver Ahora" navigates directly to movie or series detail page
-- Re-shuffle button picks another random item
+## Environment Variables
+
+### Frontend (Render)
+- `VITE_API_URL` — API base URL (defaults to `https://cine-gratin.onrender.com`)
+
+### Backend (Render + api-server)
+- `ADMIN_SECRET` — Random secret string for admin auth (if unset, auth is skipped)
+- `DATABASE_URL` — PostgreSQL connection string
+
+## Video Players (Production Frontend)
+
+- 5 servers: vidsrc.net, vidsrc.pro, vidsrc.xyz, 2embed.cc, vidsrc.mov
+- Active server highlighted red; inactive servers muted
+- 12-second timeout overlay: shows "probar siguiente servidor" button
+- View tracking on mount (increments `views` counter in DB via PATCH)
+
+## Navbar Search (Production Frontend)
+
+- Live autocomplete dropdown with 300ms debounce
+- Shows poster thumbnails, title, year, content type
+- Max 6 movie + 4 series results in dropdown
+- "Ver todos los resultados" → `/search/:query`
+- Full search page at `/search/:query` with tabs: Todas / Películas / Series
 
 ## Key Commands
 
-- `pnpm --filter @workspace/api-server run dev` — run API server
-- `pnpm --filter @workspace/cinevault run dev` — run frontend
+- `pnpm --filter @workspace/api-server run dev` — run API server (port 8080)
+- `pnpm --filter @workspace/cine-gratin run dev` — run local Replit preview
+- `cd frontend && pnpm build` — build production frontend
+- `cd artifacts/api-server && pnpm build` — build API server

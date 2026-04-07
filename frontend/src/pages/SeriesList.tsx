@@ -1,7 +1,8 @@
 import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { Helmet } from "react-helmet-async";
 import { getSeries } from "@/lib/api";
-import { useFetch } from "@/hooks/useFetch";
 import GenreFilter from "@/components/GenreFilter";
 import { SkeletonGrid } from "@/components/SkeletonCard";
 
@@ -9,7 +10,12 @@ const FALLBACK_POSTER =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='300' viewBox='0 0 200 300'%3E%3Crect width='200' height='300' fill='%231a1a1a'/%3E%3Ctext x='100' y='150' font-family='sans-serif' font-size='14' fill='%23555' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E";
 
 export default function SeriesList() {
-  const { data: series, loading, error } = useFetch(getSeries, []);
+  const { data: series, isLoading: loading, error } = useQuery({
+    queryKey: ["series"],
+    queryFn: getSeries,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const [search, setSearch] = useState("");
   const [genre, setGenre] = useState("Todos");
 
@@ -33,6 +39,10 @@ export default function SeriesList() {
 
   return (
     <div className="min-h-screen bg-brand-dark pt-20 pb-16">
+      <Helmet>
+        <title>Series — Cine Gratín</title>
+      </Helmet>
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
           <h1 className="text-3xl font-black text-white mb-2">Series</h1>
@@ -62,7 +72,6 @@ export default function SeriesList() {
               </button>
             )}
           </div>
-
           <GenreFilter genres={genres} selected={genre} onSelect={setGenre} />
         </div>
 
@@ -70,8 +79,7 @@ export default function SeriesList() {
 
         {error && (
           <div className="text-center py-20">
-            <p className="text-red-400 text-lg">No se pudo cargar las series.</p>
-            <p className="text-gray-500 text-sm mt-2">{error}</p>
+            <p className="text-red-400 text-lg">No se pudieron cargar las series.</p>
           </div>
         )}
 
@@ -90,11 +98,7 @@ export default function SeriesList() {
         {!loading && !error && filtered.length > 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
             {filtered.map((item) => (
-              <Link
-                key={item.id}
-                to={`/serie/${item.id}`}
-                className="group block"
-              >
+              <Link key={item.id} to={`/serie/${item.id}`} className="group block">
                 <div className="aspect-[2/3] w-full rounded-lg overflow-hidden bg-brand-surface card-hover">
                   <img
                     src={item.poster_url || FALLBACK_POSTER}
@@ -111,14 +115,10 @@ export default function SeriesList() {
                   <div className="flex items-center gap-2 mt-0.5">
                     {item.year && <span className="text-xs text-gray-500">{item.year}</span>}
                     {item.rating !== undefined && (
-                      <span className="text-xs text-brand-gold">
-                        &#9733; {Number(item.rating).toFixed(1)}
-                      </span>
+                      <span className="text-xs text-brand-gold">&#9733; {Number(item.rating).toFixed(1)}</span>
                     )}
                     {item.total_seasons ? (
-                      <span className="text-xs text-gray-500">
-                        {item.total_seasons} temp.
-                      </span>
+                      <span className="text-xs text-gray-500">{item.total_seasons} temp.</span>
                     ) : null}
                   </div>
                 </div>

@@ -1,7 +1,6 @@
 import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Navigate } from "react-router-dom";
 import { login, isAuthenticated } from "@/lib/auth";
-import { Navigate } from "react-router-dom";
 
 export default function AdminLogin() {
   const navigate = useNavigate();
@@ -19,27 +18,22 @@ export default function AdminLogin() {
     setError("");
     setLoading(true);
 
-    // Tiny delay for UX feel
-    await new Promise((r) => setTimeout(r, 400));
-
-    const ok = login(username.trim(), password);
-    if (ok) {
+    const result = await login(username.trim(), password);
+    if (result.ok) {
       navigate("/admin", { replace: true });
     } else {
-      setError("Usuario o contraseña incorrectos.");
+      setError(result.error ?? "Usuario o contraseña incorrectos.");
     }
     setLoading(false);
   };
 
   return (
     <div className="min-h-screen bg-brand-dark flex items-center justify-center px-4">
-      {/* Background glow */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-brand-red/5 rounded-full blur-3xl" />
       </div>
 
       <div className="relative w-full max-w-sm">
-        {/* Logo */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-1 mb-1">
             <span className="text-brand-red font-black text-2xl tracking-tight">CINE</span>
@@ -48,7 +42,6 @@ export default function AdminLogin() {
           <p className="text-gray-500 text-xs tracking-widest uppercase">Panel de administración</p>
         </div>
 
-        {/* Card */}
         <div className="bg-brand-card border border-brand-border rounded-2xl p-8 shadow-2xl">
           <h1 className="text-white font-bold text-lg mb-6">Iniciar sesión</h1>
 
@@ -107,9 +100,7 @@ export default function AdminLogin() {
           </form>
         </div>
 
-        <p className="text-center text-gray-700 text-xs mt-6">
-          Acceso restringido
-        </p>
+        <p className="text-center text-gray-700 text-xs mt-6">Acceso restringido</p>
       </div>
     </div>
   );

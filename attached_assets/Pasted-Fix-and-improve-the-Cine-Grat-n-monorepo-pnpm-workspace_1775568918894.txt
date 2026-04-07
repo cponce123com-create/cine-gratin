@@ -1,0 +1,51 @@
+Fix and improve the Cine Gratín monorepo (pnpm workspace, React + Vite frontend, Express + PostgreSQL backend) with these changes in order of priority:
+
+---
+
+SECURITY (do these first):
+
+1. Remove the hardcoded credentials from `frontend/src/lib/auth.ts`. The login function must call `POST /api/auth/login` with the credentials and store only a session token (not "1") in localStorage. Remove VALID_USERNAME and VALID_PASSWORD constants entirely.
+
+2. Add an auth middleware to the API server that protects all `/api/admin/*` routes. It should check for an `Authorization: Bearer <token>` header. The token should be a simple JWT or a random secret stored in an env var ADMIN_SECRET. Return 401 if missing or invalid.
+
+3. Replace the hardcoded `BASE_URL = "https://cine-gratin.onrender.com"` in `frontend/src/lib/api.ts` with `import.meta.env.VITE_API_URL` and add `VITE_API_URL` to the Replit environment variables (set it to the Render URL for production, and to `http://localhost:8080` for local dev).
+
+---
+
+BUG FIXES:
+
+4. Fix the nested `<Routes>` issue in `frontend/src/App.tsx`. Replace the layout wrapper pattern (Routes > Route > Routes) with a proper React Router v6 layout using `<Outlet>`. Create a `Layout` component that renders `<Navbar /><Outlet />` and use it as the parent route element.
+
+5. In `frontend/src/pages/player/MoviePlayer.tsx` and `SeriesPlayer.tsx`, call `PATCH /api/movies/:id/view` (or `/api/series/:id/view`) once when the player mounts, so view counts are tracked in the database.
+
+---
+
+PERFORMANCE:
+
+6. Add React Query (`@tanstack/react-query`) to the frontend. Wrap the app in `QueryClientProvider`. Replace all `useFetch` calls in `Home.tsx`, `Movies.tsx`, `SeriesList.tsx`, `MovieDetail.tsx`, and `SeriesDetail.tsx` with `useQuery`. Set `staleTime: 5 * 60 * 1000` (5 minutes) so repeated navigation doesn't refetch unnecessarily.
+
+7. Add server-side pagination to `GET /api/movies` and `GET /api/series`. Accept `?page=1&limit=40` query params and return `{ items, total, page, pages }`. Update the Movies and SeriesList pages to use infinite scroll or a "Load more" button.
+
+---
+
+MISSING FEATURES:
+
+8. Add a search bar to the Navbar (desktop + mobile). As the user types (debounced 300ms), call `GET /api/movies/search?q=<query>&limit=6` and `GET /api/series/search?q=<query>&limit=4`. Show results in a dropdown with poster thumbnail, title, and year. Pressing Enter or clicking "Ver todos" navigates to `/search/<query>`.
+
+9. Create a `/search/:query` page that shows combined movie + series results in two tabs, using the server search endpoints. Add the route to App.tsx.
+
+---
+
+UX POLISH:
+
+10. Fix all missing Spanish accents in UI strings: "Peliculas" → "Películas", "Mas info" → "Más info", "Mas peliculas" → "Más películas", "Series populares", "Peliculas populares" → fix all similar instances throughout the codebase.
+
+11. Add a footer component to the public layout with: the Cine Gratín logo/name, current year, and a small disclaimer "El contenido multimedia es provisto por servicios externos. No almacenamos ni distribuimos archivos de video."
+
+12. Add dynamic `<title>` and Open Graph meta tags to each page using `react-helmet-async`. Install the package, wrap the app in `HelmetProvider`. 
+  - Home: title "Cine Gratín — Películas y Series"
+  - Movie detail: title "{movie.title} ({movie.year}) — Cine Gratín", og:image = movie.background_url
+  - Series detail: similar pattern
+  - Use the existing `/public/opengraph.jpg` as the default og:image.
+
+13. In the SeriesPlayer and MoviePlayer, if the iframe hasn't fired a `load` event within 12 seconds, show an overlay message: "Este servidor no respondió. Prueba con otro servidor." with a highlighted button pointing to the next server option.

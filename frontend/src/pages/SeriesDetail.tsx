@@ -1,7 +1,8 @@
 import { useState, useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { Helmet } from "react-helmet-async";
 import { getSeriesById } from "@/lib/api";
-import { useFetch } from "@/hooks/useFetch";
 import type { SeasonData } from "@/lib/types";
 
 const FALLBACK_BG =
@@ -20,7 +21,13 @@ function parseSeasons(raw: unknown): SeasonData[] {
 export default function SeriesDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { data: series, loading, error } = useFetch(() => getSeriesById(id!), [id]);
+
+  const { data: series, isLoading: loading, error } = useQuery({
+    queryKey: ["series", id],
+    queryFn: () => getSeriesById(id!),
+    enabled: !!id,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const [selectedSeasonIdx, setSelectedSeasonIdx] = useState(0);
 
@@ -37,6 +44,7 @@ export default function SeriesDetail() {
   );
 
   const trailerKey = series?.yt_trailer_code ?? null;
+  const ogImage = series?.background_url || series?.poster_url || "";
 
   if (loading) {
     return (
@@ -71,6 +79,15 @@ export default function SeriesDetail() {
 
   return (
     <div className="min-h-screen bg-brand-dark">
+      <Helmet>
+        <title>{series.title}{series.year ? ` (${series.year})` : ""} — Cine Gratín</title>
+        <meta name="description" content={series.synopsis?.slice(0, 160) ?? ""} />
+        <meta property="og:title" content={`${series.title} — Cine Gratín`} />
+        <meta property="og:description" content={series.synopsis?.slice(0, 200) ?? ""} />
+        {ogImage && <meta property="og:image" content={ogImage} />}
+        <meta property="og:type" content="video.tv_show" />
+      </Helmet>
+
       {/* Backdrop hero */}
       <div className="relative w-full h-[55vh] min-h-[380px] overflow-hidden">
         <img
@@ -81,7 +98,6 @@ export default function SeriesDetail() {
         />
         <div className="absolute inset-0 hero-gradient" />
         <div className="absolute inset-x-0 bottom-0 h-40 hero-gradient-bottom" />
-
         <button
           onClick={() => navigate(-1)}
           className="absolute top-20 left-6 flex items-center gap-2 text-gray-300 hover:text-white text-sm transition-colors"
@@ -110,7 +126,6 @@ export default function SeriesDetail() {
               {series.title}
             </h1>
 
-            {/* Meta row */}
             <div className="flex flex-wrap items-center gap-3 mb-4">
               {series.rating !== undefined && Number(series.rating) > 0 && (
                 <span className="flex items-center gap-1 text-brand-gold font-bold">
@@ -121,9 +136,7 @@ export default function SeriesDetail() {
               {series.year && (
                 <span className="text-gray-400">
                   {series.year}
-                  {series.end_year && series.end_year !== series.year
-                    ? `–${series.end_year}`
-                    : ""}
+                  {series.end_year && series.end_year !== series.year ? `–${series.end_year}` : ""}
                 </span>
               )}
               {seasonsData.length > 0 && (
@@ -149,28 +162,22 @@ export default function SeriesDetail() {
               )}
             </div>
 
-            {/* Genres */}
             {series.genres && series.genres.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-5">
                 {series.genres.map((g) => (
-                  <span
-                    key={g}
-                    className="text-xs bg-brand-surface border border-brand-border rounded-full px-3 py-1 text-gray-300"
-                  >
+                  <span key={g} className="text-xs bg-brand-surface border border-brand-border rounded-full px-3 py-1 text-gray-300">
                     {g}
                   </span>
                 ))}
               </div>
             )}
 
-            {/* Synopsis */}
             {series.synopsis && (
               <p className="text-gray-300 text-sm sm:text-base leading-relaxed max-w-2xl mb-5">
                 {series.synopsis}
               </p>
             )}
 
-            {/* Creators / Cast */}
             {series.creators && series.creators.length > 0 && (
               <p className="text-gray-400 text-sm mb-2">
                 <span className="text-gray-500">Creadores: </span>
@@ -187,18 +194,12 @@ export default function SeriesDetail() {
               </p>
             )}
 
-            {/* Play button */}
             {series.imdb_id && (
               <button
-                onClick={() =>
-                  navigate(
-                    `/player/series/${series.imdb_id}?season=1&episode=1&title=${encodeURIComponent(series.title)}`
-                  )
-                }
+                onClick={() => navigate(`/player/series/${series.imdb_id}?season=1&episode=1&title=${encodeURIComponent(series.title)}`)}
                 className="flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
               >
-                <PlayIcon />
-                Ver ahora
+                <PlayIcon /> Ver ahora
               </button>
             )}
           </div>
@@ -207,7 +208,6 @@ export default function SeriesDetail() {
         {/* Season selector + Episodes */}
         {seasonsData.length > 0 && (
           <div className="mt-12">
-            {/* Season tabs */}
             <div className="flex items-center gap-2 mb-6 overflow-x-auto pb-1">
               {seasonsData.map((season, idx) => (
                 <button
@@ -225,7 +225,6 @@ export default function SeriesDetail() {
               ))}
             </div>
 
-            {/* Episode list */}
             {episodes.length === 0 ? (
               <p className="text-gray-500 text-sm">Sin episodios disponibles.</p>
             ) : (
@@ -235,9 +234,7 @@ export default function SeriesDetail() {
                     key={epNum}
                     onClick={() => {
                       if (series.imdb_id) {
-                        navigate(
-                          `/player/series/${series.imdb_id}?season=${currentSeason.season}&episode=${epNum}&title=${encodeURIComponent(series.title)}`
-                        );
+                        navigate(`/player/series/${series.imdb_id}?season=${currentSeason.season}&episode=${epNum}&title=${encodeURIComponent(series.title)}`);
                       }
                     }}
                     className="flex items-center gap-3 bg-brand-surface border border-brand-border rounded-lg px-4 py-3 hover:border-brand-red hover:bg-brand-surface/80 transition-all group text-left"
@@ -263,15 +260,10 @@ export default function SeriesDetail() {
             <p className="text-gray-500">No hay información de temporadas disponible.</p>
             {series.imdb_id && (
               <button
-                onClick={() =>
-                  navigate(
-                    `/player/series/${series.imdb_id}?season=1&episode=1&title=${encodeURIComponent(series.title)}`
-                  )
-                }
+                onClick={() => navigate(`/player/series/${series.imdb_id}?season=1&episode=1&title=${encodeURIComponent(series.title)}`)}
                 className="mt-4 flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white font-bold py-2 px-5 rounded-lg transition-colors mx-auto"
               >
-                <PlayIcon />
-                Ver T1 E1
+                <PlayIcon /> Ver T1 E1
               </button>
             )}
           </div>

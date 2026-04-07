@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
-import { getSeriesById } from "@/lib/api";
+import { Helmet } from "react-helmet-async";
+import { getSeriesById, trackSeriesView } from "@/lib/api";
 import type { SeasonData } from "@/lib/types";
 
 interface Server {
@@ -15,6 +16,8 @@ const SERVERS: Server[] = [
   { label: "Servidor 4", url: (id, s, e) => `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}` },
   { label: "Servidor 5", url: (id, s, e) => `https://vidsrc.mov/embed/tv/${id}/${s}/${e}` },
 ];
+
+const TIMEOUT_MS = 12000;
 
 function parseSeasons(raw: unknown): SeasonData[] {
   if (!raw) return [];
@@ -38,9 +41,17 @@ export default function SeriesPlayer() {
   const [activeServer, setActiveServer] = useState(0);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [showSelectors, setShowSelectors] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
 
   const [totalSeasons, setTotalSeasons] = useState<number | null>(null);
   const [seasonsData, setSeasonsData] = useState<SeasonData[]>([]);
+
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Track view on mount
+  useEffect(() => {
+    if (imdbId) trackSeriesView(imdbId).catch(() => {});
+  }, [imdbId]);
 
   useEffect(() => {
     if (!imdbId) return;
@@ -53,17 +64,17 @@ export default function SeriesPlayer() {
       .catch(() => setTotalSeasons(10));
   }, [imdbId]);
 
+  // Reset timeout whenever server, season, or episode changes
+  useEffect(() => {
+    setTimedOut(false);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => setTimedOut(true), TIMEOUT_MS);
+    return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); };
+  }, [activeServer, season, episode]);
+
   const resolvedTotalSeasons = totalSeasons ?? 1;
   const episodesInSeason = seasonsData.find((s) => s.season === season)?.episodes ?? 30;
-
   const iframeSrc = SERVERS[activeServer].url(imdbId!, season, episode);
-
-  // Auto-hide controls after 5 s (pause while selector panel open)
-  useEffect(() => {
-    if (!controlsVisible || showSelectors) return;
-    const t = setTimeout(() => setControlsVisible(false), 5000);
-    return () => clearTimeout(t);
-  }, [controlsVisible, showSelectors]);
 
   const seasonOptions = Array.from({ length: resolvedTotalSeasons }, (_, i) => i + 1);
   const episodeOptions = Array.from({ length: episodesInSeason }, (_, i) => i + 1);
@@ -87,11 +98,19 @@ export default function SeriesPlayer() {
   const isFirst = season === 1 && episode <= 1;
   const isLast = season >= resolvedTotalSeasons && episode >= episodesInSeason;
 
+  const switchToNext = () => {
+    if (activeServer < SERVERS.length - 1) setActiveServer((s) => s + 1);
+  };
+
   return (
     <div
       className="fixed inset-0 bg-black flex flex-col cursor-pointer"
       onClick={() => setControlsVisible(true)}
     >
+      <Helmet>
+        <title>{title} T{season}E{episode} — Cine Gratín</title>
+      </Helmet>
+
       {/* Top controls */}
       <div
         className={`absolute top-0 inset-x-0 z-20 transition-opacity duration-300 ${
@@ -106,21 +125,17 @@ export default function SeriesPlayer() {
               onClick={() => navigate(-1)}
               className="flex items-center gap-1.5 text-white/80 hover:text-white transition-colors text-sm font-medium flex-shrink-0"
             >
-              <BackIcon />
-              Volver
+              <BackIcon /> Volver
             </button>
             <h1 className="text-white/90 font-bold text-sm sm:text-base truncate flex-1 min-w-0">
               {title}
-              <span className="text-white/50 font-normal ml-2 text-xs">
-                T{season} · E{episode}
-              </span>
+              <span className="text-white/50 font-normal ml-2 text-xs">T{season} · E{episode}</span>
             </h1>
             <button
               onClick={() => setShowSelectors((v) => !v)}
               className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 border border-white/10 text-white text-[11px] font-semibold px-2.5 py-1 rounded-md transition-colors flex-shrink-0"
             >
-              <ListIcon />
-              Episodios
+              <ListIcon /> Episodios
             </button>
           </div>
 
@@ -148,9 +163,7 @@ export default function SeriesPlayer() {
                 <div>
                   <label className="block text-white/50 text-xs font-medium mb-1.5 uppercase tracking-wider">
                     Temporada
-                    {totalSeasons === null && (
-                      <span className="ml-1 text-white/30 normal-case tracking-normal">cargando...</span>
-                    )}
+                    {totalSeasons === null && <span className="ml-1 text-white/30 normal-case tracking-normal">cargando...</span>}
                   </label>
                   <select
                     value={season}
@@ -179,9 +192,7 @@ export default function SeriesPlayer() {
                     className="bg-white/10 border border-white/10 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-white/30"
                   >
                     {episodeOptions.map((ep) => (
-                      <option key={ep} value={ep} className="bg-gray-900">
-                        Episodio {ep}
-                      </option>
+                      <option key={ep} value={ep} className="bg-gray-900">Episodio {ep}</option>
                     ))}
                   </select>
                 </div>
@@ -194,15 +205,13 @@ export default function SeriesPlayer() {
                 </button>
               </div>
 
-              {/* Prev / next */}
               <div className="flex items-center gap-3 mt-4 pt-3 border-t border-white/10">
                 <button
                   onClick={handlePrev}
                   disabled={isFirst}
                   className="flex items-center gap-1.5 text-white/70 hover:text-white text-xs disabled:opacity-30 transition-colors"
                 >
-                  <ChevronLeftIcon />
-                  Anterior
+                  <ChevronLeftIcon /> Anterior
                 </button>
                 <span className="text-white/40 text-xs flex-1 text-center">
                   T{season} · E{episode} / {episodesInSeason}
@@ -212,14 +221,47 @@ export default function SeriesPlayer() {
                   disabled={isLast}
                   className="flex items-center gap-1.5 text-white/70 hover:text-white text-xs disabled:opacity-30 transition-colors"
                 >
-                  Siguiente
-                  <ChevronRightIcon />
+                  Siguiente <ChevronRightIcon />
                 </button>
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {/* Timeout overlay */}
+      {timedOut && (
+        <div
+          className="absolute inset-0 z-10 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="bg-brand-card border border-brand-border rounded-2xl p-8 max-w-sm text-center shadow-2xl">
+            <div className="text-4xl mb-4">⚠️</div>
+            <p className="text-white font-semibold text-base mb-2">
+              Este servidor no respondió.
+            </p>
+            <p className="text-gray-400 text-sm mb-6">
+              Prueba con otro servidor para ver este contenido.
+            </p>
+            {activeServer < SERVERS.length - 1 ? (
+              <button
+                onClick={switchToNext}
+                className="w-full bg-brand-red hover:bg-red-700 text-white font-bold py-2.5 rounded-lg transition-colors"
+              >
+                Probar {SERVERS[activeServer + 1].label}
+              </button>
+            ) : (
+              <p className="text-gray-500 text-sm">No hay más servidores disponibles.</p>
+            )}
+            <button
+              onClick={() => setTimedOut(false)}
+              className="mt-3 text-gray-500 hover:text-white text-xs transition-colors"
+            >
+              Seguir esperando
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Fullscreen iframe */}
       <iframe
@@ -230,6 +272,10 @@ export default function SeriesPlayer() {
         allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
         referrerPolicy="origin"
         title={`${title} T${season}E${episode}`}
+        onLoad={() => {
+          if (timeoutRef.current) clearTimeout(timeoutRef.current);
+          setTimedOut(false);
+        }}
       />
     </div>
   );

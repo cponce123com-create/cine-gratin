@@ -219,7 +219,8 @@ router.post("/auth/login", async (req, res) => {
     const { rows } = await pool.query("SELECT password FROM cv_auth WHERE id = 'admin'");
     const stored = rows[0]?.password || "admin123";
     if (password === stored) {
-      res.json({ ok: true });
+      const token = process.env["ADMIN_SECRET"] ?? null;
+      res.json({ ok: true, token });
     } else {
       res.status(401).json({ error: "Contraseña incorrecta" });
     }

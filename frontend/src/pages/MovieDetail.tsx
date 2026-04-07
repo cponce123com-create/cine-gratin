@@ -1,6 +1,7 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { Helmet } from "react-helmet-async";
 import { getMovie } from "@/lib/api";
-import { useFetch } from "@/hooks/useFetch";
 
 const FALLBACK_BG =
   "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=1400&auto=format&fit=crop";
@@ -10,9 +11,14 @@ const FALLBACK_POSTER =
 export default function MovieDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { data: movie, loading, error } = useFetch(() => getMovie(id!), [id]);
 
-  // Runtime from TMDB (minutes)
+  const { data: movie, isLoading: loading, error } = useQuery({
+    queryKey: ["movie", id],
+    queryFn: () => getMovie(id!),
+    enabled: !!id,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const runtimeMin = movie?.runtime ?? movie?.duration_min ?? null;
   const runtimeLabel = runtimeMin
     ? runtimeMin >= 60
@@ -20,11 +26,11 @@ export default function MovieDetail() {
       : `${runtimeMin} min`
     : null;
 
-  // Trailer: prefer yt_trailer_code (TMDB key), fallback to legacy trailer_url
   const trailerKey = movie?.yt_trailer_code ?? null;
   const trailerLegacyUrl = movie?.trailer_url ?? null;
-
   const firstSource = movie?.video_sources?.[0];
+
+  const ogImage = movie?.background_url || movie?.poster_url || "";
 
   if (loading) {
     return (
@@ -52,6 +58,15 @@ export default function MovieDetail() {
 
   return (
     <div className="min-h-screen bg-brand-dark">
+      <Helmet>
+        <title>{movie.title}{movie.year ? ` (${movie.year})` : ""} — Cine Gratín</title>
+        <meta name="description" content={movie.synopsis?.slice(0, 160) ?? ""} />
+        <meta property="og:title" content={`${movie.title} — Cine Gratín`} />
+        <meta property="og:description" content={movie.synopsis?.slice(0, 200) ?? ""} />
+        {ogImage && <meta property="og:image" content={ogImage} />}
+        <meta property="og:type" content="video.movie" />
+      </Helmet>
+
       {/* Backdrop hero */}
       <div className="relative w-full h-[55vh] min-h-[380px] overflow-hidden">
         <img
@@ -62,8 +77,6 @@ export default function MovieDetail() {
         />
         <div className="absolute inset-0 hero-gradient" />
         <div className="absolute inset-x-0 bottom-0 h-40 hero-gradient-bottom" />
-
-        {/* Back button */}
         <button
           onClick={() => navigate(-1)}
           className="absolute top-20 left-6 flex items-center gap-2 text-gray-300 hover:text-white text-sm transition-colors"
@@ -92,7 +105,6 @@ export default function MovieDetail() {
               {movie.title}
             </h1>
 
-            {/* Meta */}
             <div className="flex flex-wrap items-center gap-3 mb-4">
               {movie.rating !== undefined && Number(movie.rating) > 0 && (
                 <span className="flex items-center gap-1 text-brand-gold font-bold">
@@ -109,32 +121,25 @@ export default function MovieDetail() {
               )}
             </div>
 
-            {/* Genres */}
             {movie.genres && movie.genres.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-5">
                 {movie.genres.map((g) => (
-                  <span
-                    key={g}
-                    className="text-xs bg-brand-surface border border-brand-border rounded-full px-3 py-1 text-gray-300"
-                  >
+                  <span key={g} className="text-xs bg-brand-surface border border-brand-border rounded-full px-3 py-1 text-gray-300">
                     {g}
                   </span>
                 ))}
               </div>
             )}
 
-            {/* Synopsis */}
             {movie.synopsis && (
               <p className="text-gray-300 text-sm sm:text-base leading-relaxed mb-5 max-w-2xl">
                 {movie.synopsis}
               </p>
             )}
 
-            {/* Director / Cast */}
             {movie.director && (
               <p className="text-gray-400 text-sm mb-2">
-                <span className="text-gray-500">Director: </span>
-                {movie.director}
+                <span className="text-gray-500">Director: </span>{movie.director}
               </p>
             )}
             {movie.cast_list && movie.cast_list.length > 0 && (
@@ -147,51 +152,22 @@ export default function MovieDetail() {
               </p>
             )}
 
-            {/* Action buttons */}
             <div className="flex flex-wrap gap-3">
               {movie.imdb_id ? (
                 <button
-                  onClick={() =>
-                    navigate(
-                      `/player/movie/${movie.imdb_id}?title=${encodeURIComponent(movie.title)}`
-                    )
-                  }
+                  onClick={() => navigate(`/player/movie/${movie.imdb_id}?title=${encodeURIComponent(movie.title)}`)}
                   className="flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
                 >
-                  <PlayIcon />
-                  Ver ahora
+                  <PlayIcon /> Ver ahora
                 </button>
               ) : firstSource ? (
                 <button
-                  onClick={() =>
-                    navigate(
-                      `/player?url=${encodeURIComponent(firstSource.url)}&title=${encodeURIComponent(movie.title)}&label=${encodeURIComponent(firstSource.label)}`
-                    )
-                  }
+                  onClick={() => navigate(`/player?url=${encodeURIComponent(firstSource.url)}&title=${encodeURIComponent(movie.title)}&label=${encodeURIComponent(firstSource.label)}`)}
                   className="flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
                 >
-                  <PlayIcon />
-                  Ver ahora
+                  <PlayIcon /> Ver ahora
                 </button>
               ) : null}
-
-              {movie.video_sources && movie.video_sources.length > 1 && (
-                <div className="flex flex-wrap gap-2">
-                  {movie.video_sources.slice(1).map((src, i) => (
-                    <button
-                      key={i}
-                      onClick={() =>
-                        navigate(
-                          `/player?url=${encodeURIComponent(src.url)}&title=${encodeURIComponent(movie.title)}&label=${encodeURIComponent(src.label)}`
-                        )
-                      }
-                      className="text-sm bg-brand-surface border border-brand-border hover:border-gray-500 text-gray-300 hover:text-white font-medium py-3 px-4 rounded-lg transition-colors"
-                    >
-                      {src.label}
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -210,20 +186,16 @@ export default function MovieDetail() {
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 />
               ) : trailerLegacyUrl ? (
-                trailerLegacyUrl.includes("youtube") || trailerLegacyUrl.includes("youtu.be") ? (
-                  <iframe
-                    src={(() => {
-                      const m = trailerLegacyUrl.match(/[?&]v=([^&]+)/) ?? trailerLegacyUrl.match(/youtu\.be\/([^?]+)/);
-                      return m ? `https://www.youtube.com/embed/${m[1]}` : trailerLegacyUrl;
-                    })()}
-                    title={`Tráiler de ${movie.title}`}
-                    className="absolute inset-0 w-full h-full"
-                    allowFullScreen
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  />
-                ) : (
-                  <video src={trailerLegacyUrl} controls className="absolute inset-0 w-full h-full" />
-                )
+                <iframe
+                  src={(() => {
+                    const m = trailerLegacyUrl.match(/[?&]v=([^&]+)/) ?? trailerLegacyUrl.match(/youtu\.be\/([^?]+)/);
+                    return m ? `https://www.youtube.com/embed/${m[1]}` : trailerLegacyUrl;
+                  })()}
+                  title={`Tráiler de ${movie.title}`}
+                  className="absolute inset-0 w-full h-full"
+                  allowFullScreen
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                />
               ) : null}
             </div>
           </div>

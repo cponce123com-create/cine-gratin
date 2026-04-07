@@ -1,11 +1,13 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
 import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Home from "@/pages/Home";
 import Movies from "@/pages/Movies";
 import SeriesList from "@/pages/SeriesList";
 import MovieDetail from "@/pages/MovieDetail";
 import SeriesDetail from "@/pages/SeriesDetail";
+import Search from "@/pages/Search";
 import Player from "@/pages/Player";
 import MoviePlayer from "@/pages/player/MoviePlayer";
 import SeriesPlayer from "@/pages/player/SeriesPlayer";
@@ -14,11 +16,21 @@ import AdminLogin from "@/pages/admin/Login";
 import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminImport from "@/pages/admin/Import";
 
+function PublicLayout() {
+  return (
+    <>
+      <Navbar />
+      <Outlet />
+      <Footer />
+    </>
+  );
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Standalone routes (no Navbar) */}
+        {/* Standalone routes — no Navbar/Footer */}
         <Route path="/player/movie/:imdbId" element={<MoviePlayer />} />
         <Route path="/player/series/:imdbId" element={<SeriesPlayer />} />
         <Route path="/player" element={<Player />} />
@@ -40,23 +52,16 @@ export default function App() {
           }
         />
 
-        {/* Public site (with Navbar) */}
-        <Route
-          path="/*"
-          element={
-            <>
-              <Navbar />
-              <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/peliculas" element={<Movies />} />
-                <Route path="/series" element={<SeriesList />} />
-                <Route path="/pelicula/:id" element={<MovieDetail />} />
-                <Route path="/serie/:id" element={<SeriesDetail />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </>
-          }
-        />
+        {/* Public site — Navbar + Footer layout */}
+        <Route element={<PublicLayout />}>
+          <Route path="/" element={<Home />} />
+          <Route path="/peliculas" element={<Movies />} />
+          <Route path="/series" element={<SeriesList />} />
+          <Route path="/pelicula/:id" element={<MovieDetail />} />
+          <Route path="/serie/:id" element={<SeriesDetail />} />
+          <Route path="/search/:query" element={<Search />} />
+          <Route path="*" element={<NotFound />} />
+        </Route>
       </Routes>
     </BrowserRouter>
   );

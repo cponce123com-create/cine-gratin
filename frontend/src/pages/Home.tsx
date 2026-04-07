@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { Helmet } from "react-helmet-async";
 import { getMovies, getSeries } from "@/lib/api";
-import { useFetch } from "@/hooks/useFetch";
 import Carousel from "@/components/Carousel";
 import GenreCarousel, { type MixedItem } from "@/components/GenreCarousel";
 import { SkeletonHero } from "@/components/SkeletonCard";
@@ -43,59 +44,64 @@ function buildMixed(
 type FilterMode = "genre" | "platform" | null;
 
 export default function Home() {
-  const movies = useFetch(getMovies, []);
-  const series = useFetch(getSeries, []);
-  const navigate = useNavigate();
+  const { data: movieData, isLoading: loadingMovies, error: errorMovies } = useQuery({
+    queryKey: ["movies"],
+    queryFn: getMovies,
+    staleTime: 5 * 60 * 1000,
+  });
+  const { data: seriesData, isLoading: loadingSeries, error: errorSeries } = useQuery({
+    queryKey: ["series"],
+    queryFn: getSeries,
+    staleTime: 5 * 60 * 1000,
+  });
 
+  const navigate = useNavigate();
   const [activeGenre, setActiveGenre] = useState<string | null>(null);
   const [activePlatform, setActivePlatform] = useState<string | null>(null);
   const [filterMode, setFilterMode] = useState<FilterMode>(null);
 
+  const allMovies = movieData ?? [];
+  const allSeries = seriesData ?? [];
+
   const heroItem = useMemo(() => {
-    const list = movies.data ?? [];
-    return list.find((m) => m.featured) ?? list[0] ?? null;
-  }, [movies.data]);
+    return allMovies.find((m) => m.featured) ?? allMovies[0] ?? null;
+  }, [allMovies]);
 
-  const popularMovies = useMemo(() => (movies.data ?? []).slice(0, 20), [movies.data]);
-  const popularSeries = useMemo(() => (series.data ?? []).slice(0, 20), [series.data]);
+  const popularMovies = useMemo(() => allMovies.slice(0, 20), [allMovies]);
+  const popularSeries = useMemo(() => allSeries.slice(0, 20), [allSeries]);
 
-  const allMovies = movies.data ?? [];
-  const allSeries = series.data ?? [];
-
-  // Genre carousels
-  const genreCarousels = useMemo(() =>
-    GENRE_SECTIONS.map((sec) => ({
-      ...sec,
-      items: buildMixed(
-        allMovies, allSeries,
-        (m) => matchesKeywords(m.genres, sec.keywords),
-        (s) => matchesKeywords(s.genres, sec.keywords)
-      ),
-    })).filter((s) => s.items.length >= MIN_ITEMS_TO_SHOW),
+  const genreCarousels = useMemo(
+    () =>
+      GENRE_SECTIONS.map((sec) => ({
+        ...sec,
+        items: buildMixed(
+          allMovies, allSeries,
+          (m) => matchesKeywords(m.genres, sec.keywords),
+          (s) => matchesKeywords(s.genres, sec.keywords)
+        ),
+      })).filter((s) => s.items.length >= MIN_ITEMS_TO_SHOW),
     [allMovies, allSeries]
   );
 
-  // Platform carousels — only shown when items have network data
-  const platformCarousels = useMemo(() =>
-    PLATFORM_SECTIONS.map((sec) => ({
-      ...sec,
-      items: buildMixed(
-        allMovies, allSeries,
-        (m) => matchesNetworks(m.networks, sec.networks),
-        (s) => matchesNetworks(s.networks, sec.networks)
-      ),
-    })).filter((s) => s.items.length >= MIN_ITEMS_TO_SHOW),
+  const platformCarousels = useMemo(
+    () =>
+      PLATFORM_SECTIONS.map((sec) => ({
+        ...sec,
+        items: buildMixed(
+          allMovies, allSeries,
+          (m) => matchesNetworks(m.networks, sec.networks),
+          (s) => matchesNetworks(s.networks, sec.networks)
+        ),
+      })).filter((s) => s.items.length >= MIN_ITEMS_TO_SHOW),
     [allMovies, allSeries]
   );
 
-  const isLoading = movies.loading || series.loading;
+  const isLoading = loadingMovies || loadingSeries;
 
-  // Which genre carousels to show
   const visibleGenres = filterMode === "genre" && activeGenre
     ? genreCarousels.filter((s) => s.id === activeGenre)
     : genreCarousels;
 
-  // Which platform carousels to show
   const visiblePlatforms = filterMode === "platform" && activePlatform
     ? platformCarousels.filter((s) => s.id === activePlatform)
     : platformCarousels;
@@ -120,8 +126,13 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-brand-dark">
+      <Helmet>
+        <title>Cine Gratín — Tu plataforma de streaming</title>
+        <meta name="description" content="Disfruta las mejores películas y series en Cine Gratín. Streaming gratuito, sin registro." />
+      </Helmet>
+
       {/* ── Hero ─────────────────────────────────────────────────── */}
-      {movies.loading ? (
+      {loadingMovies ? (
         <SkeletonHero />
       ) : heroItem ? (
         <div className="relative w-full h-[80vh] min-h-[520px] overflow-hidden">
@@ -183,7 +194,7 @@ export default function Home() {
                 to={`/pelicula/${heroItem.id}`}
                 className="flex items-center gap-2 bg-white/10 hover:bg-white/20 border border-white/30 text-white font-bold py-3 px-6 rounded transition-colors backdrop-blur-sm"
               >
-                <InfoIcon /> Mas info
+                <InfoIcon /> Más info
               </Link>
             </div>
           </div>
@@ -192,25 +203,23 @@ export default function Home() {
 
       {/* ── Main content ──────────────────────────────────────────── */}
       <div className="pt-8 pb-16">
-        {/* Popular carousels (always visible) */}
-        {movies.error ? (
-          <p className="text-red-400 text-center py-8">No se pudo cargar las peliculas.</p>
+        {errorMovies ? (
+          <p className="text-red-400 text-center py-8">No se pudieron cargar las películas.</p>
         ) : (
-          <Carousel title="Peliculas populares" items={popularMovies} type="movie" />
+          <Carousel title="Películas populares" items={popularMovies} type="movie" />
         )}
-        {series.error ? (
-          <p className="text-red-400 text-center py-8">No se pudo cargar las series.</p>
+        {errorSeries ? (
+          <p className="text-red-400 text-center py-8">No se pudieron cargar las series.</p>
         ) : (
           <Carousel title="Series populares" items={popularSeries} type="series" />
         )}
-        {movies.data && movies.data.length > 20 && (
-          <Carousel title="Mas peliculas" items={movies.data.slice(20, 40)} type="movie" />
+        {allMovies.length > 20 && (
+          <Carousel title="Más películas" items={allMovies.slice(20, 40)} type="movie" />
         )}
 
         {/* ── Genre & Platform sections ─────────────────────────────── */}
         {!isLoading && (genreCarousels.length > 0 || platformCarousels.length > 0) && (
           <>
-            {/* Divider */}
             <div className="px-4 sm:px-6 lg:px-8 mb-5 mt-2">
               <div className="flex items-center gap-3">
                 <div className="h-px flex-1 bg-brand-border" />
@@ -221,9 +230,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* ── Filter chip bar ───────────────────────────────────── */}
             <div className="px-4 sm:px-6 lg:px-8 mb-6 space-y-3">
-              {/* Genre chips */}
               {genreCarousels.length > 0 && (
                 <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
                   <span className="flex-shrink-0 text-[11px] font-semibold text-gray-500 uppercase tracking-wider self-center pr-1">
@@ -242,18 +249,17 @@ export default function Home() {
                       {sec.label}
                     </button>
                   ))}
-                  {(filterMode === "genre") && (
+                  {filterMode === "genre" && (
                     <button
                       onClick={clearFilter}
                       className="flex-shrink-0 text-xs px-2 py-1 text-gray-500 hover:text-white transition-colors"
                     >
-                      ✕ Limpiar
+                      &#10005; Limpiar
                     </button>
                   )}
                 </div>
               )}
 
-              {/* Platform chips — only shown when platform data exists */}
               {platformCarousels.length > 0 && (
                 <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
                   <span className="flex-shrink-0 text-[11px] font-semibold text-gray-500 uppercase tracking-wider self-center pr-1">
@@ -282,15 +288,14 @@ export default function Home() {
                       onClick={clearFilter}
                       className="flex-shrink-0 text-xs px-2 py-1 text-gray-500 hover:text-white transition-colors"
                     >
-                      ✕ Limpiar
+                      &#10005; Limpiar
                     </button>
                   )}
                 </div>
               )}
             </div>
 
-            {/* ── Platform carousels ────────────────────────────────── */}
-            {(filterMode !== "genre") && visiblePlatforms.map((sec) => (
+            {filterMode !== "genre" && visiblePlatforms.map((sec) => (
               <GenreCarousel
                 key={`platform-${sec.id}`}
                 id={`platform-${sec.id}`}
@@ -299,8 +304,7 @@ export default function Home() {
               />
             ))}
 
-            {/* ── Genre carousels ───────────────────────────────────── */}
-            {(filterMode !== "platform") && visibleGenres.map((sec) => (
+            {filterMode !== "platform" && visibleGenres.map((sec) => (
               <GenreCarousel
                 key={`genre-${sec.id}`}
                 id={`genre-${sec.id}`}
