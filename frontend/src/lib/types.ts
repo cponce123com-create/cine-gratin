@@ -58,6 +58,7 @@ export interface Movie {
   duration_min?: number;
   director?: string;
   cast_list?: string[];
+  networks?: string[];
   language?: string;
   mpa_rating?: string;
   poster_url?: string;
@@ -84,6 +85,7 @@ export interface Series {
   rating?: number;
   creators?: string[];
   cast_list?: string[];
+  networks?: string[];
   language?: string;
   poster_url?: string;
   background_url?: string;

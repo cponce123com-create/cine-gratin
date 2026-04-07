@@ -15,6 +15,7 @@ const toMovie = (row: Record<string, unknown>) => ({
   synopsis: row.synopsis,
   director: row.director,
   cast_list: row.cast_list,
+  networks: (row.networks as string[]) ?? [],
   poster_url: row.poster_url,
   background_url: row.background_url,
   yt_trailer_code: row.yt_trailer_code,

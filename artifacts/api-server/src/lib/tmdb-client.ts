@@ -78,6 +78,9 @@ export async function fetchMovieByTmdbId(tmdbId: number): Promise<Record<string,
     const runtime = (details.runtime as number) || 0;
     const rating = Math.round(((details.vote_average as number) || 0) * 10) / 10;
 
+    const productionCompanies = (details.production_companies as Array<{ name: string }>) || [];
+    const networks = productionCompanies.slice(0, 5).map(c => c.name);
+
     return {
       imdb_id: imdbId,
       tmdb_id: tmdbId,
@@ -90,6 +93,7 @@ export async function fetchMovieByTmdbId(tmdbId: number): Promise<Record<string,
       synopsis,
       director,
       cast_list: castList,
+      networks,
       poster_url: posterPath ? `${TMDB_IMG}/w500${posterPath}` : "",
       background_url: backdropPath ? `${TMDB_IMG}/original${backdropPath}` : "",
       yt_trailer_code: trailer?.key || "",
@@ -165,6 +169,9 @@ export async function fetchSeriesByTmdbId(tmdbId: number): Promise<Record<string
         air_date: s.air_date,
       }));
 
+    const networksRaw = (details.networks as Array<{ name: string }>) || [];
+    const networks = networksRaw.map(n => n.name);
+
     return {
       imdb_id: imdbId,
       tmdb_id: tmdbId,
@@ -177,6 +184,7 @@ export async function fetchSeriesByTmdbId(tmdbId: number): Promise<Record<string
       synopsis,
       creators: creatorNames,
       cast_list: castRaw.slice(0, 12).map(c => c.name),
+      networks,
       poster_url: posterPath ? `${TMDB_IMG}/w500${posterPath}` : "",
       background_url: backdropPath ? `${TMDB_IMG}/original${backdropPath}` : "",
       yt_trailer_code: trailer?.key || "",

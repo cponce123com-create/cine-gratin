@@ -27,13 +27,14 @@ async function importMovie(tmdbId: number): Promise<boolean> {
 
     await pool.query(
       `INSERT INTO movies (id, imdb_id, title, year, rating, runtime, genres, language, synopsis,
-        director, cast_list, poster_url, background_url, yt_trailer_code, mpa_rating, slug,
+        director, cast_list, networks, poster_url, background_url, yt_trailer_code, mpa_rating, slug,
         featured, video_sources, torrents, views, date_added, auto_imported)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
        ON CONFLICT (id) DO NOTHING`,
       [
         id, data.imdb_id, data.title, data.year, data.rating, data.runtime,
         data.genres, data.language, data.synopsis, data.director, data.cast_list,
+        data.networks ?? [],
         data.poster_url, data.background_url, data.yt_trailer_code, data.mpa_rating,
         slug, false, "[]", "[]", 0, new Date().toISOString(), true,
       ]
@@ -57,14 +58,16 @@ async function importSeries(tmdbId: number): Promise<boolean> {
 
     await pool.query(
       `INSERT INTO cv_series (id, imdb_id, tmdb_id, title, year, end_year, rating, genres, language,
-        synopsis, creators, cast_list, poster_url, background_url, yt_trailer_code, status,
+        synopsis, creators, cast_list, networks, poster_url, background_url, yt_trailer_code, status,
         total_seasons, seasons_data, video_sources, featured, views, date_added, auto_imported)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
        ON CONFLICT (id) DO NOTHING`,
       [
         id, data.imdb_id, data.tmdb_id, data.title, data.year, data.end_year || null,
         data.rating, data.genres, data.language, data.synopsis,
-        data.creators, data.cast_list, data.poster_url, data.background_url,
+        data.creators, data.cast_list,
+        data.networks ?? [],
+        data.poster_url, data.background_url,
         data.yt_trailer_code, data.status, data.total_seasons,
         JSON.stringify(data.seasons_data || []), "[]",
         false, 0, new Date().toISOString(), true,
