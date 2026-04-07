@@ -77,6 +77,73 @@ async function importSeries(tmdbId: number): Promise<boolean> {
   }
 }
 
+export type IdImportStatus = "imported" | "existed" | "not_found" | "error";
+
+export interface IdImportResult {
+  imdb_id: string;
+  title: string | null;
+  year?: number | null;
+  status: IdImportStatus;
+  error?: string;
+}
+
+export async function importByImdbId(
+  imdbId: string,
+  type: "movie" | "series"
+): Promise<IdImportResult> {
+  const apiKey = process.env["TMDB_API_KEY"];
+  if (!apiKey) {
+    return { imdb_id: imdbId, title: null, status: "error", error: "TMDB_API_KEY not configured" };
+  }
+
+  try {
+    // Find the TMDB entry by IMDb ID
+    const findRes = await tmdbFetch(`/find/${imdbId}?external_source=imdb_id`);
+    if (!findRes.ok) {
+      return { imdb_id: imdbId, title: null, status: "not_found" };
+    }
+
+    const findData = await findRes.json() as {
+      movie_results: Array<{ id: number; title?: string; release_date?: string }>;
+      tv_results: Array<{ id: number; name?: string; first_air_date?: string }>;
+    };
+
+    const isMovie = type === "movie";
+    const results = isMovie ? findData.movie_results : findData.tv_results;
+
+    if (!results || results.length === 0) {
+      return { imdb_id: imdbId, title: null, status: "not_found" };
+    }
+
+    const tmdbId = results[0].id;
+    const rawTitle = isMovie
+      ? (results[0] as { title?: string }).title ?? null
+      : (results[0] as { name?: string }).name ?? null;
+    const rawDate = isMovie
+      ? (results[0] as { release_date?: string }).release_date ?? ""
+      : (results[0] as { first_air_date?: string }).first_air_date ?? "";
+    const year = rawDate ? Number(rawDate.slice(0, 4)) : null;
+
+    // Check if already in DB
+    const table = isMovie ? "movies" : "cv_series";
+    const exists = await getImdbIdExists(imdbId, table);
+    if (exists) {
+      return { imdb_id: imdbId, title: rawTitle, year, status: "existed" };
+    }
+
+    // Import it
+    const imported = isMovie ? await importMovie(tmdbId) : await importSeries(tmdbId);
+    return {
+      imdb_id: imdbId,
+      title: rawTitle,
+      year,
+      status: imported ? "imported" : "error",
+    };
+  } catch (err) {
+    return { imdb_id: imdbId, title: null, status: "error", error: String(err) };
+  }
+}
+
 export async function runAutoImport(): Promise<{ moviesImported: number; seriesImported: number; totalChecked: number }> {
   const apiKey = process.env["TMDB_API_KEY"];
   if (!apiKey) {

@@ -37,11 +37,25 @@ export const toggleAutoImport = (enabled: boolean): Promise<{ enabled: boolean }
 export const runAutoImport = (): Promise<RunImportResult> =>
   apiPost("/api/admin/auto-import/run", {});
 
-export const runAutoImportWithIds = (
+export interface IdImportResult {
+  imdb_id: string;
+  title: string | null;
+  year?: number | null;
+  status: "imported" | "existed" | "not_found" | "error";
+  error?: string;
+}
+
+export interface ImportByIdsResponse {
+  ok: boolean;
+  results: IdImportResult[];
+  summary: { imported: number; existed: number; not_found: number; error: number };
+}
+
+export const importByIds = (
   imdb_ids: string[],
   type: "movie" | "series"
-): Promise<RunImportResult> =>
-  apiPost("/api/admin/auto-import/run", { imdb_ids, type });
+): Promise<ImportByIdsResponse> =>
+  apiPost("/api/admin/import-by-ids", { imdb_ids, type });
 
 export const verifyVidsrc = (
   imdb_ids: string[],

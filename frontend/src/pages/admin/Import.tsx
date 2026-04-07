@@ -1,27 +1,25 @@
 import { useState, useMemo } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
-import { getMovies, getSeries, runAutoImport, runAutoImportWithIds } from "@/lib/api";
+import { getMovies, getSeries, runAutoImport, importByIds } from "@/lib/api";
 import type { Movie, Series, RunImportResult } from "@/lib/types";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type Tab = "movies" | "series";
 
-type IdStatus = "imported" | "existed" | "not_found";
+type IdStatus = "imported" | "existed" | "not_found" | "error";
 
 interface IdResult {
   imdb_id: string;
   status: IdStatus;
   title?: string;
   year?: number;
-  poster_url?: string;
 }
 
 interface BulkDone {
   kind: "done";
   ids: IdResult[];
-  summary: { imported: number; existed: number; not_found: number };
-  apiResult?: RunImportResult;
+  summary: { imported: number; existed: number; not_found: number; error: number };
 }
 
 interface AutoDone {
@@ -107,6 +105,11 @@ function IdRow({ result }: { result: IdResult }) {
       label: "No encontrado",
       labelClass: "bg-red-900/30 text-red-400 border-red-800/40",
     },
+    error: {
+      dot: "bg-orange-500",
+      label: "Error",
+      labelClass: "bg-orange-900/30 text-orange-400 border-orange-800/40",
+    },
   }[result.status];
 
   return (
@@ -144,10 +147,12 @@ function SummaryBar({
   imported,
   existed,
   not_found,
+  error = 0,
 }: {
   imported: number;
   existed: number;
   not_found: number;
+  error?: number;
 }) {
   return (
     <div className="flex flex-wrap gap-4 bg-brand-surface border border-brand-border rounded-xl px-5 py-4">
@@ -166,6 +171,13 @@ function SummaryBar({
         <span className="text-red-400 font-bold text-lg">{not_found}</span>
         <span className="text-gray-400 text-sm">no encontrados</span>
       </div>
+      {error > 0 && (
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-orange-500" />
+          <span className="text-orange-400 font-bold text-lg">{error}</span>
+          <span className="text-gray-400 text-sm">con error</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -177,82 +189,33 @@ function BulkImportSection({ tab }: { tab: Tab }) {
   const typeLabel = isMovies ? "películas" : "series";
 
   const [idText, setIdText] = useState("");
-  const [phase, setPhase] = useState<Phase | null>(null);
+  const [loading, setLoading] = useState(false);
   const [done, setDone] = useState<BulkDone | null>(null);
   const [error, setError] = useState("");
 
   const extractedIds = useMemo(() => extractImdbIds(idText), [idText]);
 
   const handleImport = async () => {
-    setPhase("snapshot_before");
+    setLoading(true);
     setDone(null);
     setError("");
 
     try {
-      // Phase 1 — snapshot before
-      const before = isMovies ? await getMovies() : await getSeries();
-      const beforeMap = new Map(
-        before
-          .filter((x) => x.imdb_id)
-          .map((x) => [x.imdb_id!.toLowerCase(), x])
-      );
-
-      // Phase 2 — run import with IDs in body
-      setPhase("importing");
       const type = isMovies ? "movie" : "series";
-      let apiResult: RunImportResult | undefined;
-      try {
-        apiResult = await runAutoImportWithIds(extractedIds, type);
-      } catch {
-        // backend may not accept ids body — fallback to generic run
-        apiResult = await runAutoImport();
-      }
+      const resp = await importByIds(extractedIds, type);
 
-      // Phase 3 — snapshot after
-      setPhase("snapshot_after");
-      const after = isMovies ? await getMovies() : await getSeries();
-      const afterMap = new Map(
-        after
-          .filter((x) => x.imdb_id)
-          .map((x) => [x.imdb_id!.toLowerCase(), x])
-      );
+      const ids: IdResult[] = resp.results.map((r) => ({
+        imdb_id: r.imdb_id,
+        status: r.status,
+        title: r.title ?? undefined,
+        year: r.year ?? undefined,
+      }));
 
-      // Compute per-ID results
-      const ids: IdResult[] = extractedIds.map((imdb_id) => {
-        const afterItem = afterMap.get(imdb_id);
-        const wasInBefore = beforeMap.has(imdb_id);
-
-        if (afterItem && !wasInBefore) {
-          return {
-            imdb_id,
-            status: "imported",
-            title: afterItem.title,
-            year: "year" in afterItem ? (afterItem as Movie | Series).year : undefined,
-            poster_url: afterItem.poster_url,
-          };
-        } else if (afterItem && wasInBefore) {
-          return {
-            imdb_id,
-            status: "existed",
-            title: afterItem.title,
-            year: "year" in afterItem ? (afterItem as Movie | Series).year : undefined,
-          };
-        } else {
-          return { imdb_id, status: "not_found" };
-        }
-      });
-
-      const summary = {
-        imported: ids.filter((r) => r.status === "imported").length,
-        existed: ids.filter((r) => r.status === "existed").length,
-        not_found: ids.filter((r) => r.status === "not_found").length,
-      };
-
-      setDone({ kind: "done", ids, summary, apiResult });
+      setDone({ kind: "done", ids, summary: resp.summary });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Error inesperado durante la importación.");
     } finally {
-      setPhase(null);
+      setLoading(false);
     }
   };
 
@@ -261,8 +224,6 @@ function BulkImportSection({ tab }: { tab: Tab }) {
     setDone(null);
     setError("");
   };
-
-  const isRunning = phase !== null;
 
   return (
     <div className="bg-brand-card border border-brand-border rounded-2xl p-6 space-y-5">
@@ -275,8 +236,8 @@ function BulkImportSection({ tab }: { tab: Tab }) {
         </p>
       </div>
 
-      {/* Textarea — hide while running/done */}
-      {!isRunning && !done && (
+      {/* Textarea — hide while loading/done */}
+      {!loading && !done && (
         <>
           <textarea
             value={idText}
@@ -336,10 +297,14 @@ function BulkImportSection({ tab }: { tab: Tab }) {
         </>
       )}
 
-      {/* Progress */}
-      {isRunning && phase && (
-        <div className="py-2">
-          <PhaseProgress phase={phase} />
+      {/* Loading spinner */}
+      {loading && (
+        <div className="flex flex-col items-center justify-center py-10 gap-4">
+          <span className="w-8 h-8 rounded-full border-2 border-brand-red border-t-white animate-spin block" />
+          <p className="text-gray-400 text-sm">
+            Buscando e importando {extractedIds.length} {typeLabel} en TMDB...
+          </p>
+          <p className="text-gray-600 text-xs">Esto puede tardar unos segundos por ID.</p>
         </div>
       )}
 

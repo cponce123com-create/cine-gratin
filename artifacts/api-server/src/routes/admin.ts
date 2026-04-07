@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { pool } from "../lib/db";
-import { runAutoImport } from "../jobs/auto-import";
+import { runAutoImport, importByImdbId } from "../jobs/auto-import";
 
 const router = Router();
 
@@ -48,10 +48,39 @@ router.post("/admin/auto-import/toggle", async (req, res) => {
 router.post("/admin/auto-import/run", async (_req, res) => {
   try {
     const result = await runAutoImport();
-    res.json({ ok: true, ...result });
+    res.json({
+      ok: true,
+      movies_imported: result.moviesImported,
+      series_imported: result.seriesImported,
+      total_checked: result.totalChecked,
+    });
   } catch (e) {
     res.status(500).json({ error: String(e) });
   }
+});
+
+// POST /api/admin/import-by-ids — import specific IMDb IDs via TMDB lookup
+router.post("/admin/import-by-ids", async (req, res) => {
+  const { imdb_ids, type = "movie" } = req.body as { imdb_ids: string[]; type?: "movie" | "series" };
+
+  if (!Array.isArray(imdb_ids) || imdb_ids.length === 0) {
+    return res.status(400).json({ error: "Se requiere un array imdb_ids" });
+  }
+
+  const results = [];
+  for (const imdbId of imdb_ids.slice(0, 100)) {
+    const result = await importByImdbId(imdbId, type as "movie" | "series");
+    results.push(result);
+  }
+
+  const summary = {
+    imported: results.filter(r => r.status === "imported").length,
+    existed: results.filter(r => r.status === "existed").length,
+    not_found: results.filter(r => r.status === "not_found").length,
+    error: results.filter(r => r.status === "error").length,
+  };
+
+  res.json({ ok: true, results, summary });
 });
 
 // POST /api/admin/verify-vidsrc
