@@ -30,7 +30,8 @@ export default function SeriesPlayer() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  const title = searchParams.get("title") ?? "Reproduciendo";
+  const rawTitle = searchParams.get("title");
+  const title = rawTitle && rawTitle.trim() ? rawTitle.trim() : "Serie";
   const initSeason = Math.max(1, parseInt(searchParams.get("season") ?? "1", 10) || 1);
   const initEpisode = Math.max(1, parseInt(searchParams.get("episode") ?? "1", 10) || 1);
 
@@ -86,7 +87,7 @@ export default function SeriesPlayer() {
   return (
     <div className="fixed inset-0 bg-black flex flex-col">
       <Helmet>
-        <title>{title} T{season}E{episode} — Cine Gratín</title>
+        <title>{title && title.trim() ? `${title} T${season}E${episode} — Cine Gratín` : `Cine Gratín - T${season}E${episode}`}</title>
       </Helmet>
 
       {/* Controls bar — always on top, never overlaps the iframe */}
