@@ -10,11 +10,11 @@ interface Server {
 }
 
 const SERVERS: Server[] = [
-  { label: "Servidor 1", url: (id, s, e) => `https://vidsrc.net/embed/tv/${id}/${s}/${e}/` },
+  { label: "Servidor 1", url: (id, s, e) => `https://vidsrc.net/embed/tv/${id}/${s}-${e}/` },
   { label: "Servidor 2", url: (id, s, e) => `https://vidsrc.pro/embed/tv/${id}/${s}/${e}` },
-  { label: "Servidor 3", url: (id, s, e) => `https://vidsrc.xyz/embed/tv?imdb=${id}&season=${s}&episode=${e}` },
+  { label: "Servidor 3", url: (id, s, e) => `https://vidsrc.xyz/embed/tv/${id}/${s}/${e}` },
   { label: "Servidor 4", url: (id, s, e) => `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}` },
-  { label: "Servidor 5", url: (id, s, e) => `https://vidsrc.mov/embed/tv/${id}/${s}/${e}` },
+  { label: "Servidor 5", url: (id, s, e) => `https://vidsrc.me/embed/tv/${id}/${s}/${e}` },
 ];
 
 function parseSeasons(raw: unknown): SeasonData[] {
