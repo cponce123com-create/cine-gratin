@@ -8,9 +8,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@tanstack/react-query": "catalog:",
+    "lucide-react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "@tanstack/react-query": "catalog:",
     "react-helmet-async": "^2.0.5",
     "react-router-dom": "^7.6.2"
   },
@@ -18,10 +19,10 @@
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
-    "vite": "catalog:",
-    "typescript": "~5.9.2",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.49",
-    "tailwindcss": "^3.4.17"
+    "tailwindcss": "^3.4.17",
+    "typescript": "~5.9.2",
+    "vite": "catalog:"
   }
 }
