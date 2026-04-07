@@ -10,7 +10,9 @@
   "dependencies": {
     "react": "catalog:",
     "react-dom": "catalog:",
-    "@tanstack/react-query": "catalog:"
+    "@tanstack/react-query": "catalog:",
+    "react-helmet-async": "^2.0.5",
+    "react-router-dom": "^7.6.2"
   },
   "devDependencies": {
     "@types/react": "catalog:",
