@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { ArrowLeft, ChevronLeft, ChevronRight, Maximize2, ExternalLink } from "lucide-react";
+
+const TIMEOUT_MS = 12000;
 
 const SERVERS = [
   { label: "Servidor 1", buildUrl: (type: string, id: string, s?: number, e?: number) =>
@@ -34,6 +36,15 @@ export default function Player() {
   const [activeServer, setActiveServer] = useState(0);
   const [season, setSeason] = useState(initSeason);
   const [episode, setEpisode] = useState(initEpisode);
+  const [timedOut, setTimedOut] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setTimedOut(false);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => setTimedOut(true), TIMEOUT_MS);
+    return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); };
+  }, [activeServer, season, episode]);
 
   const isYouTube = url.includes("youtube.com") || url.includes("youtu.be");
 
@@ -146,15 +157,55 @@ export default function Player() {
             </div>
           </div>
         ) : (
-          <iframe
-            key={`${iframeSrc}-${activeServer}`}
-            src={iframeSrc}
-            className="absolute inset-0 w-full h-full border-0"
-            allowFullScreen
-            allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
-            referrerPolicy="origin"
-            title={title}
-          />
+          <>
+            {/* Timeout overlay */}
+            {timedOut && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/85 backdrop-blur-sm">
+                <div className="bg-gray-900 border border-gray-700 rounded-2xl p-8 max-w-sm text-center shadow-2xl mx-4">
+                  <div className="text-4xl mb-4">⚠️</div>
+                  <p className="text-white font-semibold text-base mb-2">
+                    Este servidor no respondió.
+                  </p>
+                  <p className="text-gray-400 text-sm mb-6">
+                    Prueba con otro servidor o abre el enlace directamente.
+                  </p>
+                  {activeServer < SERVERS.length - 1 && (
+                    <button
+                      onClick={() => setActiveServer((s) => s + 1)}
+                      className="w-full bg-primary hover:bg-primary/80 text-white font-bold py-2.5 rounded-lg transition-colors mb-3"
+                    >
+                      Probar {SERVERS[activeServer + 1].label}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => window.open(iframeSrc, "_blank")}
+                    className="w-full bg-white/10 hover:bg-white/20 text-white font-medium py-2.5 rounded-lg transition-colors mb-3"
+                  >
+                    Abrir en nueva pestaña
+                  </button>
+                  <button
+                    onClick={() => setTimedOut(false)}
+                    className="text-gray-500 hover:text-white text-xs transition-colors"
+                  >
+                    Seguir esperando
+                  </button>
+                </div>
+              </div>
+            )}
+            <iframe
+              key={`${iframeSrc}-${activeServer}-${episode}`}
+              src={iframeSrc}
+              className="absolute inset-0 w-full h-full border-0"
+              allowFullScreen
+              allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+              referrerPolicy="origin"
+              title={title}
+              onLoad={() => {
+                if (timeoutRef.current) clearTimeout(timeoutRef.current);
+                setTimedOut(false);
+              }}
+            />
+          </>
         )}
       </div>
     </div>
