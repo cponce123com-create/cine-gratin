@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
-import { getMovies, getSeries, runAutoImport, importByIds } from "@/lib/api";
+import { getMovies, getSeries, runAutoImport, importByIds, scanNetworks, type ScanNetworksResult } from "@/lib/api";
 import type { Movie, Series, RunImportResult } from "@/lib/types";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -177,6 +177,144 @@ function SummaryBar({
           <span className="text-orange-400 font-bold text-lg">{error}</span>
           <span className="text-gray-400 text-sm">con error</span>
         </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Scan Networks Section ───────────────────────────────────────────────────
+
+function ScanNetworksSection({ tab }: { tab: Tab }) {
+  const isMovies = tab === "movies";
+  const typeLabel = isMovies ? "películas" : "series";
+  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState<ScanNetworksResult[] | null>(null);
+  const [summary, setSummary] = useState<{ updated: number; no_change: number; error: number } | null>(null);
+  const [error, setError] = useState("");
+
+  const handleScan = async () => {
+    setLoading(true);
+    setResults(null);
+    setSummary(null);
+    setError("");
+    try {
+      const resp = await scanNetworks(isMovies ? "movie" : "series");
+      setResults(resp.results);
+      setSummary(resp.summary);
+    } catch (err: any) {
+      setError(err.message || "Error al escanear productoras.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="bg-brand-card border border-brand-border rounded-2xl p-6 space-y-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-white font-bold text-base mb-1">Escáner de Productoras</h2>
+          <p className="text-gray-500 text-sm">
+            Busca automáticamente en TMDB las productoras (Netflix, HBO, Disney+, etc.) para todas las {typeLabel} existentes.
+          </p>
+        </div>
+        {!loading && !results && (
+          <button
+            onClick={handleScan}
+            className="flex items-center gap-2 bg-brand-surface hover:bg-brand-border border border-brand-border text-white font-bold py-2 px-4 rounded-lg transition-colors text-sm"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Escanear ahora
+          </button>
+        )}
+      </div>
+
+      {loading && (
+        <div className="py-8 flex flex-col items-center justify-center space-y-4">
+          <div className="w-10 h-10 border-4 border-brand-red border-t-transparent rounded-full animate-spin" />
+          <p className="text-gray-400 text-sm animate-pulse">Escaneando metadatos en TMDB... Esto puede tardar unos minutos.</p>
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-900/20 border border-red-800/40 rounded-lg px-4 py-3 text-red-400 text-sm">
+          {error}
+        </div>
+      )}
+
+      {summary && (
+        <div className="flex flex-wrap gap-4 bg-brand-surface border border-brand-border rounded-xl px-5 py-4">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-green-400" />
+            <span className="text-green-400 font-bold text-lg">{summary.updated}</span>
+            <span className="text-gray-400 text-sm">actualizadas</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-gray-500" />
+            <span className="text-gray-300 font-bold text-lg">{summary.no_change}</span>
+            <span className="text-gray-400 text-sm">sin cambios</span>
+          </div>
+          {summary.error > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-red-500" />
+              <span className="text-red-400 font-bold text-lg">{summary.error}</span>
+              <span className="text-gray-400 text-sm">con error</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {results && results.length > 0 && (
+        <div className="border border-brand-border rounded-xl overflow-hidden max-h-[400px] overflow-y-auto">
+          <table className="w-full text-left border-collapse">
+            <thead className="bg-brand-surface sticky top-0 z-10">
+              <tr>
+                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Título</th>
+                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Productoras Detectadas</th>
+                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Estado</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-brand-border">
+              {results.map((res) => (
+                <tr key={res.id} className="hover:bg-brand-surface/40 transition-colors">
+                  <td className="px-4 py-3 text-sm text-gray-200 font-medium">{res.title}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-1">
+                      {res.new_networks.length > 0 ? (
+                        res.new_networks.map((n) => (
+                          <span key={n} className="text-[10px] bg-brand-red/10 border border-brand-red/20 text-brand-red px-1.5 py-0.5 rounded">
+                            {n}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-gray-600 text-xs italic">Ninguna</span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                      res.status === "updated" ? "bg-green-900/30 text-green-400 border-green-800/40" :
+                      res.status === "error" ? "bg-red-900/30 text-red-400 border-red-800/40" :
+                      "bg-gray-800/60 text-gray-400 border-gray-700"
+                    }`}>
+                      {res.status === "updated" ? "Actualizado" : res.status === "error" ? "Error" : "Sin cambios"}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      
+      {results && (
+        <button
+          onClick={() => { setResults(null); setSummary(null); }}
+          className="text-gray-500 hover:text-gray-300 text-sm transition-colors"
+        >
+          Limpiar resultados
+        </button>
       )}
     </div>
   );
@@ -540,8 +678,9 @@ export default function AdminImport() {
         </div>
 
         {/* Sections — re-mount on tab change for independent state */}
-        <BulkImportSection key={`bulk-${activeTab}`} tab={activeTab} />
         <AutoImportSection key={`auto-${activeTab}`} tab={activeTab} />
+        <ScanNetworksSection key={`scan-${activeTab}`} tab={activeTab} />
+        <BulkImportSection key={`bulk-${activeTab}`} tab={activeTab} />
       </div>
     </AdminLayout>
   );

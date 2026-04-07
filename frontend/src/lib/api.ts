@@ -125,3 +125,24 @@ export const saveMovie = (movie: Partial<Movie>): Promise<Movie> =>
 
 export const saveSeries = (series: Partial<Series>): Promise<Series> =>
   adminPost(`/api/admin/series${series.id ? `/${series.id}` : ""}`, series);
+
+export interface ScanNetworksResult {
+  id: string | number;
+  title: string;
+  old_networks: string[];
+  new_networks: string[];
+  status: "updated" | "no_change" | "error";
+  error?: string;
+}
+
+export interface ScanNetworksResponse {
+  ok: boolean;
+  results: ScanNetworksResult[];
+  summary: { updated: number; no_change: number; error: number };
+}
+
+export const scanNetworks = (
+  type: "movie" | "series",
+  limit?: number
+): Promise<ScanNetworksResponse> =>
+  adminPost("/api/admin/scan-networks", { type, limit });
