@@ -35,20 +35,28 @@ function authHeaders(): Record<string, string> {
     : { "Content-Type": "application/json" };
 }
 
-async function adminFetch<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, { headers: authHeaders() });
+async function adminFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    ...options,
+    headers: { ...authHeaders(), ...options.headers },
+  });
   if (!res.ok) throw new Error(`API error ${res.status}: ${path}`);
   return res.json() as Promise<T>;
 }
 
 async function adminPost<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
+  return adminFetch<T>(path, {
     method: "POST",
-    headers: authHeaders(),
     body: JSON.stringify(body),
   });
+}
+
+async function adminDelete(path: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
   if (!res.ok) throw new Error(`API error ${res.status}: ${path}`);
-  return res.json() as Promise<T>;
 }
 
 // ── Public endpoints ──────────────────────────────────────────────────────────
@@ -105,3 +113,15 @@ export const verifyVidsrc = (
 
 export const getAdminStats = (): Promise<AdminStats> =>
   adminFetch("/api/admin/stats");
+
+export const deleteMovie = (id: string | number): Promise<void> =>
+  adminDelete(`/api/admin/movies/${id}`);
+
+export const deleteSeries = (id: string | number): Promise<void> =>
+  adminDelete(`/api/admin/series/${id}`);
+
+export const saveMovie = (movie: Partial<Movie>): Promise<Movie> =>
+  adminPost(`/api/admin/movies${movie.id ? `/${movie.id}` : ""}`, movie);
+
+export const saveSeries = (series: Partial<Series>): Promise<Series> =>
+  adminPost(`/api/admin/series${series.id ? `/${series.id}` : ""}`, series);

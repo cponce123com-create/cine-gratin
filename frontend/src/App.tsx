@@ -15,6 +15,8 @@ import NotFound from "@/pages/NotFound";
 import AdminLogin from "@/pages/admin/Login";
 import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminImport from "@/pages/admin/Import";
+import ManageMovies from "@/pages/admin/ManageMovies";
+import ManageSeries from "@/pages/admin/ManageSeries";
 
 function PublicLayout() {
   return (
@@ -48,6 +50,22 @@ export default function App() {
           element={
             <ProtectedRoute>
               <AdminImport />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/movies"
+          element={
+            <ProtectedRoute>
+              <ManageMovies />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/series"
+          element={
+            <ProtectedRoute>
+              <ManageSeries />
             </ProtectedRoute>
           }
         />
