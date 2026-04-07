@@ -7,7 +7,7 @@ import Carousel from "@/components/Carousel";
 import GenreCarousel, { type MixedItem } from "@/components/GenreCarousel";
 import HeroCarousel from "@/components/HeroCarousel";
 import { SkeletonHero } from "@/components/SkeletonCard";
-import { GENRE_SECTIONS, PLATFORM_SECTIONS } from "@/lib/homeConfig";
+import { GENRE_SECTIONS, PLATFORM_SECTIONS, SAGA_SECTIONS } from "@/lib/homeConfig";
 import type { Movie, Series } from "@/lib/types";
 import { useContinueWatching } from "@/hooks/useContinueWatching";
 
@@ -29,6 +29,11 @@ function matchesNetworks(itemNetworks: string[] | undefined, targets: string[]):
   return itemNetworks.some((n) =>
     targets.some((t) => n.toLowerCase().includes(t.toLowerCase()))
   );
+}
+
+function matchesTitle(title: string, keywords: string[]): boolean {
+  const lowerTitle = title.toLowerCase();
+  return keywords.some((kw) => lowerTitle.includes(kw.toLowerCase()));
 }
 
 function buildMixed(
@@ -156,6 +161,19 @@ export default function Home() {
     [allMovies, allSeries]
   );
 
+  const sagaCarousels = useMemo(
+    () =>
+      SAGA_SECTIONS.map((sec) => ({
+        ...sec,
+        items: buildMixed(
+          allMovies, allSeries,
+          (m) => matchesTitle(m.title, sec.keywords),
+          (s) => matchesTitle(s.title, sec.keywords)
+        ),
+      })).filter((s) => s.items.length >= 1), // Sagas can show even with 1 item
+    [allMovies, allSeries]
+  );
+
   const isLoading = loadingMovies || loadingSeries;
 
   const visibleGenres = filterMode === "genre" && activeGenre
@@ -214,6 +232,21 @@ export default function Home() {
 
         {trending.length > 0 && (
           <GenreCarousel title="Tendencias" items={trending} />
+        )}
+
+        {sagaCarousels.length > 0 && (
+          <div className="mt-12 mb-8">
+            <div className="px-4 sm:px-6 lg:px-8 mb-6">
+              <h2 className="text-2xl sm:text-3xl font-black text-white flex items-center gap-3">
+                <span className="w-2 h-8 bg-brand-red rounded-full" />
+                Grandes Sagas
+              </h2>
+              <p className="text-gray-400 text-sm mt-1">Explora tus franquicias favoritas</p>
+            </div>
+            {sagaCarousels.map((saga) => (
+              <GenreCarousel key={saga.id} title={saga.label} items={saga.items} />
+            ))}
+          </div>
         )}
 
         {errorMovies ? (

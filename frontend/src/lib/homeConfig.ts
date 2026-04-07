@@ -86,6 +86,48 @@ export interface PlatformSection {
   networks: string[];
 }
 
+// ── Saga sections ─────────────────────────────────────────────────────────────
+// keywords: matched against each item's title (case-insensitive substring)
+
+export interface SagaSection {
+  id: string;
+  label: string;
+  keywords: string[];
+}
+
+export const SAGA_SECTIONS: SagaSection[] = [
+  {
+    id: "marvel",
+    label: "Universo Marvel",
+    keywords: ["iron man", "vengadores", "avengers", "capitán américa", "captain america", "thor", "hulk", "black widow", "doctor strange", "spider-man"],
+  },
+  {
+    id: "harry-potter",
+    label: "Harry Potter",
+    keywords: ["harry potter", "animales fantásticos", "fantastic beasts"],
+  },
+  {
+    id: "lord-of-the-rings",
+    label: "El Señor de los Anillos",
+    keywords: ["señor de los anillos", "lord of the rings", "hobbit"],
+  },
+  {
+    id: "yellowstone",
+    label: "Universo Yellowstone",
+    keywords: ["yellowstone", "1883", "1923"],
+  },
+  {
+    id: "star-wars",
+    label: "Star Wars",
+    keywords: ["star wars", "mandalorian", "andor", "obi-wan"],
+  },
+  {
+    id: "fast-furious",
+    label: "Fast & Furious",
+    keywords: ["fast & furious", "rápido y furioso", "fast and furious"],
+  },
+];
+
 export const PLATFORM_SECTIONS: PlatformSection[] = [
   {
     id: "netflix",
