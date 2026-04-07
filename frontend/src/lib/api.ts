@@ -1,6 +1,6 @@
 import { getToken } from "./auth";
 import type { Movie, Series } from "./types";
-import type { AutoImportStatus, VidsrcResult, RunImportResult } from "./types";
+import type { AutoImportStatus, VidsrcResult, RunImportResult, AdminStats } from "./types";
 
 const BASE_URL =
   (import.meta.env["VITE_API_URL"] as string | undefined) ||
@@ -102,3 +102,6 @@ export const verifyVidsrc = (
   type: "movie" | "series"
 ): Promise<VidsrcResult[]> =>
   adminPost("/api/admin/verify-vidsrc", { imdb_ids, type });
+
+export const getAdminStats = (): Promise<AdminStats> =>
+  adminFetch("/api/admin/stats");

@@ -27,6 +27,31 @@ export interface VidsrcResult {
   available: boolean;
 }
 
+export interface TopContent {
+  id: string | number;
+  title: string;
+  views: number;
+  poster_url?: string;
+}
+
+export interface TrendPoint {
+  date: string;
+  count: number;
+}
+
+export interface AdminStats {
+  global: {
+    movies: number;
+    series: number;
+    totalViews: number;
+  };
+  top10: {
+    movies: TopContent[];
+    series: TopContent[];
+  };
+  trends: TrendPoint[];
+}
+
 // ── Media types ───────────────────────────────────────────────────────────────
 
 export interface VideoSource {

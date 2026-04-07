@@ -1,11 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
+import StatsCard from "@/components/admin/StatsCard";
+import TopContentList from "@/components/admin/TopContentList";
+import TrendsChart from "@/components/admin/TrendsChart";
 import {
   getAutoImportStatus,
   toggleAutoImport,
   runAutoImport,
+  getAdminStats,
 } from "@/lib/api";
-import type { AutoImportStatus, AutoImportLog, RunImportResult } from "@/lib/types";
+import type { AutoImportStatus, AutoImportLog, RunImportResult, AdminStats } from "@/lib/types";
 
 function formatDate(iso: string) {
   try {
@@ -26,6 +30,10 @@ export default function AdminDashboard() {
   const [statusLoading, setStatusLoading] = useState(true);
   const [statusError, setStatusError] = useState("");
 
+  const [stats, setStats] = useState<AdminStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [statsError, setStatsError] = useState("");
+
   const [toggling, setToggling] = useState(false);
   const [running, setRunning] = useState(false);
   const [runResult, setRunResult] = useState<RunImportResult | null>(null);
@@ -44,9 +52,23 @@ export default function AdminDashboard() {
     }
   }, []);
 
+  const loadStats = useCallback(async () => {
+    setStatsLoading(true);
+    setStatsError("");
+    try {
+      const data = await getAdminStats();
+      setStats(data);
+    } catch (err: unknown) {
+      setStatsError(err instanceof Error ? err.message : "Error al cargar estadísticas.");
+    } finally {
+      setStatsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     loadStatus();
-  }, [loadStatus]);
+    loadStats();
+  }, [loadStatus, loadStats]);
 
   const handleToggle = async () => {
     if (!status) return;
@@ -70,6 +92,7 @@ export default function AdminDashboard() {
       const result = await runAutoImport();
       setRunResult(result);
       await loadStatus();
+      await loadStats();
     } catch (err: unknown) {
       setRunError(err instanceof Error ? err.message : "Error al importar.");
     } finally {
@@ -87,6 +110,62 @@ export default function AdminDashboard() {
           <h1 className="text-2xl font-black text-white">Dashboard</h1>
           <p className="text-gray-500 text-sm mt-0.5">Panel de administración de Cine Gratín</p>
         </div>
+
+        {/* Global statistics cards */}
+        {statsError && (
+          <div className="flex items-center gap-2 bg-red-900/20 border border-red-800/40 rounded-lg px-4 py-3 text-red-400 text-sm">
+            {statsError}
+          </div>
+        )}
+
+        {statsLoading ? (
+          <div className="flex items-center gap-3 text-gray-500 text-sm">
+            <span className="w-4 h-4 rounded-full border-2 border-gray-600 border-t-gray-300 animate-spin flex-shrink-0" />
+            Cargando estadísticas...
+          </div>
+        ) : stats ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <StatsCard
+              title="Total de películas"
+              value={stats.global.movies}
+              color="blue"
+              icon="🎬"
+            />
+            <StatsCard
+              title="Total de series"
+              value={stats.global.series}
+              color="purple"
+              icon="📺"
+            />
+            <StatsCard
+              title="Total de vistas"
+              value={stats.global.totalViews}
+              color="red"
+              icon="👁️"
+            />
+          </div>
+        ) : null}
+
+        {/* Trends chart */}
+        {stats && (
+          <TrendsChart data={stats.trends} />
+        )}
+
+        {/* Top 10 content */}
+        {stats && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <TopContentList
+              title="Top 10 Películas más vistas"
+              items={stats.top10.movies}
+              type="movies"
+            />
+            <TopContentList
+              title="Top 10 Series más vistas"
+              items={stats.top10.series}
+              type="series"
+            />
+          </div>
+        )}
 
         {/* Auto-import status card */}
         <div className="bg-brand-card border border-brand-border rounded-2xl p-6">

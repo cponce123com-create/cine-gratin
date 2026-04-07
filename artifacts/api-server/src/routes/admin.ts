@@ -4,6 +4,53 @@ import { runAutoImport, importByImdbId } from "../jobs/auto-import";
 
 const router = Router();
 
+// GET /api/admin/stats
+router.get("/admin/stats", async (_req, res) => {
+  try {
+    const [moviesCount, seriesCount, totalViews, topMovies, topSeries, recentTrends] = await Promise.all([
+      pool.query("SELECT COUNT(*) as count FROM movies"),
+      pool.query("SELECT COUNT(*) as count FROM cv_series"),
+      pool.query(`
+        SELECT 
+          (SELECT COALESCE(SUM(views), 0) FROM movies) + 
+          (SELECT COALESCE(SUM(views), 0) FROM cv_series) as total
+      `),
+      pool.query("SELECT id, title, views, poster_url FROM movies ORDER BY views DESC LIMIT 10"),
+      pool.query("SELECT id, title, views, poster_url FROM cv_series ORDER BY views DESC LIMIT 10"),
+      // Simulación de tendencias por fecha de agregado (ya que no hay tabla de logs de vistas por día)
+      pool.query(`
+        SELECT date_trunc('day', date_added) as day, COUNT(*) as count 
+        FROM (
+          SELECT date_added FROM movies 
+          UNION ALL 
+          SELECT date_added FROM cv_series
+        ) combined
+        WHERE date_added > NOW() - INTERVAL '30 days'
+        GROUP BY day 
+        ORDER BY day ASC
+      `),
+    ]);
+
+    res.json({
+      global: {
+        movies: parseInt(moviesCount.rows[0].count),
+        series: parseInt(seriesCount.rows[0].count),
+        totalViews: parseInt(totalViews.rows[0].total),
+      },
+      top10: {
+        movies: topMovies.rows,
+        series: topSeries.rows,
+      },
+      trends: recentTrends.rows.map(r => ({
+        date: r.day,
+        count: parseInt(r.count)
+      })),
+    });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
 // GET /api/admin/auto-import/status
 router.get("/admin/auto-import/status", async (_req, res) => {
   try {
