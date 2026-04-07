@@ -9,12 +9,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@tanstack/react-query": "^5.96.2",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-helmet-async": "^3.0.0",
-    "react-router-dom": "^6.28.0"
-  },
+  "react": "catalog:",
+  "react-dom": "catalog:",
+  "@tanstack/react-query": "catalog:"
+},
+"devDependencies": {
+  "@types/react": "catalog:",
+  "@types/react-dom": "catalog:",
+  "@vitejs/plugin-react": "catalog:",
+  "vite": "catalog:",
+  "typescript": "~5.9.2"
+}
   "devDependencies": {
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
