@@ -89,7 +89,7 @@ export default function Home() {
 
   const mostViewed = useMemo(() => {
     const mixed = buildMixed(allMovies, allSeries, () => true, () => true);
-    return mixed.sort((a, b) => (b.item.views || 0) - (a.item.views || 0)).slice(0, 20);
+    return mixed.sort((a, b) => (Number(b.item.views) || 0) - (Number(a.item.views) || 0)).slice(0, 24);
   }, [allMovies, allSeries]);
 
   const recentlyAdded = useMemo(() => {
@@ -98,22 +98,26 @@ export default function Home() {
       const dateA = a.item.date_added ? new Date(a.item.date_added).getTime() : 0;
       const dateB = b.item.date_added ? new Date(b.item.date_added).getTime() : 0;
       return dateB - dateA;
-    }).slice(0, 20);
+    }).slice(0, 24);
   }, [allMovies, allSeries]);
 
   const trending = useMemo(() => {
-    // For trends, we can use a mix of views and recency, or just a subset of most viewed
-    // Here we'll take items with high views but also relatively recent
     const mixed = buildMixed(allMovies, allSeries, () => true, () => true);
     return mixed
-      .sort((a, b) => (b.item.views || 0) - (a.item.views || 0))
+      .sort((a, b) => (Number(b.item.views) || 0) - (Number(a.item.views) || 0))
       .slice(0, 40)
-      .sort(() => Math.random() - 0.5) // Shuffle a bit to make it feel "dynamic"
-      .slice(0, 20);
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 24);
   }, [allMovies, allSeries]);
 
-  const popularMovies = useMemo(() => allMovies.slice(0, 20), [allMovies]);
-  const popularSeries = useMemo(() => allSeries.slice(0, 20), [allSeries]);
+  const popularMovies = useMemo(() => 
+    [...allMovies].sort((a, b) => (Number(b.views) || 0) - (Number(a.views) || 0)).slice(0, 24), 
+    [allMovies]
+  );
+  const popularSeries = useMemo(() => 
+    [...allSeries].sort((a, b) => (Number(b.views) || 0) - (Number(a.views) || 0)).slice(0, 24), 
+    [allSeries]
+  );
 
   const genreCarousels = useMemo(
     () =>
@@ -252,16 +256,16 @@ export default function Home() {
           <GenreCarousel title="Seguir viendo" items={continueWatchingItems} />
         )}
 
+        {recentlyAdded.length > 0 && (
+          <GenreCarousel title="Añadidas recientemente" items={recentlyAdded} />
+        )}
+
         {mostViewed.length > 0 && (
           <GenreCarousel title="Las más vistas" items={mostViewed} />
         )}
 
         {trending.length > 0 && (
           <GenreCarousel title="Tendencias" items={trending} />
-        )}
-
-        {recentlyAdded.length > 0 && (
-          <GenreCarousel title="Añadidas recientemente" items={recentlyAdded} />
         )}
 
         {errorMovies ? (

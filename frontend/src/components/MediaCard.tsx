@@ -22,7 +22,7 @@ export default function MediaCard({ item, type, size = "md" }: MediaCardProps) {
   const hasRating = item.rating !== undefined && item.rating !== null && Number(item.rating) > 0;
 
   return (
-    <Link to={href} className={`group flex-shrink-0 ${sizeClasses[size]}`}>
+    <Link to={href} className={`group flex-shrink-0 carousel-item ${sizeClasses[size]}`}>
       <div className="relative overflow-hidden rounded-lg bg-brand-surface card-hover">
         {/* Poster */}
         <div className="aspect-[2/3] w-full">
