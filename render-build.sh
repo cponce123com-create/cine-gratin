@@ -6,7 +6,6 @@ pnpm install --frozen-lockfile
 
 echo "=== Building frontend ==="
 cd frontend
-pnpm install
 pnpm run build
 cd ..
 
