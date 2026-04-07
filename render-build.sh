@@ -1,12 +1,17 @@
 #!/usr/bin/env bash
 set -e
 
-echo "=== Installing dependencies ==="
+echo "=== Installing workspace dependencies ==="
 pnpm install --frozen-lockfile
+
+echo "=== Installing frontend dependencies ==="
+cd frontend
+npm install
+cd ..
 
 echo "=== Building frontend ==="
 cd frontend
-pnpm build
+npm run build
 cd ..
 
 echo "=== Copying frontend dist to API server public/ ==="
