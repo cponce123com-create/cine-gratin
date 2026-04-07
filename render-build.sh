@@ -2,7 +2,7 @@
 set -e
 
 echo "=== Installing workspace dependencies ==="
-pnpm install --frozen-lockfile
+pnpm install --no-frozen-lockfile
 
 echo "=== Building frontend ==="
 cd frontend
