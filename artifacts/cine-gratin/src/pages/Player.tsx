@@ -1,61 +1,159 @@
-import { useLocation } from "wouter";
-import { ArrowLeft } from "lucide-react";
+import { useState } from "react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Maximize2, ExternalLink } from "lucide-react";
+
+const SERVERS = [
+  { label: "Servidor 1", buildUrl: (type: string, id: string, s?: number, e?: number) =>
+    type === "movie"
+      ? `https://vidsrc.net/embed/movie/${id}/`
+      : `https://vidsrc.net/embed/tv/${id}/${s}/${e}/` },
+  { label: "Servidor 2", buildUrl: (type: string, id: string, s?: number, e?: number) =>
+    type === "movie"
+      ? `https://vidsrc.pro/embed/movie/${id}`
+      : `https://vidsrc.pro/embed/tv/${id}/${s}/${e}` },
+  { label: "Servidor 3", buildUrl: (type: string, id: string, s?: number, e?: number) =>
+    type === "movie"
+      ? `https://vidsrc.xyz/embed/movie?imdb=${id}`
+      : `https://vidsrc.xyz/embed/tv?imdb=${id}&season=${s}&episode=${e}` },
+  { label: "Servidor 4", buildUrl: (type: string, id: string, s?: number, e?: number) =>
+    type === "movie"
+      ? `https://www.2embed.cc/embed/${id}`
+      : `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}` },
+];
 
 export default function Player() {
-  const [location, setLocation] = useLocation();
-  
-  // Extract query params from URL manually since Wouter doesn't have a built-in hook for search params
   const searchParams = new URLSearchParams(window.location.search);
+
   const url = searchParams.get("url") || "";
-  const title = searchParams.get("title") || "Reproductor";
-  
+  const title = searchParams.get("title") || "Reproduciendo";
+  const imdbId = searchParams.get("imdb") || "";
+  const mediaType = searchParams.get("type") || "movie";
+  const initSeason = parseInt(searchParams.get("season") || "1", 10);
+  const initEpisode = parseInt(searchParams.get("episode") || "1", 10);
+  const totalEpisodes = parseInt(searchParams.get("total_eps") || "1", 10);
+
+  const [activeServer, setActiveServer] = useState(0);
+  const [season, setSeason] = useState(initSeason);
+  const [episode, setEpisode] = useState(initEpisode);
+
   const isYouTube = url.includes("youtube.com") || url.includes("youtu.be");
-  
+
+  const iframeSrc = isYouTube
+    ? url.replace("watch?v=", "embed/") + "?autoplay=1&rel=0"
+    : imdbId
+    ? SERVERS[activeServer].buildUrl(mediaType, imdbId, season, episode)
+    : url;
+
   const handleBack = () => {
     window.history.back();
   };
 
-  if (!url) {
-    return (
-      <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white">
-        <p className="text-xl mb-4">No se proporcionó URL de video.</p>
-        <button onClick={handleBack} className="text-primary hover:underline">Volver</button>
-      </div>
-    );
-  }
+  const handlePrev = () => {
+    if (episode > 1) setEpisode((e) => e - 1);
+  };
+
+  const handleNext = () => {
+    if (episode < totalEpisodes) setEpisode((e) => e + 1);
+  };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black text-white flex flex-col">
-      {/* Top Bar (Auto-hides on idle could be added here, keeping simple for now) */}
-      <div className="absolute top-0 w-full p-4 bg-gradient-to-b from-black/80 to-transparent z-10 flex items-center justify-between opacity-0 hover:opacity-100 transition-opacity duration-300">
-        <button 
-          onClick={handleBack}
-          className="flex items-center gap-2 bg-black/50 hover:bg-black/80 px-4 py-2 rounded-full backdrop-blur-sm transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5" />
-          <span>Volver</span>
-        </button>
-        <h2 className="text-lg font-medium tracking-wide">{title}</h2>
-        <div className="w-24"></div> {/* Spacer for balance */}
+    <div className="fixed inset-0 bg-black flex flex-col z-50">
+      {/* Controls bar — always visible, sits above iframe */}
+      <div className="flex-shrink-0 bg-gradient-to-b from-black/95 to-black/60 px-3 pt-3 pb-2 space-y-2">
+        {/* Row 1: back + title */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleBack}
+            className="flex items-center gap-1.5 text-white/80 hover:text-white transition-colors text-sm font-medium flex-shrink-0"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Volver
+          </button>
+          <h2 className="text-white/90 font-semibold text-sm truncate flex-1 min-w-0">
+            {title}
+            {mediaType === "series" && imdbId && (
+              <span className="text-white/50 font-normal ml-2 text-xs">
+                T{season} · E{episode}
+              </span>
+            )}
+          </h2>
+          <button
+            onClick={() => window.open(iframeSrc, "_blank")}
+            title="Abrir en nueva pestaña"
+            className="flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded border bg-white/5 border-white/10 text-white/60 hover:bg-white/15 hover:text-white transition-all flex-shrink-0"
+          >
+            <ExternalLink className="w-3 h-3" />
+            <span className="hidden sm:inline">Abrir</span>
+          </button>
+          <button
+            onClick={() => document.documentElement.requestFullscreen?.()}
+            title="Pantalla completa"
+            className="flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded border bg-white/5 border-white/10 text-white/60 hover:bg-white/15 hover:text-white transition-all flex-shrink-0"
+          >
+            <Maximize2 className="w-3 h-3" />
+            <span className="hidden sm:inline">Pantalla completa</span>
+          </button>
+        </div>
+
+        {/* Row 2: servers + episode nav */}
+        {!isYouTube && imdbId && (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {SERVERS.map((srv, idx) => (
+              <button
+                key={idx}
+                onClick={() => setActiveServer(idx)}
+                className={`text-[11px] font-semibold px-2.5 py-1 rounded border transition-all ${
+                  activeServer === idx
+                    ? "bg-primary border-primary/80 text-white shadow-sm"
+                    : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white/80"
+                }`}
+              >
+                {srv.label}
+              </button>
+            ))}
+
+            {mediaType === "series" && totalEpisodes > 1 && (
+              <div className="ml-auto flex items-center gap-1.5">
+                <button
+                  onClick={handlePrev}
+                  disabled={episode <= 1}
+                  className="flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded border bg-white/5 border-white/10 text-white/60 hover:bg-white/15 hover:text-white disabled:opacity-30 transition-all"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  Anterior
+                </button>
+                <span className="text-white/40 text-xs">E{episode}/{totalEpisodes}</span>
+                <button
+                  onClick={handleNext}
+                  disabled={episode >= totalEpisodes}
+                  className="flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded border bg-white/5 border-white/10 text-white/60 hover:bg-white/15 hover:text-white disabled:opacity-30 transition-all"
+                >
+                  Siguiente
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Player Area */}
-      <div className="flex-1 w-full h-full flex items-center justify-center bg-black">
-        {isYouTube ? (
-          <iframe
-            src={url.replace("watch?v=", "embed/") + "?autoplay=1&rel=0"}
-            title={title}
-            className="w-full h-full border-0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-          ></iframe>
+      {/* Player area — iframe always, no pointer-event conflicts */}
+      <div className="flex-1 relative bg-black">
+        {!imdbId && !url ? (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-center">
+              <p className="text-white/60 text-lg mb-4">No se proporcionó contenido para reproducir.</p>
+              <button onClick={handleBack} className="text-primary hover:underline text-sm">Volver</button>
+            </div>
+          </div>
         ) : (
-          <video
-            src={url}
-            controls
-            autoPlay
-            className="w-full h-full outline-none"
-            controlsList="nodownload"
+          <iframe
+            key={`${iframeSrc}-${activeServer}`}
+            src={iframeSrc}
+            className="absolute inset-0 w-full h-full border-0"
+            allowFullScreen
+            allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+            referrerPolicy="origin"
+            title={title}
           />
         )}
       </div>

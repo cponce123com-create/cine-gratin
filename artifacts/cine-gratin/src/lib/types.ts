@@ -4,8 +4,15 @@ export interface VideoSource {
   type: string;
 }
 
+export interface SeasonData {
+  season: number;
+  name: string;
+  episodes: number;
+}
+
 export interface Movie {
   id: string;
+  imdb_id?: string;
   title: string;
   synopsis: string;
   year: number;
@@ -19,26 +26,17 @@ export interface Movie {
   featured?: boolean;
 }
 
-export interface Episode {
-  number: number;
-  title: string;
-  duration_min: number;
-  video_sources: VideoSource[];
-}
-
-export interface Season {
-  number: number;
-  episodes: Episode[];
-}
-
 export interface Series {
   id: string;
+  imdb_id?: string;
   title: string;
   synopsis: string;
   year: number;
+  end_year?: number;
   genres: string[];
   rating: number;
-  seasons: Season[];
+  total_seasons?: number;
+  seasons_data?: SeasonData[];
   poster_url: string;
   background_url: string;
   featured?: boolean;

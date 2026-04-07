@@ -2,6 +2,15 @@ import { useState } from "react";
 import { useRoute, Link } from "wouter";
 import { useSeries } from "@/hooks/useApi";
 import { Play, Star, Calendar, ArrowLeft, Tv2 } from "lucide-react";
+import type { SeasonData } from "@/lib/types";
+
+function parseSeasons(raw: unknown): SeasonData[] {
+  if (!raw) return [];
+  if (typeof raw === "string") {
+    try { return JSON.parse(raw) as SeasonData[]; } catch { return []; }
+  }
+  return Array.isArray(raw) ? (raw as SeasonData[]) : [];
+}
 
 export default function SeriesDetail() {
   const [, params] = useRoute("/serie/:id");
@@ -26,7 +35,18 @@ export default function SeriesDetail() {
     );
   }
 
-  const currentSeason = series.seasons?.find(s => s.number === selectedSeason) || series.seasons?.[0];
+  const seasonsData = parseSeasons(series.seasons_data);
+  const totalSeasons = series.total_seasons ?? seasonsData.length ?? 1;
+  const seasonOptions = Array.from({ length: totalSeasons }, (_, i) => i + 1);
+  const currentSeason = seasonsData.find((s) => s.season === selectedSeason);
+  const episodesInSeason = currentSeason?.episodes ?? 20;
+  const episodeNumbers = Array.from({ length: episodesInSeason }, (_, i) => i + 1);
+
+  const buildPlayerUrl = (ep: number) => {
+    if (!series.imdb_id) return null;
+    const title = encodeURIComponent(`${series.title} T${selectedSeason}E${ep}`);
+    return `/player?imdb=${series.imdb_id}&type=series&season=${selectedSeason}&episode=${ep}&total_eps=${episodesInSeason}&title=${title}`;
+  };
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -67,36 +87,57 @@ export default function SeriesDetail() {
 
           {/* Details */}
           <div className="flex-1 space-y-6 text-center md:text-left mt-4 md:mt-16 lg:mt-24">
-            <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight">{series.title}</h1>
+            <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight">
+              {series.title}
+              {(series.year ?? 0) > 0 && (
+                <span className="text-white/40 font-normal text-2xl md:text-3xl ml-3">
+                  ({series.year}{series.end_year ? `–${series.end_year}` : ""})
+                </span>
+              )}
+            </h1>
             
             <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-sm md:text-base text-gray-300">
-              <div className="flex items-center gap-1.5 text-yellow-500 font-semibold">
-                <Star className="w-5 h-5 fill-current" />
-                <span>{series.rating}</span>
-              </div>
-              <span className="hidden md:inline text-white/20">•</span>
-              <div className="flex items-center gap-1.5">
-                <Calendar className="w-4 h-4" />
-                <span>{series.year}</span>
-              </div>
-              <span className="hidden md:inline text-white/20">•</span>
-              <div className="flex items-center gap-1.5">
-                <Tv2 className="w-4 h-4" />
-                <span>{series.seasons?.length || 0} Temporadas</span>
-              </div>
+              {(series.rating ?? 0) > 0 && (
+                <div className="flex items-center gap-1.5 text-yellow-500 font-semibold">
+                  <Star className="w-5 h-5 fill-current" />
+                  <span>{series.rating}</span>
+                </div>
+              )}
+              {(series.year ?? 0) > 0 && (
+                <>
+                  <span className="hidden md:inline text-white/20">•</span>
+                  <div className="flex items-center gap-1.5">
+                    <Calendar className="w-4 h-4" />
+                    <span>{series.year}</span>
+                  </div>
+                </>
+              )}
+              {totalSeasons > 0 && (
+                <>
+                  <span className="hidden md:inline text-white/20">•</span>
+                  <div className="flex items-center gap-1.5">
+                    <Tv2 className="w-4 h-4" />
+                    <span>{totalSeasons} Temporada{totalSeasons !== 1 ? "s" : ""}</span>
+                  </div>
+                </>
+              )}
             </div>
 
-            <div className="flex flex-wrap justify-center md:justify-start gap-2">
-              {series.genres.map(genre => (
-                <span key={genre} className="px-3 py-1 rounded-full bg-white/10 text-white/80 text-xs font-medium border border-white/10">
-                  {genre}
-                </span>
-              ))}
-            </div>
+            {series.genres && series.genres.length > 0 && (
+              <div className="flex flex-wrap justify-center md:justify-start gap-2">
+                {series.genres.map(genre => (
+                  <span key={genre} className="px-3 py-1 rounded-full bg-white/10 text-white/80 text-xs font-medium border border-white/10">
+                    {genre}
+                  </span>
+                ))}
+              </div>
+            )}
 
-            <p className="text-gray-300 text-lg leading-relaxed max-w-3xl">
-              {series.synopsis}
-            </p>
+            {series.synopsis && (
+              <p className="text-gray-300 text-lg leading-relaxed max-w-3xl">
+                {series.synopsis}
+              </p>
+            )}
           </div>
         </div>
         
@@ -108,43 +149,48 @@ export default function SeriesDetail() {
               Episodios
             </h2>
             
-            <select 
-              value={selectedSeason}
-              onChange={(e) => setSelectedSeason(Number(e.target.value))}
-              className="flex h-10 w-full sm:w-48 rounded-md border border-input bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            >
-              {series.seasons?.map(season => (
-                <option key={season.number} value={season.number}>
-                  Temporada {season.number}
-                </option>
-              ))}
-            </select>
+            {totalSeasons > 1 && (
+              <select 
+                value={selectedSeason}
+                onChange={(e) => setSelectedSeason(Number(e.target.value))}
+                className="flex h-10 w-full sm:w-48 rounded-md border border-input bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                {seasonOptions.map(n => {
+                  const sd = seasonsData.find((s) => s.season === n);
+                  return (
+                    <option key={n} value={n}>
+                      {sd?.name && sd.name !== `Season ${n}` ? sd.name : `Temporada ${n}`}
+                      {sd ? ` (${sd.episodes} eps)` : ""}
+                    </option>
+                  );
+                })}
+              </select>
+            )}
           </div>
 
-          {!currentSeason || currentSeason.episodes.length === 0 ? (
+          {!series.imdb_id ? (
+            <p className="text-muted-foreground text-center py-10">
+              Esta serie no tiene enlace de reproducción disponible.
+            </p>
+          ) : episodesInSeason === 0 ? (
             <p className="text-muted-foreground text-center py-10">No hay episodios disponibles.</p>
           ) : (
-            <div className="grid gap-4">
-              {currentSeason.episodes.map(episode => (
-                <div key={episode.number} className="group bg-card/50 hover:bg-card border border-white/5 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4 transition-colors">
-                  <div className="text-2xl font-bold text-white/20 w-12 text-center shrink-0">
-                    {episode.number}
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold group-hover:text-primary transition-colors">{episode.title}</h3>
-                    <p className="text-sm text-muted-foreground">{episode.duration_min} min</p>
-                  </div>
-                  <div className="w-full sm:w-auto mt-4 sm:mt-0">
-                    <Link 
-                      href={`/player?url=${encodeURIComponent(episode.video_sources[0]?.url || '')}&title=${encodeURIComponent(`${series.title} - T${currentSeason.number}E${episode.number}`)}`}
-                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white/10 hover:bg-primary text-white px-6 py-2 rounded-full font-medium transition-all"
-                    >
-                      <Play fill="currentColor" className="w-4 h-4" />
-                      Reproducir
-                    </Link>
-                  </div>
-                </div>
-              ))}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+              {episodeNumbers.map(ep => {
+                const playerUrl = buildPlayerUrl(ep);
+                return (
+                  <Link
+                    key={ep}
+                    href={playerUrl ?? "#"}
+                    className={`group flex items-center justify-between bg-card/50 hover:bg-primary border border-white/5 hover:border-primary rounded-xl px-4 py-3 transition-all ${!playerUrl ? "pointer-events-none opacity-40" : ""}`}
+                  >
+                    <span className="text-white/60 group-hover:text-white text-sm font-bold">
+                      E{ep}
+                    </span>
+                    <Play className="w-4 h-4 text-white/40 group-hover:text-white fill-current transition-colors" />
+                  </Link>
+                );
+              })}
             </div>
           )}
         </div>
