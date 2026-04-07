@@ -5,6 +5,7 @@ import { Helmet } from "react-helmet-async";
 import { getMovies, getSeries } from "@/lib/api";
 import Carousel from "@/components/Carousel";
 import GenreCarousel, { type MixedItem } from "@/components/GenreCarousel";
+import HeroCarousel from "@/components/HeroCarousel";
 import { SkeletonHero } from "@/components/SkeletonCard";
 import { GENRE_SECTIONS, PLATFORM_SECTIONS } from "@/lib/homeConfig";
 import type { Movie, Series } from "@/lib/types";
@@ -64,9 +65,19 @@ export default function Home() {
   const allMovies = movieData ?? [];
   const allSeries = seriesData ?? [];
 
-  const heroItem = useMemo(() => {
-    return allMovies.find((m) => m.featured) ?? allMovies[0] ?? null;
-  }, [allMovies]);
+  const heroItems = useMemo(() => {
+    const topMovies = [...allMovies]
+      .sort((a, b) => (Number(b.views) || 0) - (Number(a.views) || 0))
+      .slice(0, 3)
+      .map((m) => ({ item: m, type: "movie" as const }));
+
+    const topSeries = [...allSeries]
+      .sort((a, b) => (Number(b.views) || 0) - (Number(a.views) || 0))
+      .slice(0, 3)
+      .map((s) => ({ item: s, type: "series" as const }));
+
+    return [...topMovies, ...topSeries];
+  }, [allMovies, allSeries]);
 
   const { items: continueWatching } = useContinueWatching();
 
@@ -181,73 +192,10 @@ export default function Home() {
       </Helmet>
 
       {/* ── Hero ─────────────────────────────────────────────────── */}
-      {loadingMovies ? (
+      {isLoading ? (
         <SkeletonHero />
-      ) : heroItem ? (
-        <div className="relative w-full h-[80vh] min-h-[520px] overflow-hidden">
-          <div className="absolute inset-0">
-            <img
-              src={heroItem.background_url || heroItem.poster_url || FALLBACK_BG}
-              alt={heroItem.title}
-              className="w-full h-full object-cover object-center"
-              onError={(e) => { (e.currentTarget as HTMLImageElement).src = FALLBACK_BG; }}
-            />
-          </div>
-          <div className="absolute inset-0 hero-gradient" />
-          <div className="absolute inset-x-0 bottom-0 h-48 hero-gradient-bottom" />
-
-          <div className="relative z-10 flex flex-col justify-end h-full pb-16 px-6 sm:px-10 lg:px-16 max-w-3xl">
-            <h1 className="text-3xl sm:text-5xl font-black text-white leading-tight mb-3 drop-shadow-lg">
-              {heroItem.title}
-            </h1>
-            <div className="flex flex-wrap items-center gap-3 mb-4">
-              {heroItem.rating !== undefined && (
-                <span className="flex items-center gap-1 text-brand-gold font-semibold text-sm">
-                  &#9733; {Number(heroItem.rating).toFixed(1)}
-                </span>
-              )}
-              {heroItem.year && <span className="text-gray-300 text-sm">{heroItem.year}</span>}
-              {heroItem.duration_min && <span className="text-gray-300 text-sm">{heroItem.duration_min} min</span>}
-              {heroItem.genres && heroItem.genres.length > 0 && (
-                <div className="flex gap-1.5">
-                  {heroItem.genres.slice(0, 3).map((g) => (
-                    <span key={g} className="text-xs bg-white/10 border border-white/20 rounded px-2 py-0.5 text-gray-300">
-                      {g}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-            {heroItem.synopsis && (
-              <p className="text-gray-300 text-sm sm:text-base leading-relaxed line-clamp-3 mb-6 max-w-xl">
-                {heroItem.synopsis}
-              </p>
-            )}
-            <div className="flex flex-wrap gap-3">
-              {heroItem.imdb_id ? (
-                <button
-                  onClick={() => navigate(`/player/movie/${heroItem.imdb_id}?title=${encodeURIComponent(heroItem.title)}`)}
-                  className="flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white font-bold py-3 px-6 rounded transition-colors"
-                >
-                  <PlayIcon /> Reproducir
-                </button>
-              ) : heroItem.video_sources && heroItem.video_sources.length > 0 ? (
-                <button
-                  onClick={() => navigate(`/player?url=${encodeURIComponent(heroItem.video_sources![0].url)}&title=${encodeURIComponent(heroItem.title)}&label=${encodeURIComponent(heroItem.video_sources![0].label)}`)}
-                  className="flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white font-bold py-3 px-6 rounded transition-colors"
-                >
-                  <PlayIcon /> Reproducir
-                </button>
-              ) : null}
-              <Link
-                to={`/pelicula/${heroItem.id}`}
-                className="flex items-center gap-2 bg-white/10 hover:bg-white/20 border border-white/30 text-white font-bold py-3 px-6 rounded transition-colors backdrop-blur-sm"
-              >
-                <InfoIcon /> Más info
-              </Link>
-            </div>
-          </div>
-        </div>
+      ) : heroItems.length > 0 ? (
+        <HeroCarousel items={heroItems} />
       ) : null}
 
       {/* ── Main content ──────────────────────────────────────────── */}
@@ -381,18 +329,4 @@ export default function Home() {
   );
 }
 
-function PlayIcon() {
-  return (
-    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M8 5v14l11-7z" />
-    </svg>
-  );
-}
 
-function InfoIcon() {
-  return (
-    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
-    </svg>
-  );
-}
