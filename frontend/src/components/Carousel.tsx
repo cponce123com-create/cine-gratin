@@ -1,5 +1,4 @@
-import { useRef } from "react";
-import { Link } from "react-router-dom";
+import { useRef, useState } from "react";
 import type { Movie, Series } from "@/lib/types";
 import MediaCard from "./MediaCard";
 
@@ -7,11 +6,18 @@ interface CarouselProps {
   title: string;
   items: (Movie | Series)[];
   type: "movie" | "series";
-  viewAllLink?: string;
 }
 
-export default function Carousel({ title, items, type, viewAllLink }: CarouselProps) {
+const PAGE_SIZE = 20;
+
+export default function Carousel({ title, items, type }: CarouselProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  if (items.length === 0) return null;
+
+  const visibleItems = items.slice(0, visibleCount);
+  const hasMore = visibleCount < items.length;
 
   const scroll = (dir: "left" | "right") => {
     if (!scrollRef.current) return;
@@ -19,7 +25,14 @@ export default function Carousel({ title, items, type, viewAllLink }: CarouselPr
     scrollRef.current.scrollBy({ left: dir === "left" ? -amount : amount, behavior: "smooth" });
   };
 
-  if (items.length === 0) return null;
+  const loadMore = () => {
+    setVisibleCount((prev) => prev + PAGE_SIZE);
+    setTimeout(() => {
+      if (scrollRef.current) {
+        scrollRef.current.scrollTo({ left: scrollRef.current.scrollWidth, behavior: "smooth" });
+      }
+    }, 50);
+  };
 
   return (
     <section className="mb-10">
@@ -47,13 +60,13 @@ export default function Carousel({ title, items, type, viewAllLink }: CarouselPr
         ref={scrollRef}
         className="flex gap-3 overflow-x-auto carousel-scroll px-4 sm:px-6 lg:px-8 pb-2"
       >
-        {items.map((item) => (
+        {visibleItems.map((item) => (
           <MediaCard key={item.id} item={item} type={type} size="md" />
         ))}
 
-        {viewAllLink && (
-          <Link
-            to={viewAllLink}
+        {hasMore && (
+          <button
+            onClick={loadMore}
             className="flex-shrink-0 w-[140px] sm:w-[180px] aspect-[2/3] rounded-lg bg-brand-surface border border-brand-border flex flex-col items-center justify-center gap-3 group hover:border-brand-red transition-all"
           >
             <div className="w-12 h-12 rounded-full bg-brand-dark border border-brand-border flex items-center justify-center group-hover:bg-brand-red group-hover:border-brand-red transition-all">
@@ -61,8 +74,8 @@ export default function Carousel({ title, items, type, viewAllLink }: CarouselPr
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
             </div>
-            <span className="text-sm font-bold text-gray-400 group-hover:text-white">Ver todo</span>
-          </Link>
+            <span className="text-sm font-bold text-gray-400 group-hover:text-white">Ver más</span>
+          </button>
         )}
       </div>
     </section>
