@@ -108,10 +108,10 @@ export default function Navbar() {
             <Link to="/series" className={`text-sm font-medium pb-1 transition-colors ${isActive("/series")}`}>
               Series
             </Link>
-            <Link to="/deportes" className={`text-sm font-medium pb-1 transition-colors ${isActive("/deportes`)}`}>
+            <Link to="/deportes" className={`text-sm font-medium pb-1 transition-colors ${isActive("/deportes")}`}>
               Eventos Deportivos
             </Link>
-            <Link to="/eventos" className={`text-sm font-medium pb-1 transition-colors ${isActive("/eventos`)}`}>
+            <Link to="/eventos" className={`text-sm font-medium pb-1 transition-colors ${isActive("/eventos")}`}>
               Eventos
             </Link>
           </nav>
