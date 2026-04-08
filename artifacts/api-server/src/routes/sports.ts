@@ -30,6 +30,12 @@ export async function initSportsTables() {
       value TEXT NOT NULL
     );
   `);
+
+  // Migration: allow null keyword
+  await pool.query(`
+    ALTER TABLE sport_channels ALTER COLUMN keyword DROP NOT NULL;
+    ALTER TABLE sport_channels ALTER COLUMN keyword DROP DEFAULT;
+  `).catch(() => {});
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
