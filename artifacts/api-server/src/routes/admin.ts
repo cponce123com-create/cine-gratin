@@ -116,7 +116,7 @@ router.post("/admin/import-by-ids", async (req, res) => {
   }
 
   const results = [];
-  for (const imdbId of imdb_ids.slice(0, 100)) {
+  for (const imdbId of imdb_ids.slice(0, 1000)) {
     const result = await importByImdbId(imdbId, type as "movie" | "series");
     results.push(result);
   }
@@ -180,7 +180,7 @@ router.post("/admin/verify-vidsrc", async (req, res) => {
 
 // POST /api/admin/scan-networks — scan existing media to update networks/production companies
 router.post("/admin/scan-networks", async (req, res) => {
-  const { type = "movie", limit = 100 } = req.body as { type?: "movie" | "series"; limit?: number };
+  const { type = "movie", limit = 1000 } = req.body as { type?: "movie" | "series"; limit?: number };
   const table = type === "series" ? "cv_series" : "movies";
 
   try {
