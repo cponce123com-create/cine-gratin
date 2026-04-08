@@ -1,4 +1,5 @@
 import { useRef } from "react";
+import { Link } from "react-router-dom";
 import type { Movie, Series } from "@/lib/types";
 import MediaCard from "./MediaCard";
 
@@ -6,9 +7,10 @@ interface CarouselProps {
   title: string;
   items: (Movie | Series)[];
   type: "movie" | "series";
+  viewAllLink?: string;
 }
 
-export default function Carousel({ title, items, type }: CarouselProps) {
+export default function Carousel({ title, items, type, viewAllLink }: CarouselProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const scroll = (dir: "left" | "right") => {
@@ -48,6 +50,20 @@ export default function Carousel({ title, items, type }: CarouselProps) {
         {items.map((item) => (
           <MediaCard key={item.id} item={item} type={type} size="md" />
         ))}
+
+        {viewAllLink && (
+          <Link
+            to={viewAllLink}
+            className="flex-shrink-0 w-[140px] sm:w-[180px] aspect-[2/3] rounded-lg bg-brand-surface border border-brand-border flex flex-col items-center justify-center gap-3 group hover:border-brand-red transition-all"
+          >
+            <div className="w-12 h-12 rounded-full bg-brand-dark border border-brand-border flex items-center justify-center group-hover:bg-brand-red group-hover:border-brand-red transition-all">
+              <svg className="w-6 h-6 text-gray-400 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </div>
+            <span className="text-sm font-bold text-gray-400 group-hover:text-white">Ver todo</span>
+          </Link>
+        )}
       </div>
     </section>
   );

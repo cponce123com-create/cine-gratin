@@ -7,7 +7,7 @@ import Carousel from "@/components/Carousel";
 import GenreCarousel, { type MixedItem } from "@/components/GenreCarousel";
 import HeroCarousel from "@/components/HeroCarousel";
 import { SkeletonHero } from "@/components/SkeletonCard";
-import { GENRE_SECTIONS, PLATFORM_SECTIONS, SAGA_SECTIONS } from "@/lib/homeConfig";
+import { GENRE_SECTIONS, PLATFORM_SECTIONS, SAGA_SECTIONS, CUSTOM_SECTIONS } from "@/lib/homeConfig";
 import type { Movie, Series } from "@/lib/types";
 import { useContinueWatching } from "@/hooks/useContinueWatching";
 
@@ -143,6 +143,26 @@ export default function Home() {
     [allSeries]
   );
 
+  const customCarousels = useMemo(() => {
+    return CUSTOM_SECTIONS.map((sec) => {
+      let items: MixedItem[] = [];
+      if (sec.type === "classics") {
+        items = buildMixed(
+          allMovies, allSeries,
+          (m) => (Number(m.year) || 0) < 2010,
+          (s) => (Number(s.year) || 0) < 2010
+        ).sort((a, b) => (Number(b.item.views) || 0) - (Number(a.item.views) || 0));
+      } else if (sec.type === "old-animation") {
+        items = buildMixed(
+          allMovies, allSeries,
+          (m) => (Number(m.year) || 0) < 2010 && matchesKeywords(m.genres, ["animación", "animation"]),
+          (s) => (Number(s.year) || 0) < 2010 && matchesKeywords(s.genres, ["animación", "animation"])
+        ).sort((a, b) => (Number(b.item.views) || 0) - (Number(a.item.views) || 0));
+      }
+      return { ...sec, items };
+    }).filter(s => s.items.length >= MIN_ITEMS_TO_SHOW);
+  }, [allMovies, allSeries]);
+
   const genreCarousels = useMemo(
     () =>
       GENRE_SECTIONS.map((sec) => ({
@@ -242,6 +262,16 @@ export default function Home() {
           <GenreCarousel title="Tendencias" items={trending} />
         )}
 
+        {/* ── Custom sections ────────────────────────────────────────── */}
+        {customCarousels.map((sec) => (
+          <GenreCarousel 
+            key={sec.id} 
+            title={sec.label} 
+            items={sec.items} 
+            viewAllLink={sec.id === "clasicas" ? "/peliculas" : "/series"}
+          />
+        ))}
+
         {sagaCarousels.length > 0 && (
           <div className="mt-12 mb-8">
             <div className="px-4 sm:px-6 lg:px-8 mb-6">
@@ -260,12 +290,12 @@ export default function Home() {
         {errorMovies ? (
           <p className="text-red-400 text-center py-8">No se pudieron cargar las películas.</p>
         ) : (
-          <Carousel title="Películas populares" items={popularMovies} type="movie" />
+          <Carousel title="Películas populares" items={popularMovies} type="movie" viewAllLink="/peliculas" />
         )}
         {errorSeries ? (
           <p className="text-red-400 text-center py-8">No se pudieron cargar las series.</p>
         ) : (
-          <Carousel title="Series populares" items={popularSeries} type="series" />
+          <Carousel title="Series populares" items={popularSeries} type="series" viewAllLink="/series" />
         )}
 
         {/* ── Genre & Platform sections ─────────────────────────────── */}
@@ -300,14 +330,6 @@ export default function Home() {
                       {sec.label}
                     </button>
                   ))}
-                  {filterMode === "genre" && (
-                    <button
-                      onClick={clearFilter}
-                      className="flex-shrink-0 text-xs px-2 py-1 text-gray-500 hover:text-white transition-colors"
-                    >
-                      &#10005; Limpiar
-                    </button>
-                  )}
                 </div>
               )}
 
@@ -320,54 +342,54 @@ export default function Home() {
                     <button
                       key={sec.id}
                       onClick={() => selectPlatform(sec.id)}
-                      style={
+                      className={`flex-shrink-0 text-xs font-semibold px-3 py-1 rounded-full border transition-all ${
                         filterMode === "platform" && activePlatform === sec.id
-                          ? { backgroundColor: sec.accent, borderColor: sec.accent }
-                          : {}
-                      }
-                      className={`flex-shrink-0 text-xs font-bold px-3 py-1 rounded-full border transition-all ${
-                        filterMode === "platform" && activePlatform === sec.id
-                          ? "text-white"
+                          ? "bg-brand-red border-red-700 text-white"
                           : "bg-brand-surface border-brand-border text-gray-400 hover:text-white hover:border-gray-500"
                       }`}
                     >
                       {sec.label}
                     </button>
                   ))}
-                  {filterMode === "platform" && (
-                    <button
-                      onClick={clearFilter}
-                      className="flex-shrink-0 text-xs px-2 py-1 text-gray-500 hover:text-white transition-colors"
-                    >
-                      &#10005; Limpiar
-                    </button>
-                  )}
                 </div>
+              )}
+
+              {filterMode && (
+                <button
+                  onClick={clearFilter}
+                  className="text-[10px] font-bold text-brand-red uppercase tracking-tighter hover:text-red-400 transition-colors"
+                >
+                  &times; Limpiar filtros
+                </button>
               )}
             </div>
 
-            {filterMode !== "genre" && visiblePlatforms.map((sec) => (
-              <GenreCarousel
-                key={`platform-${sec.id}`}
-                id={`platform-${sec.id}`}
-                title={sec.label}
-                items={sec.items}
-              />
-            ))}
-
-            {filterMode !== "platform" && visibleGenres.map((sec) => (
-              <GenreCarousel
-                key={`genre-${sec.id}`}
-                id={`genre-${sec.id}`}
-                title={sec.label}
-                items={sec.items}
-              />
-            ))}
+            <div className="space-y-10">
+              {filterMode === "genre" &&
+                visibleGenres.map((sec) => (
+                  <GenreCarousel key={sec.id} title={sec.label} items={sec.items} />
+                ))}
+              {filterMode === "platform" &&
+                visiblePlatforms.map((sec) => (
+                  <GenreCarousel key={sec.id} title={sec.label} items={sec.items} />
+                ))}
+              {!filterMode && (
+                <>
+                  {visibleGenres.slice(0, 4).map((sec) => (
+                    <GenreCarousel key={sec.id} title={sec.label} items={sec.items} />
+                  ))}
+                  {visiblePlatforms.slice(0, 3).map((sec) => (
+                    <GenreCarousel key={sec.id} title={sec.label} items={sec.items} />
+                  ))}
+                  {visibleGenres.slice(4).map((sec) => (
+                    <GenreCarousel key={sec.id} title={sec.label} items={sec.items} />
+                  ))}
+                </>
+              )}
+            </div>
           </>
         )}
       </div>
     </div>
   );
 }
-
-

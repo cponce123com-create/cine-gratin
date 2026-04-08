@@ -197,3 +197,24 @@ export const PLATFORM_SECTIONS: PlatformSection[] = [
     networks: ["BBC", "BBC One", "BBC Two", "BBC America"],
   },
 ];
+
+// ── Custom sections ───────────────────────────────────────────────────────────
+
+export interface CustomSection {
+  id: string;
+  label: string;
+  type: "classics" | "old-animation";
+}
+
+export const CUSTOM_SECTIONS: CustomSection[] = [
+  {
+    id: "clasicas",
+    label: "Clásicas",
+    type: "classics",
+  },
+  {
+    id: "animadas-antiguas",
+    label: "Animadas Antiguas",
+    type: "old-animation",
+  },
+];
