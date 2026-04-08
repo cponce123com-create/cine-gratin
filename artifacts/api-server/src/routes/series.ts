@@ -44,7 +44,7 @@ const toSeries = (row: Record<string, unknown>) => ({
 // GET /api/series - Added pagination and rate limiting
 router.get("/series", seriesLimit, async (req, res) => {
   const page = Math.max(1, Number(req.query.page || 1));
-  const limit = Math.min(100, Math.max(1, Number(req.query.limit || 50)));
+  const limit = req.query.limit ? Math.max(1, Number(req.query.limit)) : 5000; // Aumentado a 5000 por defecto para permitir gestión completa
   const offset = (page - 1) * limit;
 
   try {
