@@ -282,4 +282,38 @@ router.get("/m3u-proxy", async (_req, res) => {
   }
 });
 
+// POST /api/admin/cleanup-missing-images — delete movies/series without poster_url
+router.post("/admin/cleanup-missing-images", async (req, res) => {
+  const { type = "all" } = req.body as { type?: "movie" | "series" | "all" };
+  try {
+    let deletedMovies = 0;
+    let deletedSeries = 0;
+
+    if (type === "movie" || type === "all") {
+      const result = await pool.query(
+        "DELETE FROM movies WHERE poster_url IS NULL OR poster_url = '' OR poster_url = 'N/A' RETURNING id"
+      );
+      deletedMovies = result.rowCount || 0;
+    }
+
+    if (type === "series" || type === "all") {
+      const result = await pool.query(
+        "DELETE FROM cv_series WHERE poster_url IS NULL OR poster_url = '' OR poster_url = 'N/A' RETURNING id"
+      );
+      deletedSeries = result.rowCount || 0;
+    }
+
+    res.json({
+      ok: true,
+      summary: {
+        movies: deletedMovies,
+        series: deletedSeries,
+        total: deletedMovies + deletedSeries
+      }
+    });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
 export default router;

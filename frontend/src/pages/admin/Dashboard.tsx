@@ -8,6 +8,7 @@ import {
   toggleAutoImport,
   runAutoImport,
   getAdminStats,
+  cleanupMissingImages,
 } from "@/lib/api";
 import type { AutoImportStatus, AutoImportLog, RunImportResult, AdminStats } from "@/lib/types";
 
@@ -38,6 +39,7 @@ export default function AdminDashboard() {
   const [running, setRunning] = useState(false);
   const [runResult, setRunResult] = useState<RunImportResult | null>(null);
   const [runError, setRunError] = useState("");
+  const [cleaning, setCleaning] = useState(false);
 
   const loadStatus = useCallback(async () => {
     setStatusLoading(true);
@@ -97,6 +99,20 @@ export default function AdminDashboard() {
       setRunError(err instanceof Error ? err.message : "Error al importar.");
     } finally {
       setRunning(false);
+    }
+  };
+
+  const handleCleanup = async () => {
+    if (!confirm("¿Estás seguro de eliminar todas las películas y series que no tengan póster? Esta acción no se puede deshacer.")) return;
+    setCleaning(true);
+    try {
+      const res = await cleanupMissingImages("all");
+      alert(`Limpieza completada: Se eliminaron ${res.summary.movies} películas y ${res.summary.series} series sin imagen.`);
+      await loadStats();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Error al realizar la limpieza.");
+    } finally {
+      setCleaning(false);
     }
   };
 
@@ -166,6 +182,35 @@ export default function AdminDashboard() {
             />
           </div>
         )}
+
+        {/* Cleanup tool card */}
+        <div className="bg-brand-card border border-brand-border rounded-2xl p-6">
+          <div className="flex items-start justify-between gap-4 mb-4">
+            <div>
+              <h2 className="text-white font-bold text-base mb-1">Limpieza de catálogo</h2>
+              <p className="text-gray-500 text-sm">
+                Elimina automáticamente todo el contenido que no tenga una imagen de póster válida.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleCleanup}
+            disabled={cleaning}
+            className="flex items-center gap-2 bg-red-900/20 border border-red-800/40 hover:bg-red-900/30 text-red-400 text-sm font-semibold py-2 px-4 rounded-lg transition-colors disabled:opacity-50"
+          >
+            {cleaning ? (
+              <>
+                <span className="w-3.5 h-3.5 rounded-full border-2 border-red-500 border-t-white animate-spin" />
+                Limpiando...
+              </>
+            ) : (
+              <>
+                <TrashIcon />
+                Eliminar contenido sin imagen
+              </>
+            )}
+          </button>
+        </div>
 
         {/* Auto-import status card */}
         <div className="bg-brand-card border border-brand-border rounded-2xl p-6">
@@ -371,10 +416,19 @@ function RefreshIcon({ spinning }: { spinning?: boolean }) {
 
 function DownloadIcon() {
   return (
-    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" strokeLinecap="round" strokeLinejoin="round" />
-      <polyline points="7 10 12 15 17 10" strokeLinecap="round" strokeLinejoin="round" />
-      <line x1="12" y1="15" x2="12" y2="3" strokeLinecap="round" />
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
     </svg>
   );
 }

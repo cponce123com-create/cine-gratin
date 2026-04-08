@@ -147,3 +147,11 @@ export const scanNetworks = (
 ): Promise<ScanNetworksResponse> =>
   adminPost("/api/admin/scan-networks", { type, limit });
 
+
+export interface CleanupResponse {
+  ok: boolean;
+  summary: { movies: number; series: number; total: number };
+}
+
+export const cleanupMissingImages = (type: "movie" | "series" | "all" = "all"): Promise<CleanupResponse> =>
+  adminPost("/api/admin/cleanup-missing-images", { type });
