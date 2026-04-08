@@ -5,6 +5,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import Home from "@/pages/Home";
 import Movies from "@/pages/Movies";
 import Sports from "@/pages/Sports";
+import Events from "@/pages/Events";
 import SeriesList from "@/pages/SeriesList";
 import MovieDetail from "@/pages/MovieDetail";
 import SeriesDetail from "@/pages/SeriesDetail";
@@ -19,6 +20,7 @@ import AdminImport from "@/pages/admin/Import";
 import ManageMovies from "@/pages/admin/ManageMovies";
 import ManageSeries from "@/pages/admin/ManageSeries";
 import SportChannels from "@/pages/admin/SportChannels";
+import EventChannels from "@/pages/admin/EventChannels";
 
 function PublicLayout() {
   return (
@@ -79,6 +81,14 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/admin/event-channels"
+          element={
+            <ProtectedRoute>
+              <EventChannels />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Public site — Navbar + Footer layout */}
         <Route element={<PublicLayout />}>
@@ -86,6 +96,7 @@ export default function App() {
           <Route path="/peliculas" element={<Movies />} />
           <Route path="/series" element={<SeriesList />} />
           <Route path="/deportes" element={<Sports />} />
+          <Route path="/eventos" element={<Events />} />
           <Route path="/pelicula/:id" element={<MovieDetail />} />
           <Route path="/serie/:id" element={<SeriesDetail />} />
           <Route path="/search/:query" element={<Search />} />

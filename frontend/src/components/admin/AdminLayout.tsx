@@ -71,6 +71,15 @@ const NAV: NavItem[] = [
       </svg>
     ),
   },
+  {
+    to: "/admin/event-channels",
+    label: "🎵 Eventos",
+    icon: (
+      <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M9 18v3H5v-3M15 18v3h-4v-3M21 18v3h-4v-3M3 13h18M3 5h18" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
 ];
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
