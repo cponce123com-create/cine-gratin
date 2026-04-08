@@ -110,6 +110,55 @@ export const saveVidsrcResults = (
 ): Promise<VidsrcResult[]> =>
   adminPost("/api/admin/verify-vidsrc", { results });
 
+// verifyVidsrc: verifica desde el navegador con iframes ocultos y guarda en BD
+export const verifyVidsrc = async (
+  imdb_ids: string[],
+  type: "movie" | "series"
+): Promise<VidsrcResult[]> => {
+  const checkOne = (imdbId: string): Promise<boolean> =>
+    new Promise((resolve) => {
+      const url = type === "series"
+        ? `https://vidsrc.net/embed/tv/${imdbId}/`
+        : `https://vidsrc.net/embed/movie/${imdbId}/`;
+      const iframe = document.createElement("iframe");
+      iframe.src = url;
+      iframe.style.cssText = "position:fixed;width:400px;height:300px;opacity:0;pointer-events:none;top:-9999px;left:-9999px;";
+      iframe.sandbox.add("allow-scripts", "allow-same-origin");
+      let done = false;
+      const finish = (v: boolean) => {
+        if (done) return; done = true;
+        clearTimeout(timer);
+        try { document.body.removeChild(iframe); } catch { /* ignorar */ }
+        resolve(v);
+      };
+      iframe.onload = () => {
+        try {
+          const body = iframe.contentDocument?.body?.innerText ?? "";
+          const bad = body.toLowerCase().includes("unavailable") ||
+                      body.toLowerCase().includes("not found") ||
+                      body.toLowerCase().includes("no source");
+          finish(!bad);
+        } catch { finish(true); }
+      };
+      iframe.onerror = () => finish(false);
+      const timer = setTimeout(() => finish(true), 15000);
+      document.body.appendChild(iframe);
+    });
+
+  const results: VidsrcResult[] = [];
+  const CONCURRENCY = 5;
+  for (let i = 0; i < imdb_ids.length; i += CONCURRENCY) {
+    const chunk = imdb_ids.slice(i, i + CONCURRENCY);
+    const chunkRes = await Promise.all(chunk.map(async (id) => {
+      const available = await checkOne(id);
+      return { imdb_id: id, type, available };
+    }));
+    results.push(...chunkRes.map(r => ({ imdb_id: r.imdb_id, available: r.available })));
+    await saveVidsrcResults(chunkRes).catch(() => {});
+  }
+  return results;
+};
+
 export const getAdminStats = (): Promise<AdminStats> =>
   adminFetch("/api/admin/stats");
 
