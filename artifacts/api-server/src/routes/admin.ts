@@ -148,16 +148,29 @@ router.post("/admin/verify-vidsrc", async (req, res) => {
         : `https://vidsrc.net/embed/movie/${imdbId}/`;
 
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 6000);
+      const timeout = setTimeout(() => controller.abort(), 10000);
 
       let available = false;
       try {
+        // vidsrc.net bloquea HEAD — usamos GET y leemos un fragmento pequeño
         const r = await fetch(url, {
-          method: "HEAD",
+          method: "GET",
           signal: controller.signal,
-          headers: { "User-Agent": "Mozilla/5.0" },
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml",
+          },
         });
-        available = r.status < 400;
+        if (r.status >= 200 && r.status < 400) {
+          const text = await r.text().then((t) => t.slice(0, 3000)).catch(() => "");
+          // vidsrc.net devuelve página con "not found" o body vacío si el contenido no existe
+          const isNotFound =
+            text.toLowerCase().includes("not found") ||
+            text.toLowerCase().includes("no source") ||
+            text.toLowerCase().includes("404") ||
+            text.trim().length < 50;
+          available = !isNotFound;
+        }
       } catch {
         available = false;
       } finally {
