@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import type { Movie, Series } from "@/lib/types";
+import { optimizeImageUrl } from "@/lib/utils";
 
 interface MediaCardProps {
   item: Movie | Series;
@@ -19,21 +20,26 @@ export default function MediaCard({ item, type, size = "md" }: MediaCardProps) {
     lg: "w-44 md:w-52",
   };
 
+  const posterSize = size === "sm" ? "small" : size === "lg" ? "large" : "medium";
+  const posterUrl = optimizeImageUrl(item.poster_url, posterSize);
+
   const hasRating = item.rating !== undefined && item.rating !== null && Number(item.rating) > 0;
 
   return (
     <Link to={href} className={`group flex-shrink-0 carousel-item ${sizeClasses[size]}`}>
       <div className="relative overflow-hidden rounded-lg bg-brand-surface card-hover">
         {/* Poster */}
-        <div className="aspect-[2/3] w-full">
+        <div className="aspect-[2/3] w-full relative">
           <img
-            src={item.poster_url || FALLBACK_POSTER}
+            src={posterUrl || FALLBACK_POSTER}
             alt={item.title}
             loading="lazy"
+            decoding="async"
+            fetchPriority="low"
             onError={(e) => {
               (e.currentTarget as HTMLImageElement).src = FALLBACK_POSTER;
             }}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover transition-opacity duration-300"
           />
         </div>
 

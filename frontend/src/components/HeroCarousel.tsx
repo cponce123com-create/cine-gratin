@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { Movie, Series } from "@/lib/types";
+import { optimizeImageUrl } from "@/lib/utils";
 
 interface HeroCarouselProps {
   items: { item: Movie | Series; type: "movie" | "series" }[];
@@ -69,21 +70,35 @@ export default function HeroCarousel({ items }: HeroCarouselProps) {
       onMouseLeave={() => setIsPaused(false)}
     >
       {/* Background Images with Crossfade */}
-      {items.map((entry, idx) => (
-        <div
-          key={`${entry.type}-${entry.item.id}`}
-          className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
-            idx === currentIndex ? "opacity-100 z-0" : "opacity-0 z-[-1]"
-          }`}
-        >
-          <img
-            src={entry.item.background_url || entry.item.poster_url || FALLBACK_BG}
-            alt={entry.item.title}
-            className="w-full h-full object-cover object-center"
-            onError={(e) => { (e.currentTarget as HTMLImageElement).src = FALLBACK_BG; }}
-          />
-        </div>
-      ))}
+      {items.map((entry, idx) => {
+        const isCurrent = idx === currentIndex;
+        const isNext = idx === (currentIndex + 1) % items.length;
+        const isPrev = idx === (currentIndex - 1 + items.length) % items.length;
+        
+        // Solo cargar la imagen actual, la siguiente y la anterior para ahorrar ancho de banda
+        const shouldLoad = isCurrent || isNext || isPrev;
+        const bgUrl = optimizeImageUrl(entry.item.background_url || entry.item.poster_url, "large");
+
+        return (
+          <div
+            key={`${entry.type}-${entry.item.id}`}
+            className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
+              isCurrent ? "opacity-100 z-0" : "opacity-0 z-[-1]"
+            }`}
+          >
+            {shouldLoad && (
+              <img
+                src={bgUrl || FALLBACK_BG}
+                alt={entry.item.title}
+                fetchPriority={isCurrent ? "high" : "low"}
+                loading={idx === 0 ? "eager" : "lazy"}
+                className="w-full h-full object-cover object-center"
+                onError={(e) => { (e.currentTarget as HTMLImageElement).src = FALLBACK_BG; }}
+              />
+            )}
+          </div>
+        );
+      })}
 
       <div className="absolute inset-0 hero-gradient" />
       <div className="absolute inset-x-0 bottom-0 h-48 hero-gradient-bottom" />

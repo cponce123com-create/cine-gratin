@@ -51,6 +51,9 @@ router.get("/movies", movieLimit, async (req, res) => {
       "SELECT * FROM movies ORDER BY year DESC, date_added DESC LIMIT $1 OFFSET $2",
       [limit, offset]
     );
+    
+    // Cache for 5 minutes, stale-while-revalidate for 1 hour
+    res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=3600");
     res.json(rows.map(toMovie));
   } catch (e) {
     res.status(500).json({ error: String(e) });
@@ -61,6 +64,7 @@ router.get("/movies", movieLimit, async (req, res) => {
 router.get("/movies/featured", movieLimit, async (req, res) => {
   try {
     const { rows } = await pool.query("SELECT * FROM movies WHERE featured = TRUE ORDER BY date_added DESC LIMIT 10");
+    res.setHeader("Cache-Control", "public, max-age=600, stale-while-revalidate=7200");
     res.json(rows.map(toMovie));
   } catch (e) {
     res.status(500).json({ error: String(e) });
@@ -73,6 +77,7 @@ router.get("/movies/trending", movieLimit, async (req, res) => {
     const { rows } = await pool.query(
       `SELECT * FROM movies ORDER BY views DESC, date_added DESC LIMIT 10`
     );
+    res.setHeader("Cache-Control", "public, max-age=1800, stale-while-revalidate=86400");
     res.json(rows.map(toMovie));
   } catch (e) {
     res.status(500).json({ error: String(e) });

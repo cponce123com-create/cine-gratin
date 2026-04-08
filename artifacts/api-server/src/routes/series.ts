@@ -52,6 +52,9 @@ router.get("/series", seriesLimit, async (req, res) => {
       "SELECT * FROM cv_series ORDER BY year DESC, date_added DESC LIMIT $1 OFFSET $2",
       [limit, offset]
     );
+    
+    // Cache for 5 minutes, stale-while-revalidate for 1 hour
+    res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=3600");
     res.json(rows.map(toSeries));
   } catch (e) {
     res.status(500).json({ error: String(e) });
@@ -64,6 +67,7 @@ router.get("/series/trending", seriesLimit, async (req, res) => {
     const { rows } = await pool.query(
       "SELECT * FROM cv_series ORDER BY views DESC, date_added DESC LIMIT 10"
     );
+    res.setHeader("Cache-Control", "public, max-age=1800, stale-while-revalidate=86400");
     res.json(rows.map(toSeries));
   } catch (e) {
     res.status(500).json({ error: String(e) });
