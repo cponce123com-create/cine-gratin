@@ -4,6 +4,7 @@ import Footer from "@/components/Footer";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Home from "@/pages/Home";
 import Movies from "@/pages/Movies";
+import Sports from "@/pages/Sports";
 import SeriesList from "@/pages/SeriesList";
 import MovieDetail from "@/pages/MovieDetail";
 import SeriesDetail from "@/pages/SeriesDetail";
@@ -84,6 +85,7 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/peliculas" element={<Movies />} />
           <Route path="/series" element={<SeriesList />} />
+          <Route path="/deportes" element={<Sports />} />
           <Route path="/pelicula/:id" element={<MovieDetail />} />
           <Route path="/serie/:id" element={<SeriesDetail />} />
           <Route path="/search/:query" element={<Search />} />

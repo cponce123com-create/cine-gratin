@@ -108,6 +108,9 @@ export default function Navbar() {
             <Link to="/series" className={`text-sm font-medium pb-1 transition-colors ${isActive("/series")}`}>
               Series
             </Link>
+            <Link to="/deportes" className={`text-sm font-medium pb-1 transition-colors ${isActive("/deportes")}`}>
+              Eventos Deportivos
+            </Link>
           </nav>
 
           {/* Desktop search */}
@@ -289,6 +292,7 @@ export default function Navbar() {
             <Link to="/" className="text-sm font-medium text-gray-300 hover:text-white py-2 px-2">Inicio</Link>
             <Link to="/peliculas" className="text-sm font-medium text-gray-300 hover:text-white py-2 px-2">Películas</Link>
             <Link to="/series" className="text-sm font-medium text-gray-300 hover:text-white py-2 px-2">Series</Link>
+            <Link to="/deportes" className="text-sm font-medium text-gray-300 hover:text-white py-2 px-2">Eventos Deportivos</Link>
           </nav>
         )}
       </div>
