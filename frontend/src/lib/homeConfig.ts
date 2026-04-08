@@ -165,4 +165,34 @@ export const PLATFORM_SECTIONS: PlatformSection[] = [
     accent: "#0064FF",
     networks: ["Paramount+", "Paramount Network", "Paramount"],
   },
+  {
+    id: "warner",
+    label: "Warner Bros.",
+    accent: "#004B87",
+    networks: ["Warner Bros.", "Warner Bros. Pictures", "Warner TV", "WB"],
+  },
+  {
+    id: "universal",
+    label: "Universal",
+    accent: "#ff0000",
+    networks: ["Universal Pictures", "Universal"],
+  },
+  {
+    id: "sony",
+    label: "Sony Pictures",
+    accent: "#000000",
+    networks: ["Sony Pictures", "Columbia Pictures", "TriStar Pictures"],
+  },
+  {
+    id: "fox",
+    label: "20th Century Fox",
+    accent: "#003366",
+    networks: ["20th Century Fox", "20th Century Studios", "Fox"],
+  },
+  {
+    id: "bbc",
+    label: "BBC",
+    accent: "#B80000",
+    networks: ["BBC", "BBC One", "BBC Two", "BBC America"],
+  },
 ];
