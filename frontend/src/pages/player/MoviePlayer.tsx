@@ -11,10 +11,6 @@ interface Server {
 
 const SERVERS: Server[] = [
   { label: "Servidor 1", url: (id) => `https://vidsrc.net/embed/movie/${id}/` },
-  { label: "Servidor 2", url: (id) => `https://vidsrc.pro/embed/movie/${id}` },
-  { label: "Servidor 3", url: (id) => `https://vidsrc.xyz/embed/movie?imdb=${id}` },
-  { label: "Servidor 4", url: (id) => `https://www.2embed.cc/embed/${id}` },
-  { label: "Servidor 5", url: (id) => `https://vidsrc.mov/embed/movie/${id}` },
 ];
 
 export default function MoviePlayer() {
@@ -111,20 +107,7 @@ export default function MoviePlayer() {
           </div>
         </div>
 
-        {/* Row 3: black screen hint — always visible */}
-        <div className="flex items-center justify-between text-[11px]">
-          <span className="text-white/35">
-            ¿Pantalla en negro? Prueba otro servidor arriba.
-          </span>
-          {activeServer < SERVERS.length - 1 && (
-            <button
-              onClick={() => setActiveServer((s) => s + 1)}
-              className="text-brand-red hover:text-red-400 font-semibold transition-colors flex items-center gap-1"
-            >
-              Siguiente servidor <ChevronRightIcon />
-            </button>
-          )}
-        </div>
+
       </div>
 
       {/* Iframe area — below controls, no overlap */}
