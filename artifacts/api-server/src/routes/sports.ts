@@ -61,6 +61,18 @@ async function resolveChannelId(url: string, apiKey: string): Promise<string> {
   return channelId;
 }
 
+/**
+ * Parses ISO 8601 duration string (e.g. PT1H2M10S) to minutes
+ */
+function parseDurationToMinutes(duration: string): number {
+  const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  if (!match) return 0;
+  const hours = parseInt(match[1] || "0", 10);
+  const minutes = parseInt(match[2] || "0", 10);
+  // We ignore seconds for the 50 min threshold
+  return hours * 60 + minutes;
+}
+
 async function syncChannel(
   channelId: number,
   channelUrl: string,
@@ -69,7 +81,10 @@ async function syncChannel(
 ): Promise<{ imported: number; existed: number }> {
   const ytChannelId = await resolveChannelId(channelUrl, apiKey);
 
-  const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${ytChannelId}&q=${encodeURIComponent(keyword)}&type=video&order=date&maxResults=50&key=${apiKey}`;
+  // Use a more strict search query if keyword is default
+  const searchQuery = keyword.toUpperCase().includes("FULL MATCH") ? "FULL MATCH" : keyword;
+
+  const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${ytChannelId}&q=${encodeURIComponent(searchQuery)}&type=video&order=date&maxResults=50&key=${apiKey}`;
   const res = await fetch(searchUrl);
   const data = (await res.json()) as {
     items?: {
@@ -79,31 +94,57 @@ async function syncChannel(
   };
 
   const items = data.items ?? [];
+  if (items.length === 0) return { imported: 0, existed: 0 };
+
+  // To get duration, we need to call videos.list for the IDs found
+  const videoIds = items.map((i) => i.id?.videoId).filter(Boolean) as string[];
+  if (videoIds.length === 0) return { imported: 0, existed: 0 };
+
+  const videosUrl = `https://www.googleapis.com/youtube/v3/videos?part=contentDetails,snippet&id=${videoIds.join(",")}&key=${apiKey}`;
+  const vRes = await fetch(videosUrl);
+  const vData = (await vRes.json()) as {
+    items?: {
+      id: string;
+      snippet: { title: string; thumbnails?: { medium?: { url?: string } }; publishedAt?: string };
+      contentDetails: { duration: string };
+    }[];
+  };
+
+  const videoDetails = vData.items ?? [];
   let imported = 0;
   let existed = 0;
 
-  for (const item of items) {
-    const ytId = item.id?.videoId;
-    const title = item.snippet?.title ?? "";
-    const thumbnail = item.snippet?.thumbnails?.medium?.url ?? null;
-    const publishedAt = item.snippet?.publishedAt ?? null;
+  for (const item of videoDetails) {
+    const ytId = item.id;
+    const title = item.snippet.title;
+    const thumbnail = item.snippet.thumbnails?.medium?.url ?? null;
+    const publishedAt = item.snippet.publishedAt ?? null;
+    const durationStr = item.contentDetails.duration;
+    const durationMinutes = parseDurationToMinutes(durationStr);
 
-    if (!ytId) continue;
+    // Filter 1: Title must contain "FULL MATCH" (case insensitive)
+    if (!title.toUpperCase().includes("FULL MATCH")) {
+      continue;
+    }
+
+    // Filter 2: Duration must be at least 50 minutes
+    if (durationMinutes < 50) {
+      continue;
+    }
 
     try {
-      await pool.query(
+      const { rowCount } = await pool.query(
         `INSERT INTO sport_matches (channel_id, yt_id, title, thumbnail, published_at)
          VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (yt_id) DO NOTHING`,
         [channelId, ytId, title, thumbnail, publishedAt]
       );
-      // Check if it was actually inserted
-      const { rowCount } = await pool.query(
-        "SELECT 1 FROM sport_matches WHERE yt_id = $1 AND channel_id = $2",
-        [ytId, channelId]
-      );
-      if ((rowCount ?? 0) > 0) imported++;
-      else existed++;
+      
+      if ((rowCount ?? 0) > 0) {
+        imported++;
+      } else {
+        existed++;
+      }
     } catch {
       existed++;
     }
