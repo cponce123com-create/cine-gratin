@@ -341,6 +341,7 @@ router.post("/admin/tmdb-discover", async (req, res) => {
     language,
     min_votes = 50,
     page = 1,
+    count = 500,
   } = req.body as {
     type?: "movie" | "series";
     genre_ids?: string;
@@ -350,56 +351,87 @@ router.post("/admin/tmdb-discover", async (req, res) => {
     language?: string;
     min_votes?: number;
     page?: number;
+    count?: number;
   };
 
+  // Each TMDB page = 20 items. Clamp batch size to [20, 500].
+  const batchSize = Math.min(Math.max(20, count), 500);
+  const pagesPerBatch = Math.ceil(batchSize / 20); // e.g. 25 for 500
+  const startTmdbPage = (page - 1) * pagesPerBatch + 1;
+
+  type TmdbItem = {
+    id: number;
+    title?: string;
+    name?: string;
+    poster_path?: string | null;
+    release_date?: string;
+    first_air_date?: string;
+    vote_average?: number;
+    vote_count?: number;
+    overview?: string;
+  };
+  type TmdbPageData = { results: TmdbItem[]; total_results: number; total_pages: number };
+
   try {
-    const params = new URLSearchParams();
-    params.set("language", "es-MX");
-    params.set("sort_by", sort_by);
-    params.set("page", String(Math.max(1, Math.min(500, page))));
-    params.set("vote_count.gte", String(min_votes || 0));
-    if (genre_ids) params.set("with_genres", genre_ids);
-    if (year_from) params.set(type === "series" ? "first_air_date.gte" : "primary_release_date.gte", `${year_from}-01-01`);
-    if (year_to) params.set(type === "series" ? "first_air_date.lte" : "primary_release_date.lte", `${year_to}-12-31`);
-    if (language) params.set("with_original_language", language);
+    const baseParams = new URLSearchParams();
+    baseParams.set("language", "es-MX");
+    baseParams.set("sort_by", sort_by);
+    baseParams.set("vote_count.gte", String(min_votes || 0));
+    if (genre_ids) baseParams.set("with_genres", genre_ids);
+    if (year_from) baseParams.set(type === "series" ? "first_air_date.gte" : "primary_release_date.gte", `${year_from}-01-01`);
+    if (year_to) baseParams.set(type === "series" ? "first_air_date.lte" : "primary_release_date.lte", `${year_to}-12-31`);
+    if (language) baseParams.set("with_original_language", language);
 
     const endpoint = type === "series" ? "/discover/tv" : "/discover/movie";
-    const r = await tmdbFetch(`${endpoint}?${params.toString()}`);
-    if (!r.ok) { res.status(502).json({ error: "Error al consultar TMDB" }); return; }
-
-    const data = await r.json() as {
-      results: Array<{
-        id: number;
-        title?: string;
-        name?: string;
-        poster_path?: string | null;
-        release_date?: string;
-        first_air_date?: string;
-        vote_average?: number;
-        vote_count?: number;
-        overview?: string;
-      }>;
-      total_results: number;
-      total_pages: number;
-    };
-
     const TMDB_IMG = "https://image.tmdb.org/t/p";
-    const results = (data.results || []).map((item) => ({
+
+    let tmdbTotalResults = 0;
+    let tmdbTotalPages = 0;
+    const allItems: TmdbItem[] = [];
+
+    // TMDB max page = 500. Collect the pages we need for this batch.
+    const pagesToFetch = Array.from({ length: pagesPerBatch }, (_, i) => startTmdbPage + i)
+      .filter((p) => p <= 500);
+
+    // Fetch in parallel chunks of 5 to respect TMDB rate limits.
+    for (let i = 0; i < pagesToFetch.length; i += 5) {
+      const chunk = pagesToFetch.slice(i, i + 5);
+      const responses = await Promise.all(
+        chunk.map((tmdbPage) => {
+          const p = new URLSearchParams(baseParams);
+          p.set("page", String(tmdbPage));
+          return tmdbFetch(`${endpoint}?${p.toString()}`);
+        })
+      );
+      for (const r of responses) {
+        if (!r.ok) continue;
+        const d = await r.json() as TmdbPageData;
+        if (d.total_results > tmdbTotalResults) tmdbTotalResults = d.total_results;
+        if (d.total_pages > tmdbTotalPages) tmdbTotalPages = d.total_pages;
+        allItems.push(...(d.results || []));
+      }
+    }
+
+    const results = allItems.slice(0, batchSize).map((item) => ({
       tmdb_id: item.id,
       title: item.title || item.name || "",
       year: (item.release_date || item.first_air_date || "").slice(0, 4),
       poster_url: item.poster_path ? `${TMDB_IMG}/w342${item.poster_path}` : "",
-      rating: Math.round(((item.vote_average || 0) * 10)) / 10,
+      rating: Math.round((item.vote_average || 0) * 10) / 10,
       vote_count: item.vote_count || 0,
       overview: (item.overview || "").slice(0, 150),
     }));
 
+    // Re-express total_pages in terms of batches (not individual TMDB pages).
+    const totalBatchPages = Math.ceil(Math.min(tmdbTotalPages, 500) / pagesPerBatch);
+
     res.json({
       ok: true,
       results,
-      total_results: data.total_results || 0,
-      total_pages: Math.min(data.total_pages || 0, 500),
+      total_results: tmdbTotalResults,
+      total_pages: totalBatchPages,
       page,
+      count: batchSize,
     });
   } catch (e) {
     res.status(500).json({ error: String(e) });
@@ -415,7 +447,7 @@ router.post("/admin/import-by-tmdb-ids", async (req, res) => {
   }
 
   let imported = 0, existed = 0;
-  for (const tmdbId of tmdb_ids.slice(0, 100)) {
+  for (const tmdbId of tmdb_ids.slice(0, 500)) {
     try {
       const ok = type === "movie" ? await importMovie(tmdbId) : await importSeries(tmdbId);
       if (ok) imported++; else existed++;
@@ -424,7 +456,7 @@ router.post("/admin/import-by-tmdb-ids", async (req, res) => {
     }
   }
 
-  res.json({ ok: true, summary: { imported, existed_or_error: existed, total: Math.min(tmdb_ids.length, 100) } });
+  res.json({ ok: true, summary: { imported, existed_or_error: existed, total: Math.min(tmdb_ids.length, 500) } });
 });
 
 // POST /api/admin/cleanup-no-vidsrc — delete movies/series where vidsrc_status = 'inactive'

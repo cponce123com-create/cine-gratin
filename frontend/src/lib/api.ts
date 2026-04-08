@@ -196,6 +196,7 @@ export const tmdbDiscover = (params: {
   language?: string;
   min_votes?: number;
   page?: number;
+  count?: number;
 }): Promise<TmdbDiscoverResult> =>
   adminPost("/api/admin/tmdb-discover", params);
 
