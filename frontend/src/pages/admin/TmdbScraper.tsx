@@ -87,6 +87,7 @@ export default function TmdbScraper() {
         language: language || undefined,
         min_votes: Number(minVotes) || 0,
         page: p,
+        count: 500,
       });
       setResults(data.results);
       setTotalResults(data.total_results);
@@ -296,7 +297,9 @@ export default function TmdbScraper() {
             <div className="px-6 py-4 border-b border-brand-border flex flex-wrap items-center justify-between gap-3">
               <div>
                 <span className="text-white font-bold">{totalResults.toLocaleString()} resultados</span>
-                <span className="text-gray-500 text-sm ml-2">· Página {page} de {totalPages}</span>
+                <span className="text-gray-500 text-sm ml-2">
+                  · {results.length} visibles · bloque {page}/{totalPages}
+                </span>
               </div>
               <div className="flex items-center gap-3">
                 <button
