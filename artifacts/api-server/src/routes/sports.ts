@@ -44,21 +44,36 @@ async function getYoutubeApiKey(): Promise<string> {
 }
 
 async function resolveChannelId(url: string, apiKey: string): Promise<string> {
-  // Handle /channel/UC... format directly
+  // 1. Direct /channel/UC... format
   const directMatch = url.match(/\/channel\/(UC[\w-]+)/);
   if (directMatch) return directMatch[1];
 
-  // Handle /@handle or /user/ format
-  const handleMatch = url.match(/\/@([\w.-]+)/) || url.match(/\/user\/([\w.-]+)/);
-  if (!handleMatch) throw new Error("URL de canal no reconocida");
+  // 2. Handle format /@handle
+  const handleMatch = url.match(/\/@([\w.-]+)/);
+  if (handleMatch) {
+    const handle = handleMatch[1];
+    // Search for the channel by handle (using the 'q' parameter with type=channel is the most reliable way for handles)
+    const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${encodeURIComponent("@" + handle)}&key=${apiKey}&maxResults=1`;
+    const res = await fetch(searchUrl);
+    const data = (await res.json()) as { items?: { id?: { channelId?: string } }[] };
+    const channelId = data.items?.[0]?.id?.channelId;
+    if (!channelId) throw new Error(`No se encontró el ID del canal para el handle: @${handle}`);
+    return channelId;
+  }
 
-  const handle = handleMatch[1];
-  const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${encodeURIComponent(handle)}&key=${apiKey}&maxResults=1`;
-  const res = await fetch(searchUrl);
-  const data = (await res.json()) as { items?: { id?: { channelId?: string } }[] };
-  const channelId = data.items?.[0]?.id?.channelId;
-  if (!channelId) throw new Error(`No se encontró el canal: ${handle}`);
-  return channelId;
+  // 3. Legacy /user/ format
+  const userMatch = url.match(/\/user\/([\w.-]+)/);
+  if (userMatch) {
+    const username = userMatch[1];
+    const userUrl = `https://www.googleapis.com/youtube/v3/channels?part=id&forUsername=${encodeURIComponent(username)}&key=${apiKey}`;
+    const res = await fetch(userUrl);
+    const data = (await res.json()) as { items?: { id: string }[] };
+    const channelId = data.items?.[0]?.id;
+    if (!channelId) throw new Error(`No se encontró el canal para el usuario: ${username}`);
+    return channelId;
+  }
+
+  throw new Error("URL de canal no reconocida. Use el formato /@handle o /channel/UC...");
 }
 
 /**
@@ -81,7 +96,7 @@ async function syncChannel(
 ): Promise<{ imported: number; existed: number }> {
   const ytChannelId = await resolveChannelId(channelUrl, apiKey);
 
-  // Use the provided keyword for search query (defaults to 'FULL MATCH' in DB, but we won't enforce it in title filter)
+  // Use the provided keyword for search query
   const searchQuery = keyword || "";
 
   const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${ytChannelId}&q=${encodeURIComponent(searchQuery)}&type=video&order=date&maxResults=50&key=${apiKey}`;
@@ -122,7 +137,7 @@ async function syncChannel(
     const durationStr = item.contentDetails.duration;
     const durationMinutes = parseDurationToMinutes(durationStr);
 
-    // Filter 1: Duration must be at least 50 minutes (Removed "FULL MATCH" title filter)
+    // Filter: Duration must be at least 50 minutes
     if (durationMinutes < 50) {
       continue;
     }
