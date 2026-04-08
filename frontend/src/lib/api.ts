@@ -155,3 +155,6 @@ export interface CleanupResponse {
 
 export const cleanupMissingImages = (type: "movie" | "series" | "all" = "all"): Promise<CleanupResponse> =>
   adminPost("/api/admin/cleanup-missing-images", { type });
+
+export const cleanupNoVidsrc = (): Promise<CleanupResponse> =>
+  adminPost("/api/admin/cleanup-no-vidsrc", {});

@@ -9,6 +9,10 @@ import {
   runAutoImport,
   getAdminStats,
   cleanupMissingImages,
+  cleanupNoVidsrc,
+  getMovies,
+  getSeries,
+  verifyVidsrc,
 } from "@/lib/api";
 import type { AutoImportStatus, AutoImportLog, RunImportResult, AdminStats } from "@/lib/types";
 
@@ -40,6 +44,12 @@ export default function AdminDashboard() {
   const [runResult, setRunResult] = useState<RunImportResult | null>(null);
   const [runError, setRunError] = useState("");
   const [cleaning, setCleaning] = useState(false);
+
+  type VidsrcPhase = "idle" | "fetching" | "verifying" | "done" | "cleaning";
+  const [vidsrcPhase, setVidsrcPhase] = useState<VidsrcPhase>("idle");
+  const [vidsrcProgress, setVidsrcProgress] = useState({ checked: 0, total: 0 });
+  const [vidsrcCounts, setVidsrcCounts] = useState({ active: 0, inactive: 0 });
+  const [vidsrcCleanResult, setVidsrcCleanResult] = useState<{ movies: number; series: number; total: number } | null>(null);
 
   const loadStatus = useCallback(async () => {
     setStatusLoading(true);
@@ -116,6 +126,56 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleVerifyVidsrc = async () => {
+    setVidsrcPhase("fetching");
+    setVidsrcProgress({ checked: 0, total: 0 });
+    setVidsrcCounts({ active: 0, inactive: 0 });
+    setVidsrcCleanResult(null);
+    try {
+      const [movies, series] = await Promise.all([getMovies(), getSeries()]);
+      const movieIds = movies.filter((m) => m.imdb_id).map((m) => m.imdb_id!);
+      const seriesIds = series.filter((s) => s.imdb_id).map((s) => s.imdb_id!);
+      const total = movieIds.length + seriesIds.length;
+      setVidsrcProgress({ checked: 0, total });
+      setVidsrcPhase("verifying");
+
+      let active = 0, inactive = 0, checked = 0;
+      const BATCH = 50;
+
+      for (let i = 0; i < movieIds.length; i += BATCH) {
+        const results = await verifyVidsrc(movieIds.slice(i, i + BATCH), "movie");
+        results.forEach((r) => { if (r.available) active++; else inactive++; checked++; });
+        setVidsrcProgress({ checked, total });
+        setVidsrcCounts({ active, inactive });
+      }
+      for (let i = 0; i < seriesIds.length; i += BATCH) {
+        const results = await verifyVidsrc(seriesIds.slice(i, i + BATCH), "series");
+        results.forEach((r) => { if (r.available) active++; else inactive++; checked++; });
+        setVidsrcProgress({ checked, total });
+        setVidsrcCounts({ active, inactive });
+      }
+      setVidsrcPhase("done");
+    } catch (err: unknown) {
+      setVidsrcPhase("idle");
+      alert(err instanceof Error ? err.message : "Error al verificar VIDSRC.");
+    }
+  };
+
+  const handleCleanupVidsrc = async () => {
+    if (!confirm(`¿Eliminar ${vidsrcCounts.inactive} título(s) sin video en VIDSRC? Esta acción no se puede deshacer.`)) return;
+    setVidsrcPhase("cleaning");
+    try {
+      const res = await cleanupNoVidsrc();
+      setVidsrcCleanResult(res.summary);
+      setVidsrcCounts({ active: 0, inactive: 0 });
+      setVidsrcPhase("idle");
+      await loadStats();
+    } catch (err: unknown) {
+      setVidsrcPhase("done");
+      alert(err instanceof Error ? err.message : "Error al eliminar.");
+    }
+  };
+
   const logs: AutoImportLog[] = status?.logs ?? [];
 
   return (
@@ -182,6 +242,96 @@ export default function AdminDashboard() {
             />
           </div>
         )}
+
+        {/* VIDSRC verification card */}
+        <div className="bg-brand-card border border-brand-border rounded-2xl p-6">
+          <div className="flex items-start justify-between gap-4 mb-4">
+            <div>
+              <h2 className="text-white font-bold text-base mb-1">Verificar disponibilidad en VIDSRC</h2>
+              <p className="text-gray-500 text-sm">
+                Comprueba si cada título tiene video disponible en VIDSRC. Los títulos sin video pueden eliminarse automáticamente.
+              </p>
+            </div>
+          </div>
+
+          {/* Progress bar while verifying */}
+          {(vidsrcPhase === "verifying" || vidsrcPhase === "fetching") && (
+            <div className="mb-4">
+              <div className="flex items-center justify-between text-xs text-gray-400 mb-1.5">
+                <span>
+                  {vidsrcPhase === "fetching" ? "Cargando catálogo..." : `Verificando ${vidsrcProgress.checked} de ${vidsrcProgress.total}...`}
+                </span>
+                {vidsrcPhase === "verifying" && vidsrcProgress.total > 0 && (
+                  <span>{Math.round((vidsrcProgress.checked / vidsrcProgress.total) * 100)}%</span>
+                )}
+              </div>
+              <div className="w-full bg-brand-border rounded-full h-1.5">
+                <div
+                  className="bg-brand-red h-1.5 rounded-full transition-all duration-300"
+                  style={{ width: vidsrcPhase === "fetching" ? "5%" : `${vidsrcProgress.total > 0 ? (vidsrcProgress.checked / vidsrcProgress.total) * 100 : 0}%` }}
+                />
+              </div>
+              {vidsrcPhase === "verifying" && (
+                <div className="flex gap-4 mt-2 text-xs">
+                  <span className="text-green-400">{vidsrcCounts.active} activos</span>
+                  <span className="text-red-400">{vidsrcCounts.inactive} inactivos</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Results after verification */}
+          {vidsrcPhase === "done" && (
+            <div className="mb-4 flex flex-wrap gap-4 bg-brand-surface border border-brand-border rounded-xl px-5 py-4">
+              <div className="text-center">
+                <p className="text-2xl font-black text-green-400">{vidsrcCounts.active}</p>
+                <p className="text-xs text-gray-400 mt-0.5">con video</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-black text-red-400">{vidsrcCounts.inactive}</p>
+                <p className="text-xs text-gray-400 mt-0.5">sin video</p>
+              </div>
+            </div>
+          )}
+
+          {/* Cleanup result */}
+          {vidsrcCleanResult && (
+            <div className="mb-4 bg-green-900/15 border border-green-800/30 rounded-xl px-5 py-4 text-sm text-green-400">
+              Eliminados: {vidsrcCleanResult.movies} películas y {vidsrcCleanResult.series} series ({vidsrcCleanResult.total} en total).
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={handleVerifyVidsrc}
+              disabled={vidsrcPhase !== "idle" && vidsrcPhase !== "done"}
+              className="flex items-center gap-2 bg-brand-surface border border-brand-border hover:border-gray-500 text-gray-200 hover:text-white text-sm font-semibold py-2 px-4 rounded-lg transition-colors disabled:opacity-50"
+            >
+              {vidsrcPhase === "fetching" || vidsrcPhase === "verifying" ? (
+                <>
+                  <span className="w-3.5 h-3.5 rounded-full border-2 border-gray-500 border-t-white animate-spin" />
+                  Verificando...
+                </>
+              ) : (
+                <>
+                  <WifiIcon />
+                  {vidsrcPhase === "done" ? "Verificar de nuevo" : "Verificar catálogo"}
+                </>
+              )}
+            </button>
+
+            {vidsrcPhase === "done" && vidsrcCounts.inactive > 0 && (
+              <button
+                onClick={handleCleanupVidsrc}
+                disabled={vidsrcPhase === "cleaning"}
+                className="flex items-center gap-2 bg-red-900/20 border border-red-800/40 hover:bg-red-900/30 text-red-400 text-sm font-semibold py-2 px-4 rounded-lg transition-colors disabled:opacity-50"
+              >
+                <TrashIcon />
+                Eliminar {vidsrcCounts.inactive} sin video
+              </button>
+            )}
+          </div>
+        </div>
 
         {/* Cleanup tool card */}
         <div className="bg-brand-card border border-brand-border rounded-2xl p-6">
@@ -429,6 +579,17 @@ function TrashIcon() {
     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
       <polyline points="3 6 5 6 21 6" />
       <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </svg>
+  );
+}
+
+function WifiIcon() {
+  return (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 12.55a11 11 0 0 1 14.08 0" />
+      <path d="M1.42 9a16 16 0 0 1 21.16 0" />
+      <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+      <circle cx="12" cy="20" r="1" fill="currentColor" />
     </svg>
   );
 }
