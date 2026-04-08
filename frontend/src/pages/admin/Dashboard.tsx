@@ -12,7 +12,7 @@ import {
   cleanupNoVidsrc,
   getMovies,
   getSeries,
-  verifyVidsrc,
+  saveVidsrcResults,
 } from "@/lib/api";
 import type { AutoImportStatus, AutoImportLog, RunImportResult, AdminStats } from "@/lib/types";
 
@@ -126,6 +126,53 @@ export default function AdminDashboard() {
     }
   };
 
+  // Verifica un título cargando su iframe y leyendo el texto resultante.
+  // vidsrc.net muestra "This media is unavailable at the moment." cuando no hay video.
+  const checkOneVidsrc = (imdbId: string, type: "movie" | "series"): Promise<boolean> => {
+    return new Promise((resolve) => {
+      const url = type === "series"
+        ? `https://vidsrc.net/embed/tv/${imdbId}/`
+        : `https://vidsrc.net/embed/movie/${imdbId}/`;
+
+      const iframe = document.createElement("iframe");
+      iframe.src = url;
+      // Tamaño real mínimo para que el contenido se renderice, pero invisible
+      iframe.style.cssText = "position:fixed;width:400px;height:300px;opacity:0;pointer-events:none;top:-9999px;left:-9999px;";
+      // allow-same-origin es necesario para leer iframe.contentDocument
+      iframe.sandbox.add("allow-scripts", "allow-same-origin");
+
+      let settled = false;
+      const finish = (available: boolean) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        try { document.body.removeChild(iframe); } catch { /* ignorar */ }
+        resolve(available);
+      };
+
+      iframe.onload = () => {
+        try {
+          const body = iframe.contentDocument?.body?.innerText ?? "";
+          // Si el body contiene el mensaje de no disponible → sin video
+          const unavailable = body.toLowerCase().includes("unavailable") ||
+                              body.toLowerCase().includes("not found") ||
+                              body.toLowerCase().includes("no source");
+          finish(!unavailable);
+        } catch {
+          // No se pudo leer el contenido (cross-origin bloqueado) → asumimos disponible
+          finish(true);
+        }
+      };
+
+      iframe.onerror = () => finish(false);
+
+      // Timeout: si no responde en 15s asumimos disponible
+      const timer = setTimeout(() => finish(true), 15000);
+
+      document.body.appendChild(iframe);
+    });
+  };
+
   const handleVerifyVidsrc = async () => {
     setVidsrcPhase("fetching");
     setVidsrcProgress({ checked: 0, total: 0 });
@@ -133,26 +180,40 @@ export default function AdminDashboard() {
     setVidsrcCleanResult(null);
     try {
       const [movies, series] = await Promise.all([getMovies(), getSeries()]);
-      const movieIds = movies.filter((m) => m.imdb_id).map((m) => m.imdb_id!);
-      const seriesIds = series.filter((s) => s.imdb_id).map((s) => s.imdb_id!);
-      const total = movieIds.length + seriesIds.length;
+      const movieItems = movies.filter((m) => m.imdb_id).map((m) => ({ imdb_id: m.imdb_id!, type: "movie" as const }));
+      const seriesItems = series.filter((s) => s.imdb_id).map((s) => ({ imdb_id: s.imdb_id!, type: "series" as const }));
+      const allItems = [...movieItems, ...seriesItems];
+      const total = allItems.length;
       setVidsrcProgress({ checked: 0, total });
       setVidsrcPhase("verifying");
 
       let active = 0, inactive = 0, checked = 0;
-      const BATCH = 50;
+      const CONCURRENCY = 5; // verificar 5 iframes a la vez
+      const SAVE_BATCH = 20; // guardar en BD cada 20 resultados
+      const pendingSave: { imdb_id: string; type: "movie" | "series"; available: boolean }[] = [];
 
-      for (let i = 0; i < movieIds.length; i += BATCH) {
-        const results = await verifyVidsrc(movieIds.slice(i, i + BATCH), "movie");
-        results.forEach((r) => { if (r.available) active++; else inactive++; checked++; });
+      for (let i = 0; i < allItems.length; i += CONCURRENCY) {
+        const chunk = allItems.slice(i, i + CONCURRENCY);
+        const chunkResults = await Promise.all(
+          chunk.map((item) => checkOneVidsrc(item.imdb_id, item.type).then((available) => ({ ...item, available })))
+        );
+        for (const r of chunkResults) {
+          if (r.available) active++; else inactive++;
+          checked++;
+          pendingSave.push(r);
+        }
         setVidsrcProgress({ checked, total });
         setVidsrcCounts({ active, inactive });
+
+        // Guardar en BD cada SAVE_BATCH resultados
+        if (pendingSave.length >= SAVE_BATCH) {
+          await saveVidsrcResults([...pendingSave]).catch(() => {});
+          pendingSave.length = 0;
+        }
       }
-      for (let i = 0; i < seriesIds.length; i += BATCH) {
-        const results = await verifyVidsrc(seriesIds.slice(i, i + BATCH), "series");
-        results.forEach((r) => { if (r.available) active++; else inactive++; checked++; });
-        setVidsrcProgress({ checked, total });
-        setVidsrcCounts({ active, inactive });
+      // Guardar los últimos resultados pendientes
+      if (pendingSave.length > 0) {
+        await saveVidsrcResults([...pendingSave]).catch(() => {});
       }
       setVidsrcPhase("done");
     } catch (err: unknown) {
