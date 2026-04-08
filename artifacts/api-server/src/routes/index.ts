@@ -5,6 +5,7 @@ import tmdbRouter from "./tmdb";
 import moviesRouter from "./movies";
 import seriesRouter from "./series";
 import adminRouter from "./admin";
+import sportsRouter, { initSportsTables } from "./sports";
 
 const router: IRouter = Router();
 
@@ -14,5 +15,7 @@ router.use(tmdbRouter);
 router.use(moviesRouter);
 router.use(seriesRouter);
 router.use(adminRouter);
+router.use(sportsRouter);
 
+export { initSportsTables };
 export default router;
