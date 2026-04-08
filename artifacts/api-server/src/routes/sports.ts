@@ -11,7 +11,7 @@ export async function initSportsTables() {
       id          SERIAL PRIMARY KEY,
       name        TEXT NOT NULL,
       url         TEXT NOT NULL UNIQUE,
-      keyword     TEXT NOT NULL DEFAULT 'FULL MATCH',
+      keyword     TEXT,
       date_added  TIMESTAMPTZ DEFAULT NOW()
     );
 
@@ -96,19 +96,24 @@ async function syncChannel(
 ): Promise<{ imported: number; existed: number }> {
   const ytChannelId = await resolveChannelId(channelUrl, apiKey);
 
-  // Use the provided keyword for search query
-  const searchQuery = keyword || "";
+  let items: {
+    id?: { videoId?: string };
+    snippet?: { title?: string; thumbnails?: { medium?: { url?: string } }; publishedAt?: string };
+  }[] = [];
 
-  const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${ytChannelId}&q=${encodeURIComponent(searchQuery)}&type=video&order=date&maxResults=50&key=${apiKey}`;
-  const res = await fetch(searchUrl);
-  const data = (await res.json()) as {
-    items?: {
-      id?: { videoId?: string };
-      snippet?: { title?: string; thumbnails?: { medium?: { url?: string } }; publishedAt?: string };
-    }[];
-  };
-
-  const items = data.items ?? [];
+  if (keyword && keyword.trim() !== "") {
+    // Search with keyword
+    const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${ytChannelId}&q=${encodeURIComponent(keyword)}&type=video&order=date&maxResults=50&key=${apiKey}`;
+    const res = await fetch(searchUrl);
+    const data = (await res.json()) as { items?: any[] };
+    items = data.items ?? [];
+  } else {
+    // No keyword: get latest videos from the channel
+    const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${ytChannelId}&type=video&order=date&maxResults=50&key=${apiKey}`;
+    const res = await fetch(searchUrl);
+    const data = (await res.json()) as { items?: any[] };
+    items = data.items ?? [];
+  }
   if (items.length === 0) return { imported: 0, existed: 0 };
 
   // To get duration, we need to call videos.list for the IDs found
@@ -137,8 +142,8 @@ async function syncChannel(
     const durationStr = item.contentDetails.duration;
     const durationMinutes = parseDurationToMinutes(durationStr);
 
-    // Filter: Duration must be at least 50 minutes
-    if (durationMinutes < 50) {
+    // Filter: Duration must be at least 30 minutes
+    if (durationMinutes < 30) {
       continue;
     }
 
@@ -211,7 +216,7 @@ router.get("/sports/channels", async (_req, res) => {
 // POST /api/sports/channels
 router.post("/sports/channels", async (req, res) => {
   try {
-    const { name, url, keyword = "FULL MATCH" } = req.body as {
+    const { name, url, keyword = "" } = req.body as {
       name: string;
       url: string;
       keyword?: string;
@@ -219,7 +224,7 @@ router.post("/sports/channels", async (req, res) => {
     if (!name || !url) return res.status(400).json({ error: "Faltan campos name y url" });
 
     const { rows } = await pool.query(
-      `INSERT INTO sport_channels (name, url, keyword) VALUES ($1, $2, $3)
+      `INSERT INTO sport_channels (name, url, keyword) VALUES ($1, $2, NULLIF($3, ''))
        ON CONFLICT (url) DO UPDATE SET name = EXCLUDED.name, keyword = EXCLUDED.keyword
        RETURNING *`,
       [name, url, keyword]
