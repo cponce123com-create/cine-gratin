@@ -17,6 +17,7 @@ import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminImport from "@/pages/admin/Import";
 import ManageMovies from "@/pages/admin/ManageMovies";
 import ManageSeries from "@/pages/admin/ManageSeries";
+import SportChannels from "@/pages/admin/SportChannels";
 
 function PublicLayout() {
   return (
@@ -66,6 +67,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <ManageSeries />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/sport-channels"
+          element={
+            <ProtectedRoute>
+              <SportChannels />
             </ProtectedRoute>
           }
         />
