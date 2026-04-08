@@ -1,7 +1,17 @@
 import { Router } from "express";
 import { pool } from "../lib/db";
+import { rateLimit } from "express-rate-limit";
 
 const router = Router();
+
+// Rate limiting for public series endpoints
+const seriesLimit = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Demasiadas peticiones, por favor intenta más tarde." },
+});
 
 const toSeries = (row: Record<string, unknown>) => ({
   id: row.id,
@@ -31,10 +41,17 @@ const toSeries = (row: Record<string, unknown>) => ({
   date_added: row.date_added,
 });
 
-// GET /api/series
-router.get("/series", async (req, res) => {
+// GET /api/series - Added pagination and rate limiting
+router.get("/series", seriesLimit, async (req, res) => {
+  const page = Math.max(1, Number(req.query.page || 1));
+  const limit = Math.min(100, Math.max(1, Number(req.query.limit || 50)));
+  const offset = (page - 1) * limit;
+
   try {
-    const { rows } = await pool.query("SELECT * FROM cv_series ORDER BY year DESC, date_added DESC");
+    const { rows } = await pool.query(
+      "SELECT * FROM cv_series ORDER BY year DESC, date_added DESC LIMIT $1 OFFSET $2",
+      [limit, offset]
+    );
     res.json(rows.map(toSeries));
   } catch (e) {
     res.status(500).json({ error: String(e) });
@@ -42,7 +59,7 @@ router.get("/series", async (req, res) => {
 });
 
 // GET /api/series/trending
-router.get("/series/trending", async (req, res) => {
+router.get("/series/trending", seriesLimit, async (req, res) => {
   try {
     const { rows } = await pool.query(
       "SELECT * FROM cv_series ORDER BY views DESC, date_added DESC LIMIT 10"
@@ -54,7 +71,7 @@ router.get("/series/trending", async (req, res) => {
 });
 
 // GET /api/series/search?q=
-router.get("/series/search", async (req, res) => {
+router.get("/series/search", seriesLimit, async (req, res) => {
   const q = String(req.query.q || "");
   const limit = Math.min(Number(req.query.limit || 20), 50);
   try {
@@ -69,7 +86,7 @@ router.get("/series/search", async (req, res) => {
 });
 
 // GET /api/series/:id
-router.get("/series/:id", async (req, res) => {
+router.get("/series/:id", seriesLimit, async (req, res) => {
   try {
     const { rows } = await pool.query(
       "SELECT * FROM cv_series WHERE id = $1 OR imdb_id = $1",
@@ -128,7 +145,7 @@ router.delete("/admin/series/:id", async (req, res) => {
 });
 
 // PATCH /api/series/:id/view
-router.patch("/series/:id/view", async (req, res) => {
+router.patch("/series/:id/view", seriesLimit, async (req, res) => {
   try {
     await pool.query("UPDATE cv_series SET views = views + 1 WHERE id = $1", [req.params.id]);
     res.json({ ok: true });

@@ -1,7 +1,17 @@
 import { Router } from "express";
 import { pool } from "../lib/db";
+import { rateLimit } from "express-rate-limit";
 
 const router = Router();
+
+// Rate limiting for public movie endpoints
+const movieLimit = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Demasiadas peticiones, por favor intenta más tarde." },
+});
 
 const toMovie = (row: Record<string, unknown>) => ({
   id: row.id,
@@ -30,10 +40,17 @@ const toMovie = (row: Record<string, unknown>) => ({
   date_added: row.date_added,
 });
 
-// GET /api/movies
-router.get("/movies", async (req, res) => {
+// GET /api/movies - Added pagination and rate limiting
+router.get("/movies", movieLimit, async (req, res) => {
+  const page = Math.max(1, Number(req.query.page || 1));
+  const limit = Math.min(100, Math.max(1, Number(req.query.limit || 50)));
+  const offset = (page - 1) * limit;
+
   try {
-    const { rows } = await pool.query("SELECT * FROM movies ORDER BY year DESC, date_added DESC");
+    const { rows } = await pool.query(
+      "SELECT * FROM movies ORDER BY year DESC, date_added DESC LIMIT $1 OFFSET $2",
+      [limit, offset]
+    );
     res.json(rows.map(toMovie));
   } catch (e) {
     res.status(500).json({ error: String(e) });
@@ -41,7 +58,7 @@ router.get("/movies", async (req, res) => {
 });
 
 // GET /api/movies/featured
-router.get("/movies/featured", async (req, res) => {
+router.get("/movies/featured", movieLimit, async (req, res) => {
   try {
     const { rows } = await pool.query("SELECT * FROM movies WHERE featured = TRUE ORDER BY date_added DESC LIMIT 10");
     res.json(rows.map(toMovie));
@@ -51,7 +68,7 @@ router.get("/movies/featured", async (req, res) => {
 });
 
 // GET /api/movies/trending — top 10 most viewed recently
-router.get("/movies/trending", async (req, res) => {
+router.get("/movies/trending", movieLimit, async (req, res) => {
   try {
     const { rows } = await pool.query(
       `SELECT * FROM movies ORDER BY views DESC, date_added DESC LIMIT 10`
@@ -63,7 +80,7 @@ router.get("/movies/trending", async (req, res) => {
 });
 
 // GET /api/movies/search?q=...
-router.get("/movies/search", async (req, res) => {
+router.get("/movies/search", movieLimit, async (req, res) => {
   const q = String(req.query.q || "");
   const limit = Math.min(Number(req.query.limit || 20), 50);
   try {
@@ -78,7 +95,7 @@ router.get("/movies/search", async (req, res) => {
 });
 
 // GET /api/movies/by-slug/:slug
-router.get("/movies/by-slug/:slug", async (req, res) => {
+router.get("/movies/by-slug/:slug", movieLimit, async (req, res) => {
   try {
     const { rows } = await pool.query(
       "SELECT * FROM movies WHERE slug = $1 OR id = $1 OR imdb_id = $1",
@@ -92,7 +109,7 @@ router.get("/movies/by-slug/:slug", async (req, res) => {
 });
 
 // GET /api/movies/:id
-router.get("/movies/:id", async (req, res) => {
+router.get("/movies/:id", movieLimit, async (req, res) => {
   try {
     // Try by id first, then by slug or imdb_id
     let { rows } = await pool.query("SELECT * FROM movies WHERE id = $1", [req.params.id]);
@@ -154,7 +171,7 @@ router.delete("/admin/movies/:id", async (req, res) => {
 });
 
 // PATCH /api/movies/:id/view — increment view count
-router.patch("/movies/:id/view", async (req, res) => {
+router.patch("/movies/:id/view", movieLimit, async (req, res) => {
   try {
     await pool.query("UPDATE movies SET views = views + 1 WHERE id = $1", [req.params.id]);
     res.json({ ok: true });
