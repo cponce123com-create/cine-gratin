@@ -111,13 +111,15 @@ async function syncChannel(
     // Search with keyword
     const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${ytChannelId}&q=${encodeURIComponent(keyword)}&type=video&order=date&maxResults=50&key=${apiKey}`;
     const res = await fetch(searchUrl);
-    const data = (await res.json()) as { items?: any[] };
+    const data = (await res.json()) as any;
+    if (data.error) throw new Error(`YouTube API Error: ${data.error.message}`);
     items = data.items ?? [];
   } else {
     // No keyword: get latest videos from the channel
     const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${ytChannelId}&type=video&order=date&maxResults=50&key=${apiKey}`;
     const res = await fetch(searchUrl);
-    const data = (await res.json()) as { items?: any[] };
+    const data = (await res.json()) as any;
+    if (data.error) throw new Error(`YouTube API Error: ${data.error.message}`);
     items = data.items ?? [];
   }
   if (items.length === 0) return { imported: 0, existed: 0 };
@@ -128,14 +130,8 @@ async function syncChannel(
 
   const videosUrl = `https://www.googleapis.com/youtube/v3/videos?part=contentDetails,snippet&id=${videoIds.join(",")}&key=${apiKey}`;
   const vRes = await fetch(videosUrl);
-  const vData = (await vRes.json()) as {
-    items?: {
-      id: string;
-      snippet: { title: string; thumbnails?: { medium?: { url?: string } }; publishedAt?: string };
-      contentDetails: { duration: string };
-    }[];
-  };
-
+  const vData = (await vRes.json()) as any;
+  if (vData.error) throw new Error(`YouTube API Error (videos): ${vData.error.message}`);
   const videoDetails = vData.items ?? [];
   let imported = 0;
   let existed = 0;
