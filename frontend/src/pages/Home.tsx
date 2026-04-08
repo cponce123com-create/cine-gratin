@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Helmet } from "react-helmet-async";
 import { getMovies, getSeries } from "@/lib/api";
@@ -14,7 +14,6 @@ import { useContinueWatching } from "@/hooks/useContinueWatching";
 const FALLBACK_BG =
   "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=1400&auto=format&fit=crop";
 
-const MAX_PER_SECTION = 20;
 const MIN_ITEMS_TO_SHOW = 2;
 
 function matchesKeywords(genres: string[] | undefined, keywords: string[]): boolean {
@@ -53,7 +52,7 @@ function buildMixed(
     return yearB - yearA;
   });
 
-  return result.slice(0, MAX_PER_SECTION);
+  return result;
 }
 
 type FilterMode = "genre" | "platform" | null;
@@ -113,7 +112,7 @@ export default function Home() {
 
   const mostViewed = useMemo(() => {
     const mixed = buildMixed(allMovies, allSeries, () => true, () => true);
-    return mixed.sort((a, b) => (Number(b.item.views) || 0) - (Number(a.item.views) || 0)).slice(0, 24);
+    return mixed.sort((a, b) => (Number(b.item.views) || 0) - (Number(a.item.views) || 0));
   }, [allMovies, allSeries]);
 
   const recentlyAdded = useMemo(() => {
@@ -122,7 +121,7 @@ export default function Home() {
       const dateA = a.item.date_added ? new Date(a.item.date_added).getTime() : 0;
       const dateB = b.item.date_added ? new Date(b.item.date_added).getTime() : 0;
       return dateB - dateA;
-    }).slice(0, 24);
+    });
   }, [allMovies, allSeries]);
 
   const trending = useMemo(() => {
@@ -134,12 +133,12 @@ export default function Home() {
       .slice(0, 24);
   }, [allMovies, allSeries]);
 
-  const popularMovies = useMemo(() => 
-    [...allMovies].sort((a, b) => (Number(b.views) || 0) - (Number(a.views) || 0)).slice(0, 24), 
+  const popularMovies = useMemo(() =>
+    [...allMovies].sort((a, b) => (Number(b.views) || 0) - (Number(a.views) || 0)),
     [allMovies]
   );
-  const popularSeries = useMemo(() => 
-    [...allSeries].sort((a, b) => (Number(b.views) || 0) - (Number(a.views) || 0)).slice(0, 24), 
+  const popularSeries = useMemo(() =>
+    [...allSeries].sort((a, b) => (Number(b.views) || 0) - (Number(a.views) || 0)),
     [allSeries]
   );
 
@@ -264,11 +263,10 @@ export default function Home() {
 
         {/* ── Custom sections ────────────────────────────────────────── */}
         {customCarousels.map((sec) => (
-          <GenreCarousel 
-            key={sec.id} 
-            title={sec.label} 
-            items={sec.items} 
-            viewAllLink={sec.id === "clasicas" ? "/peliculas" : "/series"}
+          <GenreCarousel
+            key={sec.id}
+            title={sec.label}
+            items={sec.items}
           />
         ))}
 
@@ -290,12 +288,12 @@ export default function Home() {
         {errorMovies ? (
           <p className="text-red-400 text-center py-8">No se pudieron cargar las películas.</p>
         ) : (
-          <Carousel title="Películas populares" items={popularMovies} type="movie" viewAllLink="/peliculas" />
+          <Carousel title="Películas populares" items={popularMovies} type="movie" />
         )}
         {errorSeries ? (
           <p className="text-red-400 text-center py-8">No se pudieron cargar las series.</p>
         ) : (
-          <Carousel title="Series populares" items={popularSeries} type="series" viewAllLink="/series" />
+          <Carousel title="Series populares" items={popularSeries} type="series" />
         )}
 
         {/* ── Genre & Platform sections ─────────────────────────────── */}
