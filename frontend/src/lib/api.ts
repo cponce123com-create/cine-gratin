@@ -158,3 +158,49 @@ export const cleanupMissingImages = (type: "movie" | "series" | "all" = "all"): 
 
 export const cleanupNoVidsrc = (): Promise<CleanupResponse> =>
   adminPost("/api/admin/cleanup-no-vidsrc", {});
+
+// ── TMDB Explorer ─────────────────────────────────────────────────────────────
+
+export interface TmdbGenre {
+  id: number;
+  name: string;
+}
+
+export interface TmdbDiscoverItem {
+  tmdb_id: number;
+  title: string;
+  year: string;
+  poster_url: string;
+  rating: number;
+  vote_count: number;
+  overview: string;
+}
+
+export interface TmdbDiscoverResult {
+  ok: boolean;
+  results: TmdbDiscoverItem[];
+  total_results: number;
+  total_pages: number;
+  page: number;
+}
+
+export const getTmdbGenres = (type: "movie" | "series"): Promise<TmdbGenre[]> =>
+  adminFetch(`/api/admin/tmdb-genres/${type}`);
+
+export const tmdbDiscover = (params: {
+  type: "movie" | "series";
+  genre_ids?: string;
+  year_from?: number;
+  year_to?: number;
+  sort_by?: string;
+  language?: string;
+  min_votes?: number;
+  page?: number;
+}): Promise<TmdbDiscoverResult> =>
+  adminPost("/api/admin/tmdb-discover", params);
+
+export const importByTmdbIds = (
+  tmdb_ids: number[],
+  type: "movie" | "series"
+): Promise<{ ok: boolean; summary: { imported: number; existed_or_error: number; total: number } }> =>
+  adminPost("/api/admin/import-by-tmdb-ids", { tmdb_ids, type });

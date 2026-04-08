@@ -21,6 +21,7 @@ import ManageMovies from "@/pages/admin/ManageMovies";
 import ManageSeries from "@/pages/admin/ManageSeries";
 import SportChannels from "@/pages/admin/SportChannels";
 import EventChannels from "@/pages/admin/EventChannels";
+import TmdbScraper from "@/pages/admin/TmdbScraper";
 
 function PublicLayout() {
   return (
@@ -70,6 +71,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <ManageSeries />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/tmdb"
+          element={
+            <ProtectedRoute>
+              <TmdbScraper />
             </ProtectedRoute>
           }
         />

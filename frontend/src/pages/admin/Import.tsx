@@ -182,6 +182,177 @@ function SummaryBar({
   );
 }
 
+// ─── Range Import Section ────────────────────────────────────────────────────
+
+const MAX_RANGE = 500;
+const RANGE_BATCH = 50;
+
+function generateRange(from: string, to: string): { ids: string[] | null; error?: string } {
+  if (!/^tt\d{7,8}$/.test(from) || !/^tt\d{7,8}$/.test(to)) {
+    return { ids: null, error: "Formato inválido. Usa ttXXXXXXX (7-8 dígitos)." };
+  }
+  const numFrom = parseInt(from.slice(2));
+  const numTo = parseInt(to.slice(2));
+  if (numFrom > numTo) return { ids: null, error: '"Hasta" debe ser mayor o igual que "Desde".' };
+  const count = numTo - numFrom + 1;
+  if (count > MAX_RANGE) return { ids: null, error: `El rango máximo es ${MAX_RANGE} IDs por operación.` };
+  const digitLen = Math.max(from.slice(2).length, to.slice(2).length);
+  const ids: string[] = [];
+  for (let n = numFrom; n <= numTo; n++) {
+    ids.push("tt" + String(n).padStart(digitLen, "0"));
+  }
+  return { ids };
+}
+
+function RangeImportSection({ tab }: { tab: Tab }) {
+  const isMovies = tab === "movies";
+
+  const [fromId, setFromId] = useState("tt0000001");
+  const [toId, setToId] = useState("tt0000050");
+  const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState<{ processed: number; total: number; imported: number; existed: number; not_found: number; error: number } | null>(null);
+  const [done, setDone] = useState<{ imported: number; existed: number; not_found: number; error: number } | null>(null);
+  const [rangeError, setRangeError] = useState("");
+
+  const rangeResult = generateRange(fromId.trim(), toId.trim());
+  const rangeCount = rangeResult.ids?.length ?? 0;
+  const validationError = fromId && toId ? rangeResult.error : undefined;
+
+  const handleImport = async () => {
+    if (!rangeResult.ids) return;
+    setLoading(true);
+    setDone(null);
+    setRangeError("");
+    const ids = rangeResult.ids;
+    const type = isMovies ? "movie" : "series";
+    let imported = 0, existed = 0, not_found = 0, error = 0, processed = 0;
+    setProgress({ processed: 0, total: ids.length, imported: 0, existed: 0, not_found: 0, error: 0 });
+
+    try {
+      for (let i = 0; i < ids.length; i += RANGE_BATCH) {
+        const batch = ids.slice(i, i + RANGE_BATCH);
+        const resp = await importByIds(batch, type);
+        imported += resp.summary.imported;
+        existed += resp.summary.existed;
+        not_found += resp.summary.not_found;
+        error += resp.summary.error;
+        processed += batch.length;
+        setProgress({ processed, total: ids.length, imported, existed, not_found, error });
+      }
+      setDone({ imported, existed, not_found, error });
+    } catch (err: unknown) {
+      setRangeError(err instanceof Error ? err.message : "Error durante la importación por rango.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const reset = () => {
+    setDone(null);
+    setProgress(null);
+    setRangeError("");
+  };
+
+  const pct = progress && progress.total > 0 ? Math.round((progress.processed / progress.total) * 100) : 0;
+
+  return (
+    <div className="bg-brand-card border border-brand-border rounded-2xl p-6 space-y-5">
+      <div>
+        <h2 className="text-white font-bold text-base mb-1">Importar por Rango de ID</h2>
+        <p className="text-gray-500 text-sm">
+          Importa un rango continuo de IDs de IMDb. Formato{" "}
+          <code className="text-gray-400 bg-brand-surface px-1 rounded text-xs">tt0000001</code>
+          . Máximo {MAX_RANGE} IDs por operación.
+        </p>
+      </div>
+
+      {!loading && !done && (
+        <>
+          <div className="flex flex-wrap gap-3 items-end">
+            <div className="flex-1 min-w-[130px]">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">Desde</label>
+              <input
+                value={fromId}
+                onChange={(e) => setFromId(e.target.value)}
+                placeholder="tt0000001"
+                className="w-full bg-brand-surface border border-brand-border rounded-lg px-3 py-2 text-gray-200 text-sm font-mono focus:outline-none focus:border-gray-500 transition-colors"
+              />
+            </div>
+            <div className="flex-1 min-w-[130px]">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">Hasta</label>
+              <input
+                value={toId}
+                onChange={(e) => setToId(e.target.value)}
+                placeholder="tt0000050"
+                className="w-full bg-brand-surface border border-brand-border rounded-lg px-3 py-2 text-gray-200 text-sm font-mono focus:outline-none focus:border-gray-500 transition-colors"
+              />
+            </div>
+          </div>
+
+          {validationError ? (
+            <p className="text-xs text-yellow-500">{validationError}</p>
+          ) : rangeCount > 0 ? (
+            <p className="text-xs text-gray-500">
+              Se generarán{" "}
+              <span className="text-green-400 font-bold">{rangeCount}</span> IDs ·
+              procesados en lotes de {RANGE_BATCH}
+            </p>
+          ) : null}
+
+          {rangeError && (
+            <div className="bg-red-900/20 border border-red-800/40 rounded-lg px-4 py-3 text-red-400 text-sm">
+              {rangeError}
+            </div>
+          )}
+
+          <button
+            onClick={handleImport}
+            disabled={!rangeResult.ids || rangeCount === 0}
+            className="flex items-center gap-2 bg-brand-red hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-2.5 px-5 rounded-lg transition-colors text-sm"
+          >
+            <UploadIcon />
+            Importar Rango ({rangeCount} IDs)
+          </button>
+        </>
+      )}
+
+      {loading && progress && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between text-xs text-gray-400">
+            <span>Importando {progress.processed} de {progress.total}...</span>
+            <span>{pct}%</span>
+          </div>
+          <div className="w-full bg-brand-border rounded-full h-1.5">
+            <div
+              className="bg-brand-red h-1.5 rounded-full transition-all duration-300"
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+          <div className="flex flex-wrap gap-4 text-xs">
+            <span className="text-green-400 font-bold">{progress.imported} importados</span>
+            <span className="text-gray-400">{progress.existed} ya existían</span>
+            <span className="text-red-400">{progress.not_found} no encontrados</span>
+            {progress.error > 0 && <span className="text-orange-400">{progress.error} errores</span>}
+          </div>
+        </div>
+      )}
+
+      {done && (
+        <div className="space-y-4">
+          <SummaryBar {...done} />
+          <button
+            onClick={reset}
+            className="flex items-center gap-2 bg-brand-surface border border-brand-border hover:border-gray-500 text-gray-300 hover:text-white text-sm font-semibold py-2 px-4 rounded-lg transition-colors"
+          >
+            <ResetIcon />
+            Nueva importación
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Scan Networks Section ───────────────────────────────────────────────────
 
 function ScanNetworksSection({ tab }: { tab: Tab }) {
@@ -681,6 +852,7 @@ export default function AdminImport() {
         <AutoImportSection key={`auto-${activeTab}`} tab={activeTab} />
         <ScanNetworksSection key={`scan-${activeTab}`} tab={activeTab} />
         <BulkImportSection key={`bulk-${activeTab}`} tab={activeTab} />
+        <RangeImportSection key={`range-${activeTab}`} tab={activeTab} />
       </div>
     </AdminLayout>
   );

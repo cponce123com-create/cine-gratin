@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { pool } from "../lib/db";
-import { runAutoImport, importByImdbId } from "../jobs/auto-import";
+import { runAutoImport, importByImdbId, importMovie, importSeries } from "../jobs/auto-import";
 import { fetchMovieByTmdbId, fetchSeriesByTmdbId, tmdbFetch } from "../lib/tmdb-client";
 
 const router = Router();
@@ -314,6 +314,117 @@ router.post("/admin/cleanup-missing-images", async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: String(e) });
   }
+});
+
+// GET /api/admin/tmdb-genres/:type — fetch genre list from TMDB
+router.get("/admin/tmdb-genres/:type", async (req, res) => {
+  const type = req.params["type"] as string;
+  const endpoint = type === "series" ? "/genre/tv/list" : "/genre/movie/list";
+  try {
+    const r = await tmdbFetch(`${endpoint}?language=es-MX`);
+    if (!r.ok) { res.status(502).json({ error: "Error al consultar TMDB" }); return; }
+    const data = await r.json() as { genres?: { id: number; name: string }[] };
+    res.json(data.genres || []);
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// POST /api/admin/tmdb-discover — discover content from TMDB with filters
+router.post("/admin/tmdb-discover", async (req, res) => {
+  const {
+    type = "movie",
+    genre_ids,
+    year_from,
+    year_to,
+    sort_by = "popularity.desc",
+    language,
+    min_votes = 50,
+    page = 1,
+  } = req.body as {
+    type?: "movie" | "series";
+    genre_ids?: string;
+    year_from?: number;
+    year_to?: number;
+    sort_by?: string;
+    language?: string;
+    min_votes?: number;
+    page?: number;
+  };
+
+  try {
+    const params = new URLSearchParams();
+    params.set("language", "es-MX");
+    params.set("sort_by", sort_by);
+    params.set("page", String(Math.max(1, Math.min(500, page))));
+    params.set("vote_count.gte", String(min_votes || 0));
+    if (genre_ids) params.set("with_genres", genre_ids);
+    if (year_from) params.set(type === "series" ? "first_air_date.gte" : "primary_release_date.gte", `${year_from}-01-01`);
+    if (year_to) params.set(type === "series" ? "first_air_date.lte" : "primary_release_date.lte", `${year_to}-12-31`);
+    if (language) params.set("with_original_language", language);
+
+    const endpoint = type === "series" ? "/discover/tv" : "/discover/movie";
+    const r = await tmdbFetch(`${endpoint}?${params.toString()}`);
+    if (!r.ok) { res.status(502).json({ error: "Error al consultar TMDB" }); return; }
+
+    const data = await r.json() as {
+      results: Array<{
+        id: number;
+        title?: string;
+        name?: string;
+        poster_path?: string | null;
+        release_date?: string;
+        first_air_date?: string;
+        vote_average?: number;
+        vote_count?: number;
+        overview?: string;
+      }>;
+      total_results: number;
+      total_pages: number;
+    };
+
+    const TMDB_IMG = "https://image.tmdb.org/t/p";
+    const results = (data.results || []).map((item) => ({
+      tmdb_id: item.id,
+      title: item.title || item.name || "",
+      year: (item.release_date || item.first_air_date || "").slice(0, 4),
+      poster_url: item.poster_path ? `${TMDB_IMG}/w342${item.poster_path}` : "",
+      rating: Math.round(((item.vote_average || 0) * 10)) / 10,
+      vote_count: item.vote_count || 0,
+      overview: (item.overview || "").slice(0, 150),
+    }));
+
+    res.json({
+      ok: true,
+      results,
+      total_results: data.total_results || 0,
+      total_pages: Math.min(data.total_pages || 0, 500),
+      page,
+    });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// POST /api/admin/import-by-tmdb-ids — import content directly by TMDB IDs
+router.post("/admin/import-by-tmdb-ids", async (req, res) => {
+  const { tmdb_ids, type = "movie" } = req.body as { tmdb_ids: number[]; type?: "movie" | "series" };
+
+  if (!Array.isArray(tmdb_ids) || tmdb_ids.length === 0) {
+    return res.status(400).json({ error: "Se requiere un array tmdb_ids" });
+  }
+
+  let imported = 0, existed = 0;
+  for (const tmdbId of tmdb_ids.slice(0, 100)) {
+    try {
+      const ok = type === "movie" ? await importMovie(tmdbId) : await importSeries(tmdbId);
+      if (ok) imported++; else existed++;
+    } catch {
+      existed++;
+    }
+  }
+
+  res.json({ ok: true, summary: { imported, existed_or_error: existed, total: Math.min(tmdb_ids.length, 100) } });
 });
 
 // POST /api/admin/cleanup-no-vidsrc — delete movies/series where vidsrc_status = 'inactive'

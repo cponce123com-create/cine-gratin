@@ -14,7 +14,7 @@ async function getImdbIdExists(imdbId: string, table: "movies" | "cv_series"): P
   return rows.length > 0;
 }
 
-async function importMovie(tmdbId: number): Promise<boolean> {
+export async function importMovie(tmdbId: number): Promise<boolean> {
   try {
     const data = await fetchMovieByTmdbId(tmdbId);
     if (!data || !data.imdb_id) return false;
@@ -47,7 +47,7 @@ async function importMovie(tmdbId: number): Promise<boolean> {
   }
 }
 
-async function importSeries(tmdbId: number): Promise<boolean> {
+export async function importSeries(tmdbId: number): Promise<boolean> {
   try {
     const data = await fetchSeriesByTmdbId(tmdbId);
     if (!data || !data.imdb_id) return false;
