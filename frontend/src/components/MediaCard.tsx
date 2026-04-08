@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import type { Movie, Series } from "@/lib/types";
-import { optimizeImageUrl } from "@/lib/utils";
+import { optimizeImageUrl, tmdbSrcSet } from "@/lib/utils";
 
 interface MediaCardProps {
   item: Movie | Series;
@@ -22,6 +22,8 @@ export default function MediaCard({ item, type, size = "md" }: MediaCardProps) {
 
   const posterSize = size === "sm" ? "small" : size === "lg" ? "large" : "medium";
   const posterUrl = optimizeImageUrl(item.poster_url, posterSize);
+  const posterSrcSet = tmdbSrcSet(item.poster_url);
+  const posterSizes = size === "sm" ? "128px" : size === "lg" ? "(max-width:640px) 176px, 208px" : "(max-width:640px) 144px, 176px";
 
   const hasRating = item.rating !== undefined && item.rating !== null && Number(item.rating) > 0;
 
@@ -32,6 +34,8 @@ export default function MediaCard({ item, type, size = "md" }: MediaCardProps) {
         <div className="aspect-[2/3] w-full relative">
           <img
             src={posterUrl || FALLBACK_POSTER}
+            srcSet={posterSrcSet || undefined}
+            sizes={posterSrcSet ? posterSizes : undefined}
             alt={item.title}
             loading="lazy"
             decoding="async"

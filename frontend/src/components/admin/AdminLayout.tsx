@@ -61,6 +61,16 @@ const NAV: NavItem[] = [
     ),
   },
   {
+    to: "/admin/tmdb",
+    label: "Explorador TMDB",
+    icon: (
+      <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="11" cy="11" r="8" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="m21 21-4.35-4.35" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  {
     to: "/admin/sport-channels",
     label: "⚽ Deportes",
     icon: (
