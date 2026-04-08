@@ -103,6 +103,37 @@ export async function importByImdbId(
   }
 
   try {
+    // If it's a custom ID (like "ev"), we might not find it on TMDB
+    // For now, let's allow it to be added manually if it doesn't exist
+    if (imdbId.startsWith("ev")) {
+      const table = type === "movie" ? "movies" : "cv_series";
+      const exists = await getImdbIdExists(imdbId, table);
+      if (exists) {
+        return { imdb_id: imdbId, title: "Evento Deportivo", status: "existed" };
+      }
+      
+      // Create a placeholder entry for custom IDs
+      const id = `custom_${imdbId}`;
+      const title = `Evento ${imdbId}`;
+      const slug = makeSlug(title, new Date().getFullYear());
+      
+      if (type === "movie") {
+        await pool.query(
+          `INSERT INTO movies (id, imdb_id, title, year, genres, slug, auto_imported, networks)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (id) DO NOTHING`,
+          [id, imdbId, title, new Date().getFullYear(), ["Fútbol"], slug, true, ["Deportes"]]
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO cv_series (id, imdb_id, title, year, genres, auto_imported, networks)
+           VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (id) DO NOTHING`,
+          [id, imdbId, title, new Date().getFullYear(), ["Fútbol"], true, ["Deportes"]]
+        );
+      }
+      
+      return { imdb_id: imdbId, title, status: "imported" };
+    }
+
     // Find the TMDB entry by IMDb ID
     const findRes = await tmdbFetch(`/find/${imdbId}?external_source=imdb_id`);
     if (!findRes.ok) {

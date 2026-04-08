@@ -33,7 +33,7 @@ type Phase = "snapshot_before" | "importing" | "snapshot_after";
 // ─── Utils ───────────────────────────────────────────────────────────────────
 
 function extractImdbIds(text: string): string[] {
-  const matches = text.match(/tt\d{7,8}/gi) ?? [];
+  const matches = text.match(/(tt|ev)\d{7,8}/gi) ?? [];
   return [...new Set(matches.map((id) => id.toLowerCase()))];
 }
 

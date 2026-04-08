@@ -71,6 +71,11 @@ export const GENRE_SECTIONS: GenreSection[] = [
     label: "Romance",
     keywords: ["romance", "romantic"],
   },
+  {
+    id: "futbol",
+    label: "Fútbol",
+    keywords: ["fútbol", "futbol", "soccer", "football", "deportes", "sports"],
+  },
 ];
 
 // ── Platform sections (future) ────────────────────────────────────────────────
