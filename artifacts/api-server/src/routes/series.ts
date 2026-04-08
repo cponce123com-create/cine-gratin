@@ -34,7 +34,7 @@ const toSeries = (row: Record<string, unknown>) => ({
 // GET /api/series
 router.get("/series", async (req, res) => {
   try {
-    const { rows } = await pool.query("SELECT * FROM cv_series ORDER BY date_added DESC");
+    const { rows } = await pool.query("SELECT * FROM cv_series ORDER BY year DESC, date_added DESC");
     res.json(rows.map(toSeries));
   } catch (e) {
     res.status(500).json({ error: String(e) });

@@ -45,6 +45,14 @@ function buildMixed(
   const result: MixedItem[] = [];
   for (const m of movies) if (filterFn(m)) result.push({ item: m, type: "movie" });
   for (const s of series) if (filterSeries(s)) result.push({ item: s, type: "series" });
+  
+  // Sort by year descending (most recent first)
+  result.sort((a, b) => {
+    const yearA = Number(a.item.year) || 0;
+    const yearB = Number(b.item.year) || 0;
+    return yearB - yearA;
+  });
+
   return result.slice(0, MAX_PER_SECTION);
 }
 

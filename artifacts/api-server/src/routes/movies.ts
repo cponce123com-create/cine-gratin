@@ -33,7 +33,7 @@ const toMovie = (row: Record<string, unknown>) => ({
 // GET /api/movies
 router.get("/movies", async (req, res) => {
   try {
-    const { rows } = await pool.query("SELECT * FROM movies ORDER BY date_added DESC");
+    const { rows } = await pool.query("SELECT * FROM movies ORDER BY year DESC, date_added DESC");
     res.json(rows.map(toMovie));
   } catch (e) {
     res.status(500).json({ error: String(e) });
