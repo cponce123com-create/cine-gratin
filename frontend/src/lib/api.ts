@@ -105,11 +105,10 @@ export const importByIds = (
 ): Promise<ImportByIdsResponse> =>
   adminPost("/api/admin/import-by-ids", { imdb_ids, type });
 
-export const verifyVidsrc = (
-  imdb_ids: string[],
-  type: "movie" | "series"
+export const saveVidsrcResults = (
+  results: { imdb_id: string; type: "movie" | "series"; available: boolean }[]
 ): Promise<VidsrcResult[]> =>
-  adminPost("/api/admin/verify-vidsrc", { imdb_ids, type });
+  adminPost("/api/admin/verify-vidsrc", { results });
 
 export const getAdminStats = (): Promise<AdminStats> =>
   adminFetch("/api/admin/stats");
