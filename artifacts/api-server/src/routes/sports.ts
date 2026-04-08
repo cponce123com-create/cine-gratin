@@ -81,8 +81,8 @@ async function syncChannel(
 ): Promise<{ imported: number; existed: number }> {
   const ytChannelId = await resolveChannelId(channelUrl, apiKey);
 
-  // Use a more strict search query if keyword is default
-  const searchQuery = keyword.toUpperCase().includes("FULL MATCH") ? "FULL MATCH" : keyword;
+  // Use the provided keyword for search query (defaults to 'FULL MATCH' in DB, but we won't enforce it in title filter)
+  const searchQuery = keyword || "";
 
   const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${ytChannelId}&q=${encodeURIComponent(searchQuery)}&type=video&order=date&maxResults=50&key=${apiKey}`;
   const res = await fetch(searchUrl);
@@ -122,12 +122,7 @@ async function syncChannel(
     const durationStr = item.contentDetails.duration;
     const durationMinutes = parseDurationToMinutes(durationStr);
 
-    // Filter 1: Title must contain "FULL MATCH" (case insensitive)
-    if (!title.toUpperCase().includes("FULL MATCH")) {
-      continue;
-    }
-
-    // Filter 2: Duration must be at least 50 minutes
+    // Filter 1: Duration must be at least 50 minutes (Removed "FULL MATCH" title filter)
     if (durationMinutes < 50) {
       continue;
     }
