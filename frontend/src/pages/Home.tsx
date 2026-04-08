@@ -148,14 +148,14 @@ export default function Home() {
       if (sec.type === "classics") {
         items = buildMixed(
           allMovies, allSeries,
-          (m) => (Number(m.year) || 0) < 2010,
-          (s) => (Number(s.year) || 0) < 2010
+          (m) => (Number(m.year) || 0) <= 2000,
+          (s) => (Number(s.year) || 0) <= 2000
         ).sort((a, b) => (Number(b.item.views) || 0) - (Number(a.item.views) || 0));
       } else if (sec.type === "old-animation") {
         items = buildMixed(
           allMovies, allSeries,
-          (m) => (Number(m.year) || 0) < 2010 && matchesKeywords(m.genres, ["animación", "animation"]),
-          (s) => (Number(s.year) || 0) < 2010 && matchesKeywords(s.genres, ["animación", "animation"])
+          (m) => (Number(m.year) || 0) <= 1990 && matchesKeywords(m.genres, ["animación", "animation"]),
+          (s) => (Number(s.year) || 0) <= 1990 && matchesKeywords(s.genres, ["animación", "animation"])
         ).sort((a, b) => (Number(b.item.views) || 0) - (Number(a.item.views) || 0));
       }
       return { ...sec, items };

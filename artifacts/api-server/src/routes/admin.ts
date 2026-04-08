@@ -316,4 +316,28 @@ router.post("/admin/cleanup-missing-images", async (req, res) => {
   }
 });
 
+// POST /api/admin/cleanup-no-vidsrc — delete movies/series where vidsrc_status = 'inactive'
+router.post("/admin/cleanup-no-vidsrc", async (_req, res) => {
+  try {
+    const movieResult = await pool.query(
+      "DELETE FROM movies WHERE vidsrc_status = 'inactive' RETURNING id"
+    );
+    const seriesResult = await pool.query(
+      "DELETE FROM cv_series WHERE vidsrc_status = 'inactive' RETURNING id"
+    );
+    const deletedMovies = movieResult.rowCount || 0;
+    const deletedSeries = seriesResult.rowCount || 0;
+    res.json({
+      ok: true,
+      summary: {
+        movies: deletedMovies,
+        series: deletedSeries,
+        total: deletedMovies + deletedSeries,
+      },
+    });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
 export default router;
