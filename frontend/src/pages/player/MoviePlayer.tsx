@@ -10,7 +10,7 @@ interface Server {
 }
 
 const SERVERS: Server[] = [
-  { label: "Servidor 1", url: (id) => `https://vidsrc.net/embed/movie/${id}/` },
+  { label: "Servidor 1", url: (id) => `https://vsembed.ru/embed/movie/${id}/` },
 ];
 
 export default function MoviePlayer() {

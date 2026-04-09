@@ -11,7 +11,7 @@ interface Server {
 }
 
 const SERVERS: Server[] = [
-  { label: "Servidor 1", url: (id, s, e) => `https://vidsrc.net/embed/tv/${id}/${s}-${e}/` },
+  { label: "Servidor 1", url: (id, s, e) => `https://vsembed.ru/embed/tv/${id}/${s}-${e}/` },
 ];
 
 function parseSeasons(raw: unknown): SeasonData[] {
