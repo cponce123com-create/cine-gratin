@@ -543,18 +543,32 @@ router.get("/admin/vidsrc-list", async (req, res) => {
 });
 
 
-// GET /api/admin/vidsrc-test — prueba si el servidor puede acceder a vidsrc.me
+// GET /api/admin/vidsrc-test — prueba acceso a vidsrc.me y vsembed.ru
 router.get("/admin/vidsrc-test", async (_req, res) => {
-  try {
-    const r = await fetch("https://vidsrc.me/movies/latest/page-1.json", {
-      headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
-      signal: AbortSignal.timeout(10_000),
-    });
-    const text = await r.text();
-    res.json({ status: r.status, ok: r.ok, bodyLength: text.length, preview: text.slice(0, 200) });
-  } catch (e) {
-    res.json({ error: String(e), ok: false });
-  }
+  const test = async (url: string) => {
+    try {
+      const r = await fetch(url, {
+        headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
+        signal: AbortSignal.timeout(10_000),
+      });
+      const text = await r.text();
+      let parsed: unknown = null;
+      try { parsed = JSON.parse(text); } catch { /* ignore */ }
+      const result = parsed as { result?: unknown[]; pages?: number } | null;
+      return { status: r.status, ok: r.ok, bodyLength: text.length, items: result?.result ? (result.result as unknown[]).length : 0, pages: result?.pages ?? null };
+    } catch (e) {
+      return { ok: false, error: String(e) };
+    }
+  };
+
+  const [movies, series, vsembedMovies, vsembedSeries] = await Promise.all([
+    test("https://vidsrc.me/movies/latest/page-1.json"),
+    test("https://vidsrc.me/tvshows/latest/page-1.json"),
+    test("https://vsembed.ru/movies/latest/page-1.json"),
+    test("https://vsembed.ru/tvshows/latest/page-1.json"),
+  ]);
+
+  res.json({ "vidsrc.me/movies": movies, "vidsrc.me/series": series, "vsembed.ru/movies": vsembedMovies, "vsembed.ru/series": vsembedSeries });
 });
 
 export default router;
