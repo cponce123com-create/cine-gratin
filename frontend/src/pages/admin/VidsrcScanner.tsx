@@ -89,13 +89,16 @@ export default function VidsrcScanner() {
   const startScan = async () => {
     stopRef.current = false;
     setPhase("downloading");
-    setProgress({ pagesLoaded: 0, matched: 0, total: rows.length });
     setCounts({ active: 0, inactive: 0 });
-    // Reset all rows to pending
-    setRows(prev => prev.map(r => ({ ...r, status: "pending" })));
+
+    // IMPORTANTE: guardar snapshot del catálogo ANTES de resetear el estado
+    // porque dentro del closure async, "rows" no se actualiza con setRows()
+    const catalog = rows.map(r => ({ ...r, status: "pending" as RowStatus }));
+    setRows(catalog);
+    setProgress({ pagesLoaded: 0, totalPages: 0, matched: 0, total: catalog.length });
 
     try {
-      // Download both movie and TV lists in parallel
+      // Descargar listas de vidsrc.me en paralelo
       const [movieSet, tvSet] = await Promise.all([
         fetchVidsrcMovSet("movie"),
         fetchVidsrcMovSet("series"),
@@ -104,11 +107,12 @@ export default function VidsrcScanner() {
       if (stopRef.current) { setPhase("idle"); return; }
 
       setPhase("matching");
-      const total = rows.length;
+      const total = catalog.length;
       let matched = 0, active = 0, inactive = 0;
       const toSave: { imdb_id: string; type: "movie" | "series"; available: boolean }[] = [];
 
-      const updatedRows = rows.map(row => {
+      // Usar catalog (snapshot local) en vez de rows (estado React desactualizado)
+      const updatedRows = catalog.map(row => {
         const isAvailable = row.type === "movie"
           ? movieSet.has(row.imdb_id)
           : tvSet.has(row.imdb_id);
@@ -120,10 +124,10 @@ export default function VidsrcScanner() {
       });
 
       setRows(updatedRows);
-      setProgress({ pagesLoaded: 0, matched, total });
+      setProgress({ pagesLoaded: 0, totalPages: 0, matched, total });
       setCounts({ active, inactive });
 
-      // Save to DB in batches of 100
+      // Guardar en BD en lotes de 100
       for (let i = 0; i < toSave.length; i += 100) {
         await saveVidsrcResults(toSave.slice(i, i + 100)).catch(() => {});
       }
