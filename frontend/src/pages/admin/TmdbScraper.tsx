@@ -87,7 +87,7 @@ export default function TmdbScraper() {
         language: language || undefined,
         min_votes: Number(minVotes) || 0,
         page: p,
-        count: 500,
+        count: 2000,
       });
       setResults(data.results);
       setTotalResults(data.total_results);
