@@ -9,8 +9,8 @@ const router = Router();
 router.get("/admin/stats", async (_req, res) => {
   try {
     const [moviesCount, seriesCount, totalViews, topMovies, topSeries, recentTrends] = await Promise.all([
-      pool.query("SELECT COUNT(*) as count FROM movies"),
-      pool.query("SELECT COUNT(*) as count FROM cv_series"),
+      pool.query("SELECT COUNT(DISTINCT imdb_id) as count FROM movies WHERE imdb_id IS NOT NULL AND imdb_id != ''"),
+      pool.query("SELECT COUNT(DISTINCT imdb_id) as count FROM cv_series WHERE imdb_id IS NOT NULL AND imdb_id != ''"),
       pool.query(`
         SELECT 
           (SELECT COALESCE(SUM(views), 0) FROM movies) + 
@@ -132,63 +132,34 @@ router.post("/admin/import-by-ids", async (req, res) => {
 });
 
 // POST /api/admin/verify-vidsrc
+// El frontend verifica los iframes directamente (el servidor no puede acceder a vidsrc.net)
+// y luego envía los resultados aquí para guardarlos en la BD.
 router.post("/admin/verify-vidsrc", async (req, res) => {
-  const { imdb_ids, type = "movie" } = req.body as { imdb_ids: string[]; type?: "movie" | "series" };
+  const { results: clientResults } = req.body as {
+    results: { imdb_id: string; type: "movie" | "series"; available: boolean }[];
+  };
 
-  if (!Array.isArray(imdb_ids) || imdb_ids.length === 0) {
-    return res.status(400).json({ error: "Se requiere un array imdb_ids" });
+  if (!Array.isArray(clientResults) || clientResults.length === 0) {
+    return res.status(400).json({ error: "Se requiere un array results" });
   }
 
-  const results: { imdb_id: string; available: boolean }[] = [];
+  const saved: { imdb_id: string; available: boolean }[] = [];
 
-  for (const imdbId of imdb_ids.slice(0, 50)) {
+  for (const item of clientResults) {
     try {
-      const url = type === "series"
-        ? `https://vidsrc.net/embed/tv/${imdbId}/`
-        : `https://vidsrc.net/embed/movie/${imdbId}/`;
-
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000);
-
-      let available = false;
-      try {
-        // vidsrc.net bloquea HEAD — usamos GET y leemos un fragmento pequeño
-        const r = await fetch(url, {
-          method: "GET",
-          signal: controller.signal,
-          headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml",
-          },
-        });
-        if (r.status >= 200 && r.status < 400) {
-          const text = await r.text().then((t) => t.slice(0, 3000)).catch(() => "");
-          // vidsrc.net devuelve página con "not found" o body vacío si el contenido no existe
-          const isNotFound =
-            text.toLowerCase().includes("not found") ||
-            text.toLowerCase().includes("no source") ||
-            text.toLowerCase().includes("404") ||
-            text.trim().length < 50;
-          available = !isNotFound;
-        }
-      } catch {
-        available = false;
-      } finally {
-        clearTimeout(timeout);
-      }
-
-      results.push({ imdb_id: imdbId, available });
-
-      // Update DB
-      const status = available ? "active" : "inactive";
-      const table = type === "series" ? "cv_series" : "movies";
-      await pool.query(`UPDATE ${table} SET vidsrc_status = $1 WHERE imdb_id = $2`, [status, imdbId]);
-    } catch (err) {
-      results.push({ imdb_id: imdbId, available: false });
+      const status = item.available ? "active" : "inactive";
+      const table = item.type === "series" ? "cv_series" : "movies";
+      await pool.query(
+        `UPDATE ${table} SET vidsrc_status = $1 WHERE imdb_id = $2`,
+        [status, item.imdb_id]
+      );
+      saved.push({ imdb_id: item.imdb_id, available: item.available });
+    } catch {
+      // ignorar errores individuales
     }
   }
 
-  res.json(results);
+  res.json(saved);
 });
 
 // POST /api/admin/scan-networks — scan existing media to update networks/production companies
@@ -354,7 +325,7 @@ router.post("/admin/tmdb-discover", async (req, res) => {
     language,
     min_votes = 50,
     page = 1,
-    count = 500,
+    count = 2000,
   } = req.body as {
     type?: "movie" | "series";
     genre_ids?: string;
@@ -368,7 +339,7 @@ router.post("/admin/tmdb-discover", async (req, res) => {
   };
 
   // Each TMDB page = 20 items. Clamp batch size to [20, 500].
-  const batchSize = Math.min(Math.max(20, count), 500);
+  const batchSize = Math.min(Math.max(20, count), 2000);
   const pagesPerBatch = Math.ceil(batchSize / 20); // e.g. 25 for 500
   const startTmdbPage = (page - 1) * pagesPerBatch + 1;
 
