@@ -468,60 +468,58 @@ router.post("/admin/cleanup-no-vidsrc", async (_req, res) => {
 
 
 // GET /api/admin/vidsrc-range?type=movie|series&from=1&to=100
-// Descarga un rango de páginas de vidsrc.me y devuelve los IMDb IDs
-// El frontend llama esto varias veces con rangos de 100 páginas para evitar timeout
+// GET /api/admin/vidsrc-range?type=movie|series&from=N&to=M
+// Descarga páginas [from..to] de vidsrc.me secuencialmente (5 a la vez)
+// Secuencial para no rate-limitear vidsrc.me
 router.get("/admin/vidsrc-range", async (req, res) => {
   const type = req.query.type === "series" ? "tvshows" : "movies";
   const from = Math.max(1, parseInt(String(req.query.from ?? "1"), 10) || 1);
-  const requested_to = parseInt(String(req.query.to ?? String(from + 49)), 10) || from + 49;
-  const to = Math.min(from + 199, requested_to); // max 200 pages per request
+  const to   = Math.min(from + 49, parseInt(String(req.query.to ?? String(from + 49)), 10) || from + 49);
 
-  const fetchPage = async (page: number): Promise<{ imdb_id: string }[]> => {
+  const fetchPage = async (page: number): Promise<string[]> => {
     const url = `https://vidsrc.me/${type}/latest/page-${page}.json`;
-    try {
-      const r = await fetch(url, {
-        headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
-        signal: AbortSignal.timeout(8_000),
-      });
-      if (!r.ok) return [];
-      const data = await r.json() as { result?: { imdb_id: string }[]; pages?: number };
-      return data.result ?? [];
-    } catch { return []; }
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const r = await fetch(url, {
+          headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
+          signal: AbortSignal.timeout(12_000),
+        });
+        if (!r.ok) { await new Promise(r => setTimeout(r, 500)); continue; }
+        const data = await r.json() as { result?: { imdb_id?: string }[]; pages?: number };
+        return (data.result ?? []).map(i => i.imdb_id).filter(Boolean) as string[];
+      } catch { await new Promise(r => setTimeout(r, 500)); }
+    }
+    return [];
   };
 
   try {
     let totalPages = to;
+    const allIds: string[] = [];
 
-    // Si es la primera página, obtener el total real
+    // Página 1 siempre devuelve el total real de páginas
     if (from === 1) {
       const r1 = await fetch(`https://vidsrc.me/${type}/latest/page-1.json`, {
         headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
-        signal: AbortSignal.timeout(8_000),
+        signal: AbortSignal.timeout(12_000),
       });
       if (!r1.ok) return res.status(500).json({ error: "vidsrc.me no responde" });
-      const d1 = await r1.json() as { result?: { imdb_id: string }[]; pages?: number };
+      const d1 = await r1.json() as { result?: { imdb_id?: string }[]; pages?: number };
       totalPages = d1.pages ?? to;
-      const ids = (d1.result ?? []).filter(i => i.imdb_id).map(i => i.imdb_id);
-      // Fetch pages 2..to in parallel chunks of 20
-      const rest: string[] = [];
-      const CHUNK = 20;
-      for (let p = 2; p <= Math.min(to, totalPages); p += CHUNK) {
-        const chunk = Array.from({ length: Math.min(CHUNK, Math.min(to, totalPages) - p + 1) }, (_, i) => p + i);
-        const results = await Promise.all(chunk.map(fetchPage));
-        for (const items of results) rest.push(...items.filter(i => i.imdb_id).map(i => i.imdb_id));
-      }
-      return res.json({ totalPages, imdb_ids: [...ids, ...rest] });
+      allIds.push(...(d1.result ?? []).map(i => i.imdb_id).filter(Boolean) as string[]);
     }
 
-    // For subsequent ranges, fetch pages from..to in parallel chunks of 20
-    const allIds: string[] = [];
-    const CHUNK = 20;
-    for (let p = from; p <= to; p += CHUNK) {
+    // Descargar páginas de 5 en 5 (no demasiado agresivo)
+    const startPage = from === 1 ? 2 : from;
+    const CHUNK = 5;
+    for (let p = startPage; p <= to; p += CHUNK) {
       const chunk = Array.from({ length: Math.min(CHUNK, to - p + 1) }, (_, i) => p + i);
       const results = await Promise.all(chunk.map(fetchPage));
-      for (const items of results) allIds.push(...items.filter(i => i.imdb_id).map(i => i.imdb_id));
+      for (const ids of results) allIds.push(...ids);
+      // Pequeña pausa entre chunks para no sobrecargar vidsrc.me
+      if (p + CHUNK <= to) await new Promise(r => setTimeout(r, 300));
     }
-    res.json({ totalPages: to, imdb_ids: allIds });
+
+    res.json({ totalPages, imdb_ids: allIds });
   } catch (e) {
     res.status(500).json({ error: String(e) });
   }
