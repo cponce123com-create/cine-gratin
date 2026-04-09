@@ -367,6 +367,7 @@ function CollectionImportSection() {
   const [error, setError] = useState("");
   const [scanning, setScanning] = useState(false);
   const [scanDone, setScanDone] = useState(false);
+  const [forceRescan, setForceRescan] = useState(false);
   const [scanProgress, setScanProgress] = useState({ current: 0, total: 0, updated: 0, no_collection: 0, error: 0, title: "" });
   const scanEsRef = useRef<EventSource | null>(null);
 
@@ -377,7 +378,10 @@ function CollectionImportSection() {
     setScanProgress({ current: 0, total: 0, updated: 0, no_collection: 0, error: 0, title: "" });
 
     const token = localStorage.getItem("cg_admin_token") ?? "";
-    const url = `/api/admin/scan-collections-stream${token ? `?token=${token}` : ""}`;
+    const params = new URLSearchParams();
+    if (token) params.set("token", token);
+    if (forceRescan) params.set("force", "1");
+    const url = `/api/admin/scan-collections-stream?${params.toString()}`;
     const es = new EventSource(url);
     scanEsRef.current = es;
 
@@ -448,18 +452,25 @@ function CollectionImportSection() {
             <p className="text-white text-sm font-semibold">Escanear colecciones existentes</p>
             <p className="text-gray-500 text-xs mt-0.5">Actualiza el campo collection_id en todas las películas que aún no lo tienen. Necesario para que las sagas funcionen correctamente en el Home.</p>
           </div>
-          {!scanning ? (
-            <button onClick={handleScanCollections}
-              className="flex-shrink-0 flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors">
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35" strokeLinecap="round"/></svg>
-              {scanDone ? "Re-escanear" : "Escanear ahora"}
-            </button>
-          ) : (
-            <button onClick={() => { scanEsRef.current?.close(); setScanning(false); }}
-              className="flex-shrink-0 bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors">
-              Detener
-            </button>
-          )}
+          <div className="flex flex-col items-end gap-2">
+            <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
+              <input type="checkbox" checked={forceRescan} onChange={e => setForceRescan(e.target.checked)}
+                className="w-3 h-3 accent-brand-red" />
+              Re-escanear todo
+            </label>
+            {!scanning ? (
+              <button onClick={handleScanCollections}
+                className="flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors">
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35" strokeLinecap="round"/></svg>
+                {scanDone ? "Re-escanear" : "Escanear ahora"}
+              </button>
+            ) : (
+              <button onClick={() => { scanEsRef.current?.close(); setScanning(false); }}
+                className="bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors">
+                Detener
+              </button>
+            )}
+          </div>
         </div>
         {(scanning || scanDone) && scanProgress.total > 0 && (
           <div className="space-y-1.5">
