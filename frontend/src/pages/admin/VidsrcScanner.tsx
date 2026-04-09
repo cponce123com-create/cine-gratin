@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
-import { getMovies, getSeries, saveVidsrcResults } from "@/lib/api";
+import { getMovies, getSeries, saveVidsrcResults, cleanupNoVidsrc } from "@/lib/api";
 import type { Movie, Series } from "@/lib/types";
 
 type RowStatus = "pending" | "active" | "inactive";
@@ -18,6 +18,8 @@ export default function VidsrcScanner() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [progress, setProgress] = useState({ pagesLoaded: 0, totalPages: 0, matched: 0, total: 0 });
   const [counts, setCounts] = useState({ active: 0, inactive: 0 });
+  const [cleaning, setCleaning] = useState(false);
+  const [cleanResult, setCleanResult] = useState<{ movies: number; series: number; total: number } | null>(null);
   const [typeFilter, setTypeFilter] = useState<"all" | "movie" | "series">("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive" | "pending">("all");
   const stopRef = useRef(false);
@@ -94,6 +96,23 @@ export default function VidsrcScanner() {
       void pagesLoaded; // suppress unused warning
     }
     return available;
+  };
+
+  const handleCleanup = async () => {
+    if (!confirm(`¿Eliminar los ${counts.inactive} títulos sin video? Esta acción no se puede deshacer.`)) return;
+    setCleaning(true);
+    setCleanResult(null);
+    try {
+      const res = await cleanupNoVidsrc();
+      setCleanResult(res.summary);
+      // Remove deleted rows from table
+      setRows(prev => prev.filter(r => r.status !== "inactive"));
+      setCounts(prev => ({ ...prev, inactive: 0 }));
+    } catch {
+      alert("Error al eliminar los títulos.");
+    } finally {
+      setCleaning(false);
+    }
   };
 
   const startScan = async () => {
@@ -231,9 +250,27 @@ export default function VidsrcScanner() {
                   style={{ width: phase === "done" ? "100%" : phase === "downloading" ? "33%" : `${Math.min(pct, 99)}%` }} />
               </div>
               {(phase === "matching" || phase === "done") && (
-                <div className="flex gap-5 text-xs pt-0.5">
-                  <span className="text-green-400">✅ {counts.active} con video en vidsrc.me</span>
-                  <span className="text-red-400">❌ {counts.inactive} sin video</span>
+                <div className="flex flex-wrap items-center gap-4 pt-0.5">
+                  <span className="text-green-400 text-xs">✅ {counts.active} con video en vidsrc.me</span>
+                  <span className="text-red-400 text-xs">❌ {counts.inactive} sin video</span>
+                  {phase === "done" && counts.inactive > 0 && (
+                    <button
+                      onClick={handleCleanup}
+                      disabled={cleaning}
+                      className="flex items-center gap-1.5 bg-red-900/20 border border-red-800/40 hover:bg-red-900/30 text-red-400 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 ml-auto"
+                    >
+                      {cleaning ? (
+                        <><span className="w-3 h-3 rounded-full border-2 border-red-500 border-t-white animate-spin" /> Eliminando...</>
+                      ) : (
+                        <><TrashIcon /> Eliminar {counts.inactive} sin video</>
+                      )}
+                    </button>
+                  )}
+                </div>
+              )}
+              {cleanResult && (
+                <div className="mt-2 text-xs text-green-400 bg-green-900/15 border border-green-800/30 rounded-lg px-3 py-2">
+                  ✅ Eliminados: {cleanResult.movies} películas y {cleanResult.series} series ({cleanResult.total} en total)
                 </div>
               )}
             </div>
@@ -306,6 +343,13 @@ export default function VidsrcScanner() {
 
 function PlayIcon() {
   return <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>;
+}
+function TrashIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </svg>
+  );
 }
 function StopIcon() {
   return <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2" /></svg>;
