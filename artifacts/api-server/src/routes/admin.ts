@@ -606,4 +606,46 @@ router.get("/admin/vidsrc-test", async (_req, res) => {
   res.json({ totalPages, found, notFound: Array.from(targetIds) });
 });
 
+
+// POST /api/admin/import-collection — import all movies from a TMDB collection by ID
+router.post("/admin/import-collection", async (req, res) => {
+  const { collection_id } = req.body as { collection_id: number };
+
+  if (!collection_id) {
+    return res.status(400).json({ error: "Se requiere collection_id" });
+  }
+
+  try {
+    // Fetch collection details from TMDB
+    const r = await tmdbFetch(`/collection/${collection_id}?language=es-MX`);
+    if (!r.ok) return res.status(404).json({ error: "Colección no encontrada en TMDB" });
+
+    const data = await r.json() as {
+      id: number;
+      name: string;
+      parts: { id: number; title?: string; name?: string; media_type?: string }[];
+    };
+
+    const parts = data.parts ?? [];
+    if (parts.length === 0) {
+      return res.json({ ok: true, collection: data.name, imported: 0, existed: 0, total: 0, titles: [] });
+    }
+
+    let imported = 0, existed = 0;
+    const titles: string[] = [];
+
+    for (const part of parts) {
+      try {
+        const ok = await importMovie(part.id);
+        if (ok) { imported++; titles.push(part.title || part.name || String(part.id)); }
+        else existed++;
+      } catch { existed++; }
+    }
+
+    res.json({ ok: true, collection: data.name, imported, existed, total: parts.length, titles });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
 export default router;
