@@ -126,51 +126,29 @@ export default function AdminDashboard() {
     }
   };
 
-  // Verifica un título cargando su iframe y leyendo el texto resultante.
-  // vidsrc.net muestra "This media is unavailable at the moment." cuando no hay video.
-  const checkOneVidsrc = (imdbId: string, type: "movie" | "series"): Promise<boolean> => {
-    return new Promise((resolve) => {
-      const url = type === "series"
-        ? `https://vidsrc.net/embed/tv/${imdbId}/`
-        : `https://vidsrc.net/embed/movie/${imdbId}/`;
-
-      const iframe = document.createElement("iframe");
-      iframe.src = url;
-      // Tamaño real mínimo para que el contenido se renderice, pero invisible
-      iframe.style.cssText = "position:fixed;width:400px;height:300px;opacity:0;pointer-events:none;top:-9999px;left:-9999px;";
-      // allow-same-origin es necesario para leer iframe.contentDocument
-      iframe.sandbox.add("allow-scripts", "allow-same-origin");
-
-      let settled = false;
-      const finish = (available: boolean) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        try { document.body.removeChild(iframe); } catch { /* ignorar */ }
-        resolve(available);
-      };
-
-      iframe.onload = () => {
-        try {
-          const body = iframe.contentDocument?.body?.innerText ?? "";
-          // Si el body contiene el mensaje de no disponible → sin video
-          const unavailable = body.toLowerCase().includes("unavailable") ||
-                              body.toLowerCase().includes("not found") ||
-                              body.toLowerCase().includes("no source");
-          finish(!unavailable);
-        } catch {
-          // No se pudo leer el contenido (cross-origin bloqueado) → asumimos disponible
-          finish(true);
-        }
-      };
-
-      iframe.onerror = () => finish(false);
-
-      // Timeout: si no responde en 15s asumimos disponible
-      const timer = setTimeout(() => finish(true), 15000);
-
-      document.body.appendChild(iframe);
-    });
+  // Verifica un título haciendo fetch() desde el navegador.
+  // vidsrc.net siempre devuelve HTTP 200 pero el HTML contiene
+  // "This media is unavailable" cuando no hay video disponible.
+  const checkOneVidsrc = async (imdbId: string, type: "movie" | "series"): Promise<boolean> => {
+    const url = type === "series"
+      ? `https://vidsrc.net/embed/tv/${imdbId}/`
+      : `https://vidsrc.net/embed/movie/${imdbId}/`;
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 15000);
+      const res = await fetch(url, {
+        signal: controller.signal,
+        // no-cors porque no necesitamos leer headers, solo el body
+        credentials: "omit",
+      });
+      clearTimeout(timer);
+      const html = await res.text();
+      // Si el HTML contiene el mensaje de no disponible → sin video
+      return !html.toLowerCase().includes("this media is unavailable");
+    } catch {
+      // Error de red o timeout → marcamos como inactivo
+      return false;
+    }
   };
 
   const handleVerifyVidsrc = async () => {
