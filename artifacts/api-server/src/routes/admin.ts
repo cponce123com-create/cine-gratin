@@ -467,4 +467,30 @@ router.post("/admin/cleanup-no-vidsrc", async (_req, res) => {
   }
 });
 
+
+// GET /api/admin/vidsrc-list?type=movie|series&page=N
+// Proxy hacia vidsrc.me para evitar CORS desde el frontend
+router.get("/admin/vidsrc-list", async (req, res) => {
+  const type = req.query.type === "series" ? "tvshows" : "movies";
+  const page = parseInt(String(req.query.page ?? "1"), 10) || 1;
+  const url = `https://vidsrc.me/${type}/latest/page-${page}.json`;
+  try {
+    const r = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept": "application/json",
+      },
+    });
+    if (!r.ok) {
+      return res.status(r.status).json({ error: `vidsrc.me responded ${r.status}` });
+    }
+    const data = await r.json();
+    // Add CORS header so browser can read it
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
 export default router;
