@@ -161,13 +161,82 @@ router.post("/admin/verify-vidsrc", async (req, res) => {
   }
 });
 
+// GET /api/admin/scan-networks-stream — SSE stream para escanear productoras con progreso
+router.get("/admin/scan-networks-stream", async (req, res) => {
+  const type = (req.query.type as string) === "series" ? "series" : "movie";
+  const table = type === "series" ? "cv_series" : "movies";
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  const send = (event: string, data: unknown) => {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  try {
+    const { rows: items } = await pool.query(
+      `SELECT id, imdb_id, title, networks FROM ${table} ORDER BY date_added DESC`,
+      []
+    );
+
+    send("start", { total: items.length });
+
+    let updated = 0, no_change = 0, error = 0;
+
+    for (let i = 0; i < items.length; i++) {
+      if (req.destroyed) break;
+      const item = items[i];
+      try {
+        if (!item.imdb_id) {
+          error++;
+          send("progress", { i: i + 1, total: items.length, title: item.title, status: "error", updated, no_change, error });
+          continue;
+        }
+
+        const findRes = await tmdbFetch(`/find/${item.imdb_id}?external_source=imdb_id`);
+        if (!findRes.ok) { error++; send("progress", { i: i + 1, total: items.length, title: item.title, status: "error", updated, no_change, error }); continue; }
+        const findData = await findRes.json() as any;
+        const tmdbResults = type === "series" ? findData.tv_results : findData.movie_results;
+        if (!tmdbResults?.length) { error++; send("progress", { i: i + 1, total: items.length, title: item.title, status: "error", updated, no_change, error }); continue; }
+
+        const tmdbId = tmdbResults[0].id;
+        const data = type === "series" ? await fetchSeriesByTmdbId(tmdbId) : await fetchMovieByTmdbId(tmdbId);
+        if (!data?.networks) { error++; send("progress", { i: i + 1, total: items.length, title: item.title, status: "error", updated, no_change, error }); continue; }
+
+        const newNetworks = data.networks as string[];
+        const oldNetworks = (item.networks || []) as string[];
+        const isDifferent = JSON.stringify([...newNetworks].sort()) !== JSON.stringify([...oldNetworks].sort());
+
+        if (isDifferent) {
+          await pool.query(`UPDATE ${table} SET networks = $1 WHERE id = $2`, [newNetworks, item.id]);
+          updated++;
+          send("progress", { i: i + 1, total: items.length, title: item.title, status: "updated", new_networks: newNetworks, updated, no_change, error });
+        } else {
+          no_change++;
+          send("progress", { i: i + 1, total: items.length, title: item.title, status: "no_change", updated, no_change, error });
+        }
+      } catch (err) {
+        error++;
+        send("progress", { i: i + 1, total: items.length, title: item.title, status: "error", updated, no_change, error });
+      }
+    }
+
+    send("done", { total: items.length, updated, no_change, error });
+    res.end();
+  } catch (e) {
+    send("error", { message: String(e) });
+    res.end();
+  }
+});
+
 // POST /api/admin/scan-networks — scan existing media to update networks/production companies
 router.post("/admin/scan-networks", async (req, res) => {
   const { type = "movie", limit = 1000 } = req.body as { type?: "movie" | "series"; limit?: number };
   const table = type === "series" ? "cv_series" : "movies";
 
   try {
-    // Get items that have empty networks or we want to refresh
     const { rows: items } = await pool.query(
       `SELECT id, imdb_id, title, networks FROM ${table} ORDER BY date_added DESC LIMIT $1`,
       [limit]
@@ -176,60 +245,25 @@ router.post("/admin/scan-networks", async (req, res) => {
     const results = [];
     for (const item of items) {
       try {
-        if (!item.imdb_id) {
-          results.push({ id: item.id, title: item.title, status: "error", error: "No IMDb ID" });
-          continue;
-        }
-
-        // Find TMDB ID first
+        if (!item.imdb_id) { results.push({ id: item.id, title: item.title, status: "error", error: "No IMDb ID" }); continue; }
         const findRes = await tmdbFetch(`/find/${item.imdb_id}?external_source=imdb_id`);
-        if (!findRes.ok) {
-          results.push({ id: item.id, title: item.title, status: "error", error: "TMDB find failed" });
-          continue;
-        }
+        if (!findRes.ok) { results.push({ id: item.id, title: item.title, status: "error", error: "TMDB find failed" }); continue; }
         const findData = await findRes.json() as any;
         const tmdbResults = type === "series" ? findData.tv_results : findData.movie_results;
-
-        if (!tmdbResults || tmdbResults.length === 0) {
-          results.push({ id: item.id, title: item.title, status: "error", error: "Not found on TMDB" });
-          continue;
-        }
-
+        if (!tmdbResults?.length) { results.push({ id: item.id, title: item.title, status: "error", error: "Not found on TMDB" }); continue; }
         const tmdbId = tmdbResults[0].id;
         const data = type === "series" ? await fetchSeriesByTmdbId(tmdbId) : await fetchMovieByTmdbId(tmdbId);
-
-        if (!data || !data.networks) {
-          results.push({ id: item.id, title: item.title, status: "error", error: "Could not fetch details" });
-          continue;
-        }
-
+        if (!data?.networks) { results.push({ id: item.id, title: item.title, status: "error", error: "Could not fetch details" }); continue; }
         const newNetworks = data.networks as string[];
         const oldNetworks = (item.networks || []) as string[];
-
-        // Check if they are different
         const isDifferent = JSON.stringify([...newNetworks].sort()) !== JSON.stringify([...oldNetworks].sort());
-
         if (isDifferent) {
           await pool.query(`UPDATE ${table} SET networks = $1 WHERE id = $2`, [newNetworks, item.id]);
-          results.push({
-            id: item.id,
-            title: item.title,
-            old_networks: oldNetworks,
-            new_networks: newNetworks,
-            status: "updated"
-          });
+          results.push({ id: item.id, title: item.title, old_networks: oldNetworks, new_networks: newNetworks, status: "updated" });
         } else {
-          results.push({
-            id: item.id,
-            title: item.title,
-            old_networks: oldNetworks,
-            new_networks: newNetworks,
-            status: "no_change"
-          });
+          results.push({ id: item.id, title: item.title, old_networks: oldNetworks, new_networks: newNetworks, status: "no_change" });
         }
-      } catch (err) {
-        results.push({ id: item.id, title: item.title, status: "error", error: String(err) });
-      }
+      } catch (err) { results.push({ id: item.id, title: item.title, status: "error", error: String(err) }); }
     }
 
     const summary = {
