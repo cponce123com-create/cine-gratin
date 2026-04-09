@@ -544,32 +544,36 @@ router.get("/admin/vidsrc-list", async (req, res) => {
 });
 
 
-// GET /api/admin/vidsrc-test — prueba acceso a vidsrc.me y vsembed.ru
+// GET /api/admin/vidsrc-test — diagnóstico completo
 router.get("/admin/vidsrc-test", async (_req, res) => {
-  const test = async (url: string) => {
-    try {
-      const r = await fetch(url, {
-        headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
-        signal: AbortSignal.timeout(10_000),
-      });
-      const text = await r.text();
-      let parsed: unknown = null;
-      try { parsed = JSON.parse(text); } catch { /* ignore */ }
-      const result = parsed as { result?: unknown[]; pages?: number } | null;
-      return { status: r.status, ok: r.ok, bodyLength: text.length, items: result?.result ? (result.result as unknown[]).length : 0, pages: result?.pages ?? null };
-    } catch (e) {
-      return { ok: false, error: String(e) };
+  // Fetch series page 1 to inspect full structure
+  const seriesR = await fetch("https://vidsrc.me/tvshows/latest/page-1.json", {
+    headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
+    signal: AbortSignal.timeout(10_000),
+  });
+  const seriesData = await seriesR.json() as { result?: Record<string, unknown>[]; pages?: number };
+  const firstItem = seriesData.result?.[0] ?? {};
+
+  // Search for specific IMDb IDs across first 10 pages of series
+  const targetIds = ["tt5555260", "tt6226232", "tt31938062"]; // This Is Us, Young Sheldon, The Pitt
+  const found: Record<string, number> = {};
+  for (let p = 1; p <= 10; p++) {
+    const r = await fetch(`https://vidsrc.me/tvshows/latest/page-${p}.json`, {
+      headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(8_000),
+    });
+    const d = await r.json() as { result?: { imdb_id?: string; tmdb_id?: string }[] };
+    for (const item of d.result ?? []) {
+      if (item.imdb_id && targetIds.includes(item.imdb_id)) found[item.imdb_id] = p;
+      if (item.tmdb_id && targetIds.includes(item.tmdb_id)) found[`tmdb:${item.tmdb_id}`] = p;
     }
-  };
+  }
 
-  const [movies, series, vsembedMovies, vsembedSeries] = await Promise.all([
-    test("https://vidsrc.me/movies/latest/page-1.json"),
-    test("https://vidsrc.me/tvshows/latest/page-1.json"),
-    test("https://vsembed.ru/movies/latest/page-1.json"),
-    test("https://vsembed.ru/tvshows/latest/page-1.json"),
-  ]);
-
-  res.json({ "vidsrc.me/movies": movies, "vidsrc.me/series": series, "vsembed.ru/movies": vsembedMovies, "vsembed.ru/series": vsembedSeries });
+  res.json({
+    pages: seriesData.pages,
+    firstItemKeys: Object.keys(firstItem),
+    firstItem,
+    targetSearch: { searched: "pages 1-10", found },
+  });
 });
 
 export default router;
