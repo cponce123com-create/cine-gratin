@@ -378,6 +378,15 @@ const KNOWN_COLLECTIONS = [
   { id: 1575,   label: "Rocky" },
   { id: 553717, label: "Creed" },
   { id: 645,    label: "James Bond 007" },
+  { id: 9735,   label: "Fast & Furious" },
+  { id: 58580,  label: "Piratas del Caribe" },
+  { id: 2344,   label: "Matrix" },
+  { id: 8741,   label: "La Era del Hielo" },
+  { id: 3733,   label: "Shrek" },
+  { id: 31562,  label: "Jason Bourne" },
+  { id: 1733,   label: "Universo Yellowstone" },
+  { id: 3962,   label: "DC Universe" },
+  { id: 420,    label: "Marvel Cinematic Universe" },
 ];
 
 // Remove duplicate

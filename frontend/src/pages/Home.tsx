@@ -15,6 +15,7 @@ const FALLBACK_BG =
   "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=1400&auto=format&fit=crop";
 
 const MIN_ITEMS_TO_SHOW = 2;
+const SAGA_PAGE_SIZE = 30; // Mostrar más items en sagas por defecto
 
 function matchesKeywords(genres: string[] | undefined, keywords: string[]): boolean {
   if (!genres || genres.length === 0) return false;
@@ -30,9 +31,23 @@ function matchesNetworks(itemNetworks: string[] | undefined, targets: string[]):
   );
 }
 
+function normalizeTitle(title: string): string {
+  // Normalizar: convertir a minúsculas, eliminar acentos, reemplazar caracteres especiales
+  return title
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // Eliminar diacríticos
+    .replace(/[&]/g, 'and') // Reemplazar & por and
+    .replace(/[^a-z0-9\s]/g, '') // Eliminar caracteres especiales
+    .trim();
+}
+
 function matchesTitle(title: string, keywords: string[]): boolean {
-  const lowerTitle = title.toLowerCase();
-  return keywords.some((kw) => lowerTitle.includes(kw.toLowerCase()));
+  const normalizedTitle = normalizeTitle(title);
+  return keywords.some((kw) => {
+    const normalizedKw = normalizeTitle(kw);
+    return normalizedTitle.includes(normalizedKw);
+  });
 }
 
 function buildMixed(
@@ -292,7 +307,7 @@ export default function Home() {
               <p className="text-gray-400 text-sm mt-1">Explora tus franquicias favoritas</p>
             </div>
             {sagaCarousels.map((saga) => (
-              <GenreCarousel key={saga.id} title={saga.label} items={saga.items} />
+              <GenreCarousel key={saga.id} title={saga.label} items={saga.items} pageSize={SAGA_PAGE_SIZE} />
             ))}
           </div>
         )}
