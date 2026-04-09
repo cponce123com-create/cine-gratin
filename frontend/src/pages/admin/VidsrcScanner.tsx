@@ -16,7 +16,7 @@ export default function VidsrcScanner() {
   const [rows, setRows] = useState<ScanRow[]>([]);
   const [loadingCatalog, setLoadingCatalog] = useState(false);
   const [phase, setPhase] = useState<Phase>("idle");
-  const [progress, setProgress] = useState({ pagesLoaded: 0, matched: 0, total: 0 });
+  const [progress, setProgress] = useState({ pagesLoaded: 0, totalPages: 0, matched: 0, total: 0 });
   const [counts, setCounts] = useState({ active: 0, inactive: 0 });
   const [typeFilter, setTypeFilter] = useState<"all" | "movie" | "series">("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive" | "pending">("all");
@@ -42,32 +42,46 @@ export default function VidsrcScanner() {
 
   useEffect(() => { loadCatalog(); }, [loadCatalog]);
 
-  // Descarga todas las páginas de la API JSON de vidsrc.mov desde el navegador
+  // Descarga todas las páginas de la API JSON de vidsrc.me desde el navegador
+  // Formato: {"result":[{"imdb_id":"tt..."},...], "pages": 1779}
+  // 50 títulos por página, campo "pages" indica el total de páginas
   const fetchVidsrcMovSet = async (type: "movie" | "series"): Promise<Set<string>> => {
     const available = new Set<string>();
-    const endpoint = type === "series" ? "tv" : "movie";
-    let page = 1;
-    while (true) {
-      if (stopRef.current) break;
-      try {
-        const res = await fetch(`https://vidsrc.mov/vapi/${endpoint}/new/${page}`, {
-          credentials: "omit",
-          headers: { "Accept": "application/json" },
-        });
-        if (!res.ok) break;
-        const data = await res.json() as { status?: number; result?: { imdb_id?: string }[] };
-        const items = data?.result ?? [];
-        if (items.length === 0) break;
-        for (const item of items) {
-          if (item.imdb_id) available.add(item.imdb_id);
-        }
-        setProgress(p => ({ ...p, pagesLoaded: p.pagesLoaded + 1 }));
-        page++;
-        // Small delay to be respectful to the API
-        await new Promise(r => setTimeout(r, 200));
-      } catch {
-        break;
+    const base = type === "series"
+      ? "https://vidsrc.me/tvshows/latest/page-"
+      : "https://vidsrc.me/movies/latest/page-";
+
+    // Fetch page 1 to get total pages count
+    let totalPages = 1;
+    try {
+      const res = await fetch(`${base}1.json`, { credentials: "omit" });
+      if (!res.ok) return available;
+      const raw = await res.json() as { result?: { imdb_id?: string }[]; pages?: number };
+      totalPages = raw?.pages ?? 1;
+      for (const item of raw?.result ?? []) {
+        if (item.imdb_id) available.add(item.imdb_id);
       }
+      setProgress(p => ({ ...p, pagesLoaded: p.pagesLoaded + 1 }));
+    } catch { return available; }
+
+    // Fetch remaining pages in parallel chunks of 10
+    const CHUNK = 10;
+    for (let page = 2; page <= totalPages; page += CHUNK) {
+      if (stopRef.current) break;
+      const chunk = Array.from({ length: Math.min(CHUNK, totalPages - page + 1) }, (_, i) => page + i);
+      await Promise.all(chunk.map(async (p) => {
+        try {
+          const res = await fetch(`${base}${p}.json`, { credentials: "omit" });
+          if (!res.ok) return;
+          const raw = await res.json() as { result?: { imdb_id?: string }[] };
+          for (const item of raw?.result ?? []) {
+            if (item.imdb_id) available.add(item.imdb_id);
+          }
+        } catch { /* skip page */ }
+      }));
+      setProgress(p => ({ ...p, pagesLoaded: p.pagesLoaded + chunk.length }));
+      // Small pause between chunks to avoid rate limiting
+      await new Promise(r => setTimeout(r, 100));
     }
     return available;
   };
@@ -142,7 +156,7 @@ export default function VidsrcScanner() {
         <div>
           <h1 className="text-2xl font-black text-white">Escáner VIDSRC</h1>
           <p className="text-gray-500 text-sm mt-0.5">
-            Descarga la lista completa de vidsrc.mov y cruza con tu catálogo. Sin iframes — rápido y preciso.
+            Descarga la lista completa de vidsrc.me y cruza con tu catálogo. Sin iframes — rápido y preciso.
           </p>
         </div>
 
@@ -190,7 +204,7 @@ export default function VidsrcScanner() {
             <div className="mt-4 space-y-2">
               <div className="flex justify-between text-xs text-gray-400">
                 <span>
-                  {phase === "downloading" && `Descargando lista de vidsrc.mov... (${progress.pagesLoaded} páginas)`}
+                  {phase === "downloading" && `Descargando lista de vidsrc.me... ${progress.pagesLoaded}${progress.totalPages > 0 ? ` / ~${progress.totalPages * 2}` : ""} páginas`}
                   {phase === "matching" && `Cruzando catálogo: ${progress.matched} de ${progress.total} títulos`}
                   {phase === "done" && `Completado: ${progress.total} títulos verificados`}
                 </span>
@@ -204,7 +218,7 @@ export default function VidsrcScanner() {
               </div>
               {(phase === "matching" || phase === "done") && (
                 <div className="flex gap-5 text-xs pt-0.5">
-                  <span className="text-green-400">✅ {counts.active} con video en vidsrc.mov</span>
+                  <span className="text-green-400">✅ {counts.active} con video en vidsrc.me</span>
                   <span className="text-red-400">❌ {counts.inactive} sin video</span>
                 </div>
               )}
@@ -213,7 +227,7 @@ export default function VidsrcScanner() {
 
           {phase === "idle" && rows.length > 0 && (
             <p className="mt-3 text-xs text-gray-600">
-              El escáner descarga la lista pública de vidsrc.mov y la cruza con tus {rows.length} títulos. No usa iframes.
+              El escáner descarga la lista pública de vidsrc.me y la cruza con tus {rows.length} títulos. No usa iframes.
             </p>
           )}
         </div>
@@ -232,7 +246,7 @@ export default function VidsrcScanner() {
                   <th className="text-left px-5 py-3 text-gray-500 font-medium text-xs uppercase tracking-wider">Título</th>
                   <th className="text-center px-4 py-3 text-gray-500 font-medium text-xs uppercase tracking-wider">Tipo</th>
                   <th className="text-center px-4 py-3 text-gray-500 font-medium text-xs uppercase tracking-wider">IMDb</th>
-                  <th className="text-center px-5 py-3 text-gray-500 font-medium text-xs uppercase tracking-wider">vidsrc.mov</th>
+                  <th className="text-center px-5 py-3 text-gray-500 font-medium text-xs uppercase tracking-wider">vidsrc.me</th>
                 </tr>
               </thead>
               <tbody>
