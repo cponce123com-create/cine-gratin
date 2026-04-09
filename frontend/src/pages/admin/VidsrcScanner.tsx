@@ -151,8 +151,8 @@ export default function VidsrcScanner() {
       await Promise.all(
         chunk.map(async (item) => {
           const netUrl = item.type === "series"
-            ? `https://vidsrc.net/embed/tv/${item.imdb_id}/`
-            : `https://vidsrc.net/embed/movie/${item.imdb_id}/`;
+            ? `https://vsembed.ru/embed/tv/${item.imdb_id}/`
+            : `https://vsembed.ru/embed/movie/${item.imdb_id}/`;
           const movUrl = item.type === "series"
             ? `https://vidsrc.mov/embed/tv/${item.imdb_id}/`
             : `https://vidsrc.mov/embed/movie/${item.imdb_id}/`;
@@ -214,7 +214,7 @@ export default function VidsrcScanner() {
         <div>
           <h1 className="text-2xl font-black text-white">Escáner VIDSRC</h1>
           <p className="text-gray-500 text-sm mt-0.5">
-            Verifica título por título en vidsrc.net (Servidor 1) y vidsrc.mov
+            Verifica título por título en vsembed.ru (vidsrc.me) y vidsrc.mov
           </p>
         </div>
 
@@ -286,7 +286,7 @@ export default function VidsrcScanner() {
               />
             </div>
             <div className="flex gap-5 text-xs pt-0.5">
-              <span className="text-green-400">✅ {counts.active} con video (vidsrc.net)</span>
+              <span className="text-green-400">✅ {counts.active} con video (vsembed.ru)</span>
               <span className="text-red-400">❌ {counts.inactive} sin video en ambos</span>
               <span className="text-gray-500">⏳ {counts.pending} pendientes</span>
             </div>
@@ -308,7 +308,7 @@ export default function VidsrcScanner() {
                   <th className="text-left px-5 py-3 text-gray-500 font-medium text-xs uppercase tracking-wider">Título</th>
                   <th className="text-center px-4 py-3 text-gray-500 font-medium text-xs uppercase tracking-wider">Tipo</th>
                   <th className="text-center px-4 py-3 text-gray-500 font-medium text-xs uppercase tracking-wider">IMDb</th>
-                  <th className="text-center px-5 py-3 text-gray-500 font-medium text-xs uppercase tracking-wider">vidsrc.net</th>
+                  <th className="text-center px-5 py-3 text-gray-500 font-medium text-xs uppercase tracking-wider">vsembed.ru</th>
                   <th className="text-center px-5 py-3 text-gray-500 font-medium text-xs uppercase tracking-wider">vidsrc.mov</th>
                 </tr>
               </thead>
