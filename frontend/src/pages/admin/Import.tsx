@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
-import { getMovies, getSeries, runAutoImport, importByIds, scanNetworks, type ScanNetworksResult } from "@/lib/api";
+import { getMovies, getSeries, runAutoImport, importByIds, scanNetworks, importCollection, type ScanNetworksResult } from "@/lib/api";
 import type { Movie, Series, RunImportResult } from "@/lib/types";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -349,6 +349,134 @@ function RangeImportSection({ tab }: { tab: Tab }) {
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+
+// ─── Collection Import Section ───────────────────────────────────────────────
+
+const KNOWN_COLLECTIONS = [
+  { id: 1241,   label: "Harry Potter" },
+  { id: 1241,   label: "Harry Potter" },
+  { id: 119,    label: "El Señor de los Anillos" },
+  { id: 10,     label: "Star Wars" },
+  { id: 87359,  label: "Misión: Imposible" },
+  { id: 404609, label: "John Wick" },
+  { id: 328,    label: "Jurassic Park" },
+  { id: 8650,   label: "Transformers" },
+  { id: 748,    label: "X-Men" },
+  { id: 8091,   label: "Alien" },
+  { id: 84,     label: "Indiana Jones" },
+  { id: 528,    label: "Terminator" },
+  { id: 173710, label: "El Planeta de los Simios (Reboot)" },
+  { id: 1709,   label: "El Planeta de los Simios (Original)" },
+  { id: 86066,  label: "Mi Villano Favorito / Minions" },
+  { id: 10194,  label: "Toy Story" },
+  { id: 131635, label: "Los Juegos del Hambre" },
+  { id: 33514,  label: "Crepúsculo" },
+  { id: 1575,   label: "Rocky" },
+  { id: 553717, label: "Creed" },
+  { id: 645,    label: "James Bond 007" },
+];
+
+// Remove duplicate
+const COLLECTIONS = KNOWN_COLLECTIONS.filter((c, i, arr) => arr.findIndex(x => x.id === c.id) === i);
+
+function CollectionImportSection() {
+  const [customId, setCustomId] = useState("");
+  const [loading, setLoading] = useState<number | null>(null);
+  const [results, setResults] = useState<Record<number, { collection: string; imported: number; existed: number; total: number }>>({});
+  const [error, setError] = useState("");
+
+  const handleImport = async (id: number) => {
+    setLoading(id);
+    setError("");
+    try {
+      const res = await importCollection(id);
+      setResults(prev => ({ ...prev, [id]: { collection: res.collection, imported: res.imported, existed: res.existed, total: res.total } }));
+    } catch (e: any) {
+      setError(e.message || "Error al importar la colección.");
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const handleCustomImport = () => {
+    const id = parseInt(customId.trim(), 10);
+    if (!id || isNaN(id)) { setError("Ingresa un ID de colección válido."); return; }
+    handleImport(id);
+  };
+
+  return (
+    <div className="bg-brand-card border border-brand-border rounded-2xl p-6 space-y-5">
+      <div>
+        <h2 className="text-white font-bold text-base mb-1">Importar por Colección TMDB</h2>
+        <p className="text-gray-500 text-sm">
+          Importa todas las películas de una saga completa usando el ID de colección de TMDB.
+        </p>
+      </div>
+
+      {error && (
+        <div className="bg-red-900/20 border border-red-800/40 rounded-lg px-4 py-3 text-red-400 text-sm">{error}</div>
+      )}
+
+      {/* Custom collection ID input */}
+      <div className="flex gap-2">
+        <input
+          type="number"
+          value={customId}
+          onChange={e => setCustomId(e.target.value)}
+          placeholder="ID de colección TMDB (ej: 1241)"
+          className="flex-1 bg-brand-surface border border-brand-border rounded-lg px-3 py-2 text-gray-200 text-sm focus:outline-none focus:border-gray-500 transition-colors"
+        />
+        <button
+          onClick={handleCustomImport}
+          disabled={loading !== null}
+          className="flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
+        >
+          Importar
+        </button>
+      </div>
+
+      {/* Known collections grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {COLLECTIONS.map(col => {
+          const res = results[col.id];
+          const isLoading = loading === col.id;
+          return (
+            <div key={col.id} className="flex items-center justify-between gap-3 bg-brand-surface border border-brand-border rounded-xl px-4 py-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-gray-200 text-sm font-medium truncate">{col.label}</p>
+                <p className="text-gray-600 text-xs font-mono">ID: {col.id}</p>
+                {res && (
+                  <p className="text-xs mt-0.5">
+                    <span className="text-green-400">+{res.imported} importadas</span>
+                    {res.existed > 0 && <span className="text-gray-500"> · {res.existed} ya existían</span>}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => handleImport(col.id)}
+                disabled={loading !== null}
+                className={`flex-shrink-0 flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-50 ${
+                  res
+                    ? "bg-green-900/20 border-green-800/40 text-green-400"
+                    : "bg-brand-surface border-brand-border text-gray-300 hover:text-white hover:border-gray-500"
+                }`}
+              >
+                {isLoading ? (
+                  <span className="w-3 h-3 rounded-full border-2 border-gray-400 border-t-white animate-spin" />
+                ) : res ? (
+                  "✅ Importado"
+                ) : (
+                  "Importar"
+                )}
+              </button>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -836,6 +964,7 @@ export default function AdminImport() {
 
         {/* Sections — re-mount on tab change for independent state */}
         <AutoImportSection key={`auto-${activeTab}`} tab={activeTab} />
+        <CollectionImportSection />
         <ScanNetworksSection key={`scan-${activeTab}`} tab={activeTab} />
         <BulkImportSection key={`bulk-${activeTab}`} tab={activeTab} />
         <RangeImportSection key={`range-${activeTab}`} tab={activeTab} />
