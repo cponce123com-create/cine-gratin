@@ -82,6 +82,8 @@ export async function initDb() {
     ALTER TABLE movies ADD COLUMN IF NOT EXISTS networks TEXT[] DEFAULT '{}';
     ALTER TABLE movies ADD COLUMN IF NOT EXISTS videos JSONB DEFAULT '[]';
     ALTER TABLE movies ADD COLUMN IF NOT EXISTS reviews JSONB DEFAULT '[]';
+    ALTER TABLE movies ADD COLUMN IF NOT EXISTS collection_id INTEGER;
+    ALTER TABLE movies ADD COLUMN IF NOT EXISTS collection_name TEXT;
     ALTER TABLE cv_series ADD COLUMN IF NOT EXISTS vidsrc_status TEXT DEFAULT 'unknown';
     ALTER TABLE cv_series ADD COLUMN IF NOT EXISTS auto_imported BOOLEAN DEFAULT FALSE;
     ALTER TABLE cv_series ADD COLUMN IF NOT EXISTS networks TEXT[] DEFAULT '{}';

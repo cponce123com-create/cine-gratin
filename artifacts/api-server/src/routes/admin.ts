@@ -607,6 +607,62 @@ router.get("/admin/vidsrc-test", async (_req, res) => {
 });
 
 
+// GET /api/admin/rescan-metadata-stream — SSE stream to update metadata (collections, etc.)
+router.get("/admin/rescan-metadata-stream", async (req, res) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  const send = (event: string, data: unknown) => {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  try {
+    const { rows: items } = await pool.query(
+      `SELECT id, imdb_id, title FROM movies ORDER BY date_added DESC`,
+      []
+    );
+
+    send("start", { total: items.length });
+
+    let updated = 0, no_change = 0, error = 0;
+
+    for (let i = 0; i < items.length; i++) {
+      if (req.destroyed) break;
+      const item = items[i];
+      try {
+        if (!item.imdb_id) { error++; continue; }
+
+        const findRes = await tmdbFetch(`/find/${item.imdb_id}?external_source=imdb_id`);
+        if (!findRes.ok) { error++; continue; }
+        const findData = await findRes.json() as any;
+        const tmdbResults = findData.movie_results;
+        if (!tmdbResults?.length) { error++; continue; }
+
+        const tmdbId = tmdbResults[0].id;
+        const data = await fetchMovieByTmdbId(tmdbId);
+        if (!data) { error++; continue; }
+
+        await pool.query(
+          `UPDATE movies SET collection_id = $1, collection_name = $2 WHERE id = $3`,
+          [data.collection_id, data.collection_name, item.id]
+        );
+        updated++;
+        send("progress", { i: i + 1, total: items.length, title: item.title, status: "updated", updated, no_change, error });
+      } catch (err) {
+        error++;
+      }
+    }
+
+    send("done", { total: items.length, updated, no_change, error });
+    res.end();
+  } catch (e) {
+    send("error", { message: String(e) });
+    res.end();
+  }
+});
+
 // POST /api/admin/import-collection — import all movies from a TMDB collection by ID
 router.post("/admin/import-collection", async (req, res) => {
   const { collection_id } = req.body as { collection_id: number };

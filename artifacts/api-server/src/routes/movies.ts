@@ -38,6 +38,8 @@ const toMovie = (row: Record<string, unknown>) => ({
   torrents: row.torrents,
   views: Number(row.views),
   date_added: row.date_added,
+  collection_id: row.collection_id,
+  collection_name: row.collection_name,
 });
 
 // GET /api/movies - Added pagination and rate limiting
@@ -140,13 +142,13 @@ router.post(["/admin/movies", "/admin/movies/:id"], async (req, res) => {
     await pool.query(
       `INSERT INTO movies (id, imdb_id, title, year, rating, runtime, genres, language, synopsis,
         director, cast_list, networks, poster_url, background_url, yt_trailer_code, videos, reviews,
-        mpa_rating, slug, featured, video_sources, torrents, views, date_added)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
+        mpa_rating, slug, featured, video_sources, torrents, views, date_added, collection_id, collection_name)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
        ON CONFLICT (id) DO UPDATE SET
          imdb_id=$2, title=$3, year=$4, rating=$5, runtime=$6, genres=$7, language=$8, synopsis=$9,
          director=$10, cast_list=$11, networks=$12, poster_url=$13, background_url=$14,
          yt_trailer_code=$15, videos=$16, reviews=$17, mpa_rating=$18, slug=$19, featured=$20,
-         video_sources=$21, torrents=$22, views=$23`,
+         video_sources=$21, torrents=$22, views=$23, collection_id=$25, collection_name=$26`,
       [
         id, m.imdb_id, m.title, m.year, m.rating, m.runtime,
         m.genres, m.language, m.synopsis, m.director, m.cast_list,
@@ -156,6 +158,7 @@ router.post(["/admin/movies", "/admin/movies/:id"], async (req, res) => {
         m.mpa_rating, m.slug, m.featured,
         JSON.stringify(m.video_sources), JSON.stringify(m.torrents),
         m.views || 0, m.date_added || new Date().toISOString(),
+        m.collection_id || null, m.collection_name || null
       ]
     );
     const { rows } = await pool.query("SELECT * FROM movies WHERE id = $1", [id]);

@@ -28,9 +28,12 @@ export async function importMovie(tmdbId: number): Promise<boolean> {
     await pool.query(
       `INSERT INTO movies (id, imdb_id, title, year, rating, runtime, genres, language, synopsis,
         director, cast_list, networks, poster_url, background_url, yt_trailer_code, videos, reviews,
-        mpa_rating, slug, featured, video_sources, torrents, views, date_added, auto_imported)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
-       ON CONFLICT (id) DO NOTHING`,
+        mpa_rating, slug, featured, video_sources, torrents, views, date_added, auto_imported,
+        collection_id, collection_name)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
+       ON CONFLICT (id) DO UPDATE SET
+         collection_id = EXCLUDED.collection_id,
+         collection_name = EXCLUDED.collection_name`,
       [
         id, data.imdb_id, data.title, data.year, data.rating, data.runtime,
         data.genres, data.language, data.synopsis, data.director, data.cast_list,
@@ -38,6 +41,7 @@ export async function importMovie(tmdbId: number): Promise<boolean> {
         data.poster_url, data.background_url, data.yt_trailer_code,
         JSON.stringify(data.videos ?? []), JSON.stringify(data.reviews ?? []),
         data.mpa_rating, slug, false, "[]", "[]", 0, new Date().toISOString(), true,
+        data.collection_id, data.collection_name
       ]
     );
     return true;

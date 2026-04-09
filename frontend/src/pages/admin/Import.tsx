@@ -936,6 +936,88 @@ function AutoImportSection({ tab }: { tab: Tab }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+function MetadataRescanSection() {
+  const [scanning, setScanning] = useState(false);
+  const [done, setDone] = useState(false);
+  const [progress, setProgress] = useState({ current: 0, total: 0, title: "", updated: 0, no_change: 0, error: 0 });
+  const [errorMsg, setErrorMsg] = useState("");
+  const esRef = useRef<EventSource | null>(null);
+
+  const handleScan = () => {
+    if (esRef.current) esRef.current.close();
+    setScanning(true);
+    setDone(false);
+    setErrorMsg("");
+    setProgress({ current: 0, total: 0, title: "", updated: 0, no_change: 0, error: 0 });
+
+    const token = localStorage.getItem("cg_admin_token") ?? "";
+    const url = `/api/admin/rescan-metadata-stream?token=${token}`;
+    const es = new EventSource(url);
+    esRef.current = es;
+
+    es.addEventListener("start", (e) => {
+      const d = JSON.parse(e.data);
+      setProgress(p => ({ ...p, total: d.total }));
+    });
+    es.addEventListener("progress", (e) => {
+      const d = JSON.parse(e.data);
+      setProgress({ current: d.i, total: d.total, title: d.title, updated: d.updated, no_change: d.no_change, error: d.error });
+    });
+    es.addEventListener("done", () => { setScanning(false); setDone(true); es.close(); });
+    es.addEventListener("error", () => { setScanning(false); setErrorMsg("Error durante el escaneo de metadatos."); es.close(); });
+  };
+
+  const handleStop = () => { esRef.current?.close(); setScanning(false); };
+  const pct = progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0;
+
+  return (
+    <div className="bg-brand-card border border-brand-border rounded-2xl p-6 space-y-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-white font-bold text-base mb-1">Optimizador de Sagas</h2>
+          <p className="text-gray-500 text-sm">
+            Escanea las películas actuales y las vincula correctamente a sus sagas oficiales usando metadatos de TMDB.
+          </p>
+        </div>
+        {!scanning ? (
+          <button onClick={handleScan}
+            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 border border-green-500 text-white font-bold py-2 px-4 rounded-lg transition-colors text-sm">
+            Optimizar Sagas
+          </button>
+        ) : (
+          <button onClick={handleStop}
+            className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-white text-sm font-bold py-2 px-4 rounded-lg transition-colors">
+            Detener
+          </button>
+        )}
+      </div>
+
+      {(scanning || done) && progress.total > 0 && (
+        <div className="space-y-2">
+          <div className="flex justify-between text-xs text-gray-400">
+            <span className="truncate max-w-xs">{scanning ? `Procesando: ${progress.title}` : "Optimización completada"}</span>
+            <span>{progress.current} / {progress.total} ({pct}%)</span>
+          </div>
+          <div className="w-full bg-brand-border rounded-full h-2">
+            <div className={`h-2 rounded-full transition-all duration-300 ${done ? "bg-green-500" : "bg-brand-red"}`}
+              style={{ width: `${pct}%` }} />
+          </div>
+          <div className="flex gap-5 text-xs">
+            <span className="text-green-400">✅ {progress.updated} películas vinculadas</span>
+            {progress.error > 0 && <span className="text-red-400">❌ {progress.error} errores</span>}
+          </div>
+        </div>
+      )}
+
+      {errorMsg && (
+        <div className="bg-red-900/20 border border-red-800/40 rounded-lg px-4 py-3 text-red-400 text-sm">
+          {errorMsg}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AdminImport() {
   const [activeTab, setActiveTab] = useState<Tab>("movies");
 
@@ -973,6 +1055,7 @@ export default function AdminImport() {
 
         {/* Sections — re-mount on tab change for independent state */}
         <AutoImportSection key={`auto-${activeTab}`} tab={activeTab} />
+        {activeTab === "movies" && <MetadataRescanSection />}
         <CollectionImportSection />
         <ScanNetworksSection key={`scan-${activeTab}`} tab={activeTab} />
         <BulkImportSection key={`bulk-${activeTab}`} tab={activeTab} />
