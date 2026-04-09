@@ -225,7 +225,7 @@ export default function Home() {
             // Match by collection_id (most accurate)
             if (sec.collection_id && m.collection_id === sec.collection_id) return true;
             // Always allow keyword fallback for movies not yet assigned to this collection
-            if (m.collection_id === sec.collection_id) return false; // already matched above
+            if (m.collection_id && m.collection_id !== sec.collection_id) return false; // Exclude if it belongs to another saga
             return matchesTitle(m.title, sec.keywords);
           },
           (s) => {
