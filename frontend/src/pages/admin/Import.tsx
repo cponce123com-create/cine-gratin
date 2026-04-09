@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { getMovies, getSeries, runAutoImport, importByIds, scanNetworks, type ScanNetworksResult } from "@/lib/api";
 import type { Movie, Series, RunImportResult } from "@/lib/types";
