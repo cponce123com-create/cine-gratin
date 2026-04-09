@@ -1034,7 +1034,8 @@ function MetadataRescanSection() {
     setProgress({ current: 0, total: 0, title: "", updated: 0, no_change: 0, error: 0 });
 
     const token = localStorage.getItem("cg_admin_token") ?? "";
-    const url = `/api/admin/rescan-metadata-stream?token=${token}`;
+    const allIds = COLLECTIONS.map(c => c.id).join(",");
+    const url = `/api/admin/rescan-metadata-stream?token=${token}&ids=${allIds}`;
     const es = new EventSource(url);
     esRef.current = es;
 
@@ -1044,7 +1045,7 @@ function MetadataRescanSection() {
     });
     es.addEventListener("progress", (e) => {
       const d = JSON.parse(e.data);
-      setProgress({ current: d.i, total: d.total, title: d.title, updated: d.updated, no_change: d.no_change, error: d.error });
+      setProgress({ current: d.i, total: d.total, title: d.title || "", updated: d.updated, no_change: d.no_change, error: d.error || 0 });
     });
     es.addEventListener("done", () => { setScanning(false); setDone(true); es.close(); });
     es.addEventListener("error", () => { setScanning(false); setErrorMsg("Error durante el escaneo de metadatos."); es.close(); });
