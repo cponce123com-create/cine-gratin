@@ -20,13 +20,17 @@ export function adminAuth(req: Request, res: Response, next: NextFunction): void
     return;
   }
 
+  // Support token in Authorization header OR as ?token= query param (needed for SSE/EventSource)
   const authHeader = req.headers["authorization"];
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  const queryToken = req.query["token"] as string | undefined;
+  const tokenStr = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : queryToken;
+
+  if (!tokenStr) {
     res.status(401).json({ error: "No autorizado" });
     return;
   }
 
-  const token = authHeader.slice(7);
+  const token = tokenStr;
   if (token !== secret) {
     res.status(401).json({ error: "No autorizado" });
     return;
