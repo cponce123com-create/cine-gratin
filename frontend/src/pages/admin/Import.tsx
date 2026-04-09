@@ -365,6 +365,35 @@ function CollectionImportSection() {
   const [reseting, setReseting] = useState<number | null>(null);
   const [results, setResults] = useState<Record<number, { collection: string; imported: number; existed: number; total: number; deleted?: number }>>({});
   const [error, setError] = useState("");
+  const [scanning, setScanning] = useState(false);
+  const [scanDone, setScanDone] = useState(false);
+  const [scanProgress, setScanProgress] = useState({ current: 0, total: 0, updated: 0, no_collection: 0, error: 0, title: "" });
+  const scanEsRef = useRef<EventSource | null>(null);
+
+  const handleScanCollections = () => {
+    if (scanEsRef.current) scanEsRef.current.close();
+    setScanning(true);
+    setScanDone(false);
+    setScanProgress({ current: 0, total: 0, updated: 0, no_collection: 0, error: 0, title: "" });
+
+    const token = localStorage.getItem("cg_admin_token") ?? "";
+    const url = `/api/admin/scan-collections-stream${token ? `?token=${token}` : ""}`;
+    const es = new EventSource(url);
+    scanEsRef.current = es;
+
+    es.addEventListener("start", (e) => {
+      const d = JSON.parse(e.data);
+      setScanProgress(p => ({ ...p, total: d.total }));
+    });
+    es.addEventListener("progress", (e) => {
+      const d = JSON.parse(e.data);
+      setScanProgress({ current: d.i, total: d.total, updated: d.updated, no_collection: d.no_collection, error: d.error, title: d.title });
+    });
+    es.addEventListener("done", () => { setScanning(false); setScanDone(true); es.close(); });
+    es.addEventListener("error", () => { setScanning(false); es.close(); });
+  };
+
+  const scanPct = scanProgress.total > 0 ? Math.round((scanProgress.current / scanProgress.total) * 100) : 0;
 
   const handleImport = async (id: number) => {
     setLoading(id);
@@ -411,6 +440,44 @@ function CollectionImportSection() {
       {error && (
         <div className="bg-red-900/20 border border-red-800/40 rounded-lg px-4 py-3 text-red-400 text-sm">{error}</div>
       )}
+
+      {/* Scan collections button */}
+      <div className="bg-brand-surface border border-brand-border rounded-xl p-4 space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-white text-sm font-semibold">Escanear colecciones existentes</p>
+            <p className="text-gray-500 text-xs mt-0.5">Actualiza el campo collection_id en todas las películas que aún no lo tienen. Necesario para que las sagas funcionen correctamente en el Home.</p>
+          </div>
+          {!scanning ? (
+            <button onClick={handleScanCollections}
+              className="flex-shrink-0 flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors">
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35" strokeLinecap="round"/></svg>
+              {scanDone ? "Re-escanear" : "Escanear ahora"}
+            </button>
+          ) : (
+            <button onClick={() => { scanEsRef.current?.close(); setScanning(false); }}
+              className="flex-shrink-0 bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors">
+              Detener
+            </button>
+          )}
+        </div>
+        {(scanning || scanDone) && scanProgress.total > 0 && (
+          <div className="space-y-1.5">
+            <div className="flex justify-between text-xs text-gray-500">
+              <span className="truncate max-w-xs">{scanning ? scanProgress.title : "Completado"}</span>
+              <span>{scanProgress.current}/{scanProgress.total} ({scanPct}%)</span>
+            </div>
+            <div className="w-full bg-brand-border rounded-full h-1.5">
+              <div className={`h-1.5 rounded-full transition-all ${scanDone ? "bg-green-500" : "bg-brand-red"}`} style={{ width: `${scanPct}%` }} />
+            </div>
+            <div className="flex gap-4 text-xs">
+              <span className="text-green-400">✅ {scanProgress.updated} actualizadas</span>
+              <span className="text-gray-500">— {scanProgress.no_collection} sin colección</span>
+              {scanProgress.error > 0 && <span className="text-red-400">❌ {scanProgress.error} errores</span>}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Custom collection ID input */}
       <div className="flex gap-2">
