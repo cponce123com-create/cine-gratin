@@ -110,39 +110,29 @@ export const saveVidsrcResults = (
 ): Promise<VidsrcResult[]> =>
   adminPost("/api/admin/verify-vidsrc", { results });
 
-// verifyVidsrc: fetch() desde el navegador — lee el HTML y detecta "unavailable"
+// verifyVidsrc: descarga la lista pública de vidsrc.me y cruza con los ids dados
 export const verifyVidsrc = async (
   imdb_ids: string[],
   type: "movie" | "series"
 ): Promise<VidsrcResult[]> => {
-  const checkOne = async (imdbId: string): Promise<boolean> => {
-    const url = type === "series"
-      ? `https://vidsrc.net/embed/tv/${imdbId}/`
-      : `https://vidsrc.net/embed/movie/${imdbId}/`;
+  // Descargar lista completa de vidsrc.me para este tipo
+  const available = new Set<string>();
+  const base = type === "series"
+    ? "https://vidsrc.me/tvshows/latest/page-"
+    : "https://vidsrc.me/movies/latest/page-";
+  for (let page = 1; page <= 999; page++) {
     try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 15000);
-      const res = await fetch(url, { signal: controller.signal, credentials: "omit" });
-      clearTimeout(timer);
-      const html = await res.text();
-      return !html.toLowerCase().includes("this media is unavailable");
-    } catch {
-      return false;
-    }
-  };
-
-  const results: VidsrcResult[] = [];
-  const CONCURRENCY = 5;
-  for (let i = 0; i < imdb_ids.length; i += CONCURRENCY) {
-    const chunk = imdb_ids.slice(i, i + CONCURRENCY);
-    const chunkRes = await Promise.all(chunk.map(async (id) => {
-      const available = await checkOne(id);
-      return { imdb_id: id, type, available };
-    }));
-    results.push(...chunkRes.map(r => ({ imdb_id: r.imdb_id, available: r.available })));
-    await saveVidsrcResults(chunkRes).catch(() => {});
+      const res = await fetch(`${base}${page}.json`, { credentials: "omit" });
+      if (!res.ok) break;
+      const data = await res.json() as { imdb_id?: string }[];
+      if (!Array.isArray(data) || data.length === 0) break;
+      for (const item of data) { if (item.imdb_id) available.add(item.imdb_id); }
+    } catch { break; }
   }
-  return results;
+
+  const payload = imdb_ids.map((id) => ({ imdb_id: id, type, available: available.has(id) }));
+  await saveVidsrcResults(payload).catch(() => {});
+  return payload.map(({ imdb_id, available: av }) => ({ imdb_id, available: av }));
 };
 
 export const getAdminStats = (): Promise<AdminStats> =>
