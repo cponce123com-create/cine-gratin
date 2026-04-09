@@ -544,36 +544,32 @@ router.get("/admin/vidsrc-list", async (req, res) => {
 });
 
 
-// GET /api/admin/vidsrc-test — diagnóstico completo
+// GET /api/admin/vidsrc-test — busca IMDb IDs específicos en todas las páginas de series
 router.get("/admin/vidsrc-test", async (_req, res) => {
-  // Fetch series page 1 to inspect full structure
-  const seriesR = await fetch("https://vidsrc.me/tvshows/latest/page-1.json", {
-    headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
-    signal: AbortSignal.timeout(10_000),
-  });
-  const seriesData = await seriesR.json() as { result?: Record<string, unknown>[]; pages?: number };
-  const firstItem = seriesData.result?.[0] ?? {};
-
-  // Search for specific IMDb IDs across first 10 pages of series
-  const targetIds = ["tt5555260", "tt6226232", "tt31938062"]; // This Is Us, Young Sheldon, The Pitt
+  const targetIds = new Set(["tt5555260", "tt6226232", "tt31938062"]); // This Is Us, Young Sheldon, The Pitt
   const found: Record<string, number> = {};
-  for (let p = 1; p <= 10; p++) {
-    const r = await fetch(`https://vidsrc.me/tvshows/latest/page-${p}.json`, {
-      headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(8_000),
-    });
-    const d = await r.json() as { result?: { imdb_id?: string; tmdb_id?: string }[] };
-    for (const item of d.result ?? []) {
-      if (item.imdb_id && targetIds.includes(item.imdb_id)) found[item.imdb_id] = p;
-      if (item.tmdb_id && targetIds.includes(item.tmdb_id)) found[`tmdb:${item.tmdb_id}`] = p;
-    }
+  let totalPages = 410;
+
+  for (let p = 1; p <= totalPages; p++) {
+    try {
+      const r = await fetch(`https://vidsrc.me/tvshows/latest/page-${p}.json`, {
+        headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(10_000),
+      });
+      if (!r.ok) continue;
+      const d = await r.json() as { result?: { imdb_id?: string }[]; pages?: number };
+      if (p === 1) totalPages = d.pages ?? 410;
+      for (const item of d.result ?? []) {
+        if (item.imdb_id && targetIds.has(item.imdb_id)) {
+          found[item.imdb_id] = p;
+          targetIds.delete(item.imdb_id);
+        }
+      }
+      if (targetIds.size === 0) break; // found all
+      await new Promise(r => setTimeout(r, 150));
+    } catch { /* continue */ }
   }
 
-  res.json({
-    pages: seriesData.pages,
-    firstItemKeys: Object.keys(firstItem),
-    firstItem,
-    targetSearch: { searched: "pages 1-10", found },
-  });
+  res.json({ totalPages, found, notFound: Array.from(targetIds) });
 });
 
 export default router;
