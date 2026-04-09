@@ -544,4 +544,19 @@ router.get("/admin/vidsrc-list", async (req, res) => {
   }
 });
 
+
+// GET /api/admin/vidsrc-test — prueba si el servidor puede acceder a vidsrc.me
+router.get("/admin/vidsrc-test", async (_req, res) => {
+  try {
+    const r = await fetch("https://vidsrc.me/movies/latest/page-1.json", {
+      headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
+      signal: AbortSignal.timeout(10_000),
+    });
+    const text = await r.text();
+    res.json({ status: r.status, ok: r.ok, bodyLength: text.length, preview: text.slice(0, 200) });
+  } catch (e) {
+    res.json({ error: String(e), ok: false });
+  }
+});
+
 export default router;
