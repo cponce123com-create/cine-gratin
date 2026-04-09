@@ -693,8 +693,25 @@ router.post("/admin/import-collection", async (req, res) => {
     for (const part of parts) {
       try {
         const ok = await importMovie(part.id);
-        if (ok) { imported++; titles.push(part.title || part.name || String(part.id)); }
-        else existed++;
+        if (ok) {
+          imported++;
+          titles.push(part.title || part.name || String(part.id));
+        } else {
+          // Movie already exists — update its collection_id via external_ids lookup
+          existed++;
+          try {
+            const extR = await tmdbFetch(`/movie/${part.id}/external_ids`);
+            if (extR.ok) {
+              const ext = await extR.json() as { imdb_id?: string };
+              if (ext.imdb_id) {
+                await pool.query(
+                  `UPDATE movies SET collection_id = $1, collection_name = $2 WHERE imdb_id = $3`,
+                  [data.id, data.name, ext.imdb_id]
+                );
+              }
+            }
+          } catch { /* ignore */ }
+        }
       } catch { existed++; }
     }
 
@@ -735,21 +752,25 @@ router.post("/admin/reset-collection", async (req, res) => {
 
 
 // GET /api/admin/scan-collections-stream — SSE: update collection_id for all movies missing it
+// ?force=1 to re-scan everything including movies already marked as -1
 router.get("/admin/scan-collections-stream", async (req, res) => {
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
   res.flushHeaders();
 
+  const force = req.query.force === "1";
+
   const send = (event: string, data: unknown) => {
     res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
   };
 
   try {
-    // Get all movies missing collection_id
-    const { rows } = await pool.query(
-      `SELECT id, imdb_id, title FROM movies WHERE imdb_id IS NOT NULL AND collection_id IS NULL ORDER BY date_added DESC`
-    );
+    // Get movies missing collection_id, or all movies if force=true
+    const query = force
+      ? `SELECT id, imdb_id, title FROM movies WHERE imdb_id IS NOT NULL ORDER BY date_added DESC`
+      : `SELECT id, imdb_id, title FROM movies WHERE imdb_id IS NOT NULL AND (collection_id IS NULL OR collection_id = -1) ORDER BY date_added DESC`;
+    const { rows } = await pool.query(query);
 
     send("start", { total: rows.length });
 
