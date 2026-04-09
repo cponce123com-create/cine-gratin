@@ -110,40 +110,26 @@ export const saveVidsrcResults = (
 ): Promise<VidsrcResult[]> =>
   adminPost("/api/admin/verify-vidsrc", { results });
 
-// verifyVidsrc: verifica desde el navegador con iframes ocultos y guarda en BD
+// verifyVidsrc: fetch() desde el navegador — lee el HTML y detecta "unavailable"
 export const verifyVidsrc = async (
   imdb_ids: string[],
   type: "movie" | "series"
 ): Promise<VidsrcResult[]> => {
-  const checkOne = (imdbId: string): Promise<boolean> =>
-    new Promise((resolve) => {
-      const url = type === "series"
-        ? `https://vidsrc.net/embed/tv/${imdbId}/`
-        : `https://vidsrc.net/embed/movie/${imdbId}/`;
-      const iframe = document.createElement("iframe");
-      iframe.src = url;
-      iframe.style.cssText = "position:fixed;width:400px;height:300px;opacity:0;pointer-events:none;top:-9999px;left:-9999px;";
-      iframe.sandbox.add("allow-scripts", "allow-same-origin");
-      let done = false;
-      const finish = (v: boolean) => {
-        if (done) return; done = true;
-        clearTimeout(timer);
-        try { document.body.removeChild(iframe); } catch { /* ignorar */ }
-        resolve(v);
-      };
-      iframe.onload = () => {
-        try {
-          const body = iframe.contentDocument?.body?.innerText ?? "";
-          const bad = body.toLowerCase().includes("unavailable") ||
-                      body.toLowerCase().includes("not found") ||
-                      body.toLowerCase().includes("no source");
-          finish(!bad);
-        } catch { finish(true); }
-      };
-      iframe.onerror = () => finish(false);
-      const timer = setTimeout(() => finish(true), 15000);
-      document.body.appendChild(iframe);
-    });
+  const checkOne = async (imdbId: string): Promise<boolean> => {
+    const url = type === "series"
+      ? `https://vidsrc.net/embed/tv/${imdbId}/`
+      : `https://vidsrc.net/embed/movie/${imdbId}/`;
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 15000);
+      const res = await fetch(url, { signal: controller.signal, credentials: "omit" });
+      clearTimeout(timer);
+      const html = await res.text();
+      return !html.toLowerCase().includes("this media is unavailable");
+    } catch {
+      return false;
+    }
+  };
 
   const results: VidsrcResult[] = [];
   const CONCURRENCY = 5;
