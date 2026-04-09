@@ -42,46 +42,47 @@ export default function VidsrcScanner() {
 
   useEffect(() => { loadCatalog(); }, [loadCatalog]);
 
-  // Descarga todas las páginas de la API JSON de vidsrc.me desde el navegador
-  // Formato: {"result":[{"imdb_id":"tt..."},...], "pages": 1779}
-  // 50 títulos por página, campo "pages" indica el total de páginas
+  // Descarga todas las páginas via el proxy del backend (/api/admin/vidsrc-list)
+  // El backend accede a vidsrc.me sin restricciones CORS
   const fetchVidsrcMovSet = async (type: "movie" | "series"): Promise<Set<string>> => {
     const available = new Set<string>();
-    const base = type === "series"
-      ? "https://vidsrc.me/tvshows/latest/page-"
-      : "https://vidsrc.me/movies/latest/page-";
+    const token = localStorage.getItem("cg_admin_token") ?? "";
 
-    // Fetch page 1 to get total pages count
+    const fetchPage = async (page: number) => {
+      const res = await fetch(`/api/admin/vidsrc-list?type=${type}&page=${page}`, {
+        headers: token ? { "Authorization": `Bearer ${token}` } : {},
+      });
+      if (!res.ok) return null;
+      return res.json() as Promise<{ result?: { imdb_id?: string }[]; pages?: number }>;
+    };
+
+    // Página 1 para obtener el total de páginas
     let totalPages = 1;
     try {
-      const res = await fetch(`${base}1.json`, { credentials: "omit" });
-      if (!res.ok) return available;
-      const raw = await res.json() as { result?: { imdb_id?: string }[]; pages?: number };
-      totalPages = raw?.pages ?? 1;
-      for (const item of raw?.result ?? []) {
+      const first = await fetchPage(1);
+      if (!first) return available;
+      totalPages = first.pages ?? 1;
+      for (const item of first.result ?? []) {
         if (item.imdb_id) available.add(item.imdb_id);
       }
       setProgress(p => ({ ...p, pagesLoaded: p.pagesLoaded + 1 }));
     } catch { return available; }
 
-    // Fetch remaining pages in parallel chunks of 10
+    // Resto de páginas en lotes de 10 en paralelo
     const CHUNK = 10;
     for (let page = 2; page <= totalPages; page += CHUNK) {
       if (stopRef.current) break;
       const chunk = Array.from({ length: Math.min(CHUNK, totalPages - page + 1) }, (_, i) => page + i);
       await Promise.all(chunk.map(async (p) => {
         try {
-          const res = await fetch(`${base}${p}.json`, { credentials: "omit" });
-          if (!res.ok) return;
-          const raw = await res.json() as { result?: { imdb_id?: string }[] };
-          for (const item of raw?.result ?? []) {
+          const data = await fetchPage(p);
+          for (const item of data?.result ?? []) {
             if (item.imdb_id) available.add(item.imdb_id);
           }
-        } catch { /* skip page */ }
+        } catch { /* ignorar página fallida */ }
       }));
       setProgress(p => ({ ...p, pagesLoaded: p.pagesLoaded + chunk.length }));
-      // Small pause between chunks to avoid rate limiting
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise(r => setTimeout(r, 50));
     }
     return available;
   };
