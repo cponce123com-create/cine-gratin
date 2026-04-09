@@ -132,8 +132,7 @@ router.post("/admin/import-by-ids", async (req, res) => {
 });
 
 // POST /api/admin/verify-vidsrc
-// El frontend verifica los iframes directamente (el servidor no puede acceder a vidsrc.net)
-// y luego envía los resultados aquí para guardarlos en la BD.
+// Recibe resultados del escáner y los guarda en BD con un bulk UPDATE por tipo
 router.post("/admin/verify-vidsrc", async (req, res) => {
   const { results: clientResults } = req.body as {
     results: { imdb_id: string; type: "movie" | "series"; available: boolean }[];
@@ -143,23 +142,23 @@ router.post("/admin/verify-vidsrc", async (req, res) => {
     return res.status(400).json({ error: "Se requiere un array results" });
   }
 
-  const saved: { imdb_id: string; available: boolean }[] = [];
+  try {
+    // Separar por tipo y estado
+    const movieActive   = clientResults.filter(r => r.type === "movie"   && r.available).map(r => r.imdb_id);
+    const movieInactive = clientResults.filter(r => r.type === "movie"   && !r.available).map(r => r.imdb_id);
+    const seriesActive  = clientResults.filter(r => r.type === "series"  && r.available).map(r => r.imdb_id);
+    const seriesInactive= clientResults.filter(r => r.type === "series"  && !r.available).map(r => r.imdb_id);
 
-  for (const item of clientResults) {
-    try {
-      const status = item.available ? "active" : "inactive";
-      const table = item.type === "series" ? "cv_series" : "movies";
-      await pool.query(
-        `UPDATE ${table} SET vidsrc_status = $1 WHERE imdb_id = $2`,
-        [status, item.imdb_id]
-      );
-      saved.push({ imdb_id: item.imdb_id, available: item.available });
-    } catch {
-      // ignorar errores individuales
-    }
+    // Un solo UPDATE por grupo usando ANY($1)
+    if (movieActive.length)    await pool.query("UPDATE movies     SET vidsrc_status = 'active'   WHERE imdb_id = ANY($1)", [movieActive]);
+    if (movieInactive.length)  await pool.query("UPDATE movies     SET vidsrc_status = 'inactive' WHERE imdb_id = ANY($1)", [movieInactive]);
+    if (seriesActive.length)   await pool.query("UPDATE cv_series  SET vidsrc_status = 'active'   WHERE imdb_id = ANY($1)", [seriesActive]);
+    if (seriesInactive.length) await pool.query("UPDATE cv_series  SET vidsrc_status = 'inactive' WHERE imdb_id = ANY($1)", [seriesInactive]);
+
+    res.json({ saved: clientResults.length, active: movieActive.length + seriesActive.length, inactive: movieInactive.length + seriesInactive.length });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
   }
-
-  res.json(saved);
 });
 
 // POST /api/admin/scan-networks — scan existing media to update networks/production companies
@@ -474,7 +473,8 @@ router.post("/admin/cleanup-no-vidsrc", async (_req, res) => {
 router.get("/admin/vidsrc-range", async (req, res) => {
   const type = req.query.type === "series" ? "tvshows" : "movies";
   const from = Math.max(1, parseInt(String(req.query.from ?? "1"), 10) || 1);
-  const to = Math.min(from + 99, parseInt(String(req.query.to ?? String(from + 99)), 10) || from + 99);
+  const requested_to = parseInt(String(req.query.to ?? String(from + 49)), 10) || from + 49;
+  const to = Math.min(from + 199, requested_to); // max 200 pages per request
 
   const fetchPage = async (page: number): Promise<{ imdb_id: string }[]> => {
     const url = `https://vidsrc.me/${type}/latest/page-${page}.json`;
