@@ -229,7 +229,14 @@ export default function Home() {
             // Fallback: Match by title keywords
             return matchesTitle(m.title, sec.keywords);
           },
-          (s) => matchesTitle(s.title, sec.keywords)
+          (s) => {
+            // Priority 1: Match by collection_id
+            if (sec.collection_id && s.collection_id === sec.collection_id) return true;
+            // Priority 2: Match by collection_name (exact)
+            if (sec.label && s.collection_name === sec.label) return true;
+            // Fallback: Match by title keywords
+            return matchesTitle(s.title, sec.keywords);
+          }
         ),
       })).filter((s) => s.items.length >= 1), // Sagas can show even with 1 item
     [allMovies, allSeries]

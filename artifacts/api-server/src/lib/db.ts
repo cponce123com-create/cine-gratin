@@ -89,6 +89,8 @@ export async function initDb() {
     ALTER TABLE cv_series ADD COLUMN IF NOT EXISTS networks TEXT[] DEFAULT '{}';
     ALTER TABLE cv_series ADD COLUMN IF NOT EXISTS videos JSONB DEFAULT '[]';
     ALTER TABLE cv_series ADD COLUMN IF NOT EXISTS reviews JSONB DEFAULT '[]';
+    ALTER TABLE cv_series ADD COLUMN IF NOT EXISTS collection_id INTEGER;
+    ALTER TABLE cv_series ADD COLUMN IF NOT EXISTS collection_name TEXT;
 
     CREATE TABLE IF NOT EXISTS cv_auto_import_log (
       id SERIAL PRIMARY KEY,
