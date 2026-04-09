@@ -9,8 +9,8 @@ const router = Router();
 router.get("/admin/stats", async (_req, res) => {
   try {
     const [moviesCount, seriesCount, totalViews, topMovies, topSeries, recentTrends] = await Promise.all([
-      pool.query("SELECT COUNT(DISTINCT imdb_id) as count FROM movies WHERE imdb_id IS NOT NULL AND imdb_id != ''"),
-      pool.query("SELECT COUNT(DISTINCT imdb_id) as count FROM cv_series WHERE imdb_id IS NOT NULL AND imdb_id != ''"),
+      pool.query("SELECT COUNT(DISTINCT imdb_id) as count FROM movies WHERE vidsrc_status = 'active'"),
+      pool.query("SELECT COUNT(DISTINCT imdb_id) as count FROM cv_series WHERE vidsrc_status = 'active'"),
       pool.query(`
         SELECT 
           (SELECT COALESCE(SUM(views), 0) FROM movies) + 
@@ -446,10 +446,10 @@ router.post("/admin/import-by-tmdb-ids", async (req, res) => {
 router.post("/admin/cleanup-no-vidsrc", async (_req, res) => {
   try {
     const movieResult = await pool.query(
-      "DELETE FROM movies WHERE vidsrc_status = 'inactive' RETURNING id"
+      "DELETE FROM movies WHERE vidsrc_status = 'inactive' OR vidsrc_status IS NULL RETURNING id"
     );
     const seriesResult = await pool.query(
-      "DELETE FROM cv_series WHERE vidsrc_status = 'inactive' RETURNING id"
+      "DELETE FROM cv_series WHERE vidsrc_status = 'inactive' OR vidsrc_status IS NULL RETURNING id"
     );
     const deletedMovies = movieResult.rowCount || 0;
     const deletedSeries = seriesResult.rowCount || 0;
