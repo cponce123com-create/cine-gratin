@@ -42,21 +42,38 @@ export default function VidsrcScanner() {
 
   useEffect(() => { loadCatalog(); }, [loadCatalog]);
 
-  // Llama al endpoint del backend que descarga TODA la lista de vidsrc.me de una vez
-  // El backend hace el trabajo pesado (1779+ páginas) sin problemas de CORS
+  // Descarga la lista completa de vidsrc.me en rangos de 100 páginas
+  // para evitar el timeout de 30s de Render en llamadas largas
   const fetchVidsrcMovSet = async (type: "movie" | "series"): Promise<Set<string>> => {
     const token = localStorage.getItem("cg_admin_token") ?? "";
+    const headers = token ? { "Authorization": `Bearer ${token}` } : {};
+    const available = new Set<string>();
+    const RANGE = 100; // páginas por llamada al backend
+
+    // Primera llamada: obtiene totalPages y las primeras 100 páginas
+    let totalPages = 100;
     try {
-      const res = await fetch(`/api/admin/vidsrc-all?type=${type}`, {
-        headers: token ? { "Authorization": `Bearer ${token}` } : {},
-      });
-      if (!res.ok) return new Set();
-      const data = await res.json() as { imdb_ids?: string[]; total?: number; pages?: number };
-      setProgress(p => ({ ...p, pagesLoaded: data.pages ?? 0 }));
-      return new Set(data.imdb_ids ?? []);
-    } catch {
-      return new Set();
+      const res = await fetch(`/api/admin/vidsrc-range?type=${type}&from=1&to=${RANGE}`, { headers });
+      if (!res.ok) return available;
+      const data = await res.json() as { totalPages?: number; imdb_ids?: string[] };
+      totalPages = data.totalPages ?? RANGE;
+      for (const id of data.imdb_ids ?? []) available.add(id);
+      setProgress(p => ({ ...p, pagesLoaded: p.pagesLoaded + Math.min(RANGE, totalPages) }));
+    } catch { return available; }
+
+    // Llamadas siguientes para el resto de rangos
+    for (let from = RANGE + 1; from <= totalPages; from += RANGE) {
+      if (stopRef.current) break;
+      const to = Math.min(from + RANGE - 1, totalPages);
+      try {
+        const res = await fetch(`/api/admin/vidsrc-range?type=${type}&from=${from}&to=${to}`, { headers });
+        if (!res.ok) continue;
+        const data = await res.json() as { imdb_ids?: string[] };
+        for (const id of data.imdb_ids ?? []) available.add(id);
+        setProgress(p => ({ ...p, pagesLoaded: p.pagesLoaded + (to - from + 1) }));
+      } catch { /* continuar con el siguiente rango */ }
     }
+    return available;
   };
 
   const startScan = async () => {
@@ -181,7 +198,7 @@ export default function VidsrcScanner() {
             <div className="mt-4 space-y-2">
               <div className="flex justify-between text-xs text-gray-400">
                 <span>
-                  {phase === "downloading" && `Descargando lista completa de vidsrc.me... (esto puede tardar 1-2 minutos)`}
+                  {phase === "downloading" && `Descargando lista de vidsrc.me... ${progress.pagesLoaded} páginas descargadas`}
                   {phase === "matching" && `Cruzando catálogo: ${progress.matched} de ${progress.total} títulos`}
                   {phase === "done" && `Completado: ${progress.total} títulos verificados`}
                 </span>
