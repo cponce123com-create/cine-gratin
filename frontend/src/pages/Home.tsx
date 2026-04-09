@@ -157,6 +157,18 @@ export default function Home() {
           (m) => (Number(m.year) || 0) <= 1990 && matchesKeywords(m.genres, ["animación", "animation"]),
           (s) => (Number(s.year) || 0) <= 1990 && matchesKeywords(s.genres, ["animación", "animation"])
         ).sort((a, b) => (Number(b.item.views) || 0) - (Number(a.item.views) || 0));
+      } else if (sec.type === "estrenos") {
+        const currentYear = new Date().getFullYear();
+        items = buildMixed(
+          allMovies, allSeries,
+          (m) => (Number(m.year) || 0) >= currentYear - 1,
+          (s) => (Number(s.year) || 0) >= currentYear - 1
+        ).sort((a, b) => {
+          // Sort by date_added first (newest in catalog), then by year
+          const dateA = a.item.date_added ? new Date(a.item.date_added).getTime() : 0;
+          const dateB = b.item.date_added ? new Date(b.item.date_added).getTime() : 0;
+          return dateB - dateA;
+        });
       }
       return { ...sec, items };
     }).filter(s => s.items.length >= MIN_ITEMS_TO_SHOW);
