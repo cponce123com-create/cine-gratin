@@ -222,18 +222,17 @@ export default function Home() {
         items: buildMixed(
           allMovies, allSeries,
           (m) => {
-            // Priority 1: Match by collection_id
+            // Priority 1: Match by collection_id (-1 means scanned and confirmed no collection)
             if (sec.collection_id && m.collection_id === sec.collection_id) return true;
-            // Priority 2: Match by collection_name (exact)
-            if (sec.label && m.collection_name === sec.label) return true;
-            // Fallback: Match by title keywords
+            // If movie has been scanned and has a different collection, skip keyword fallback
+            if (m.collection_id && m.collection_id !== -1) return false;
+            // Fallback: Match by title keywords (for unscanned movies)
             return matchesTitle(m.title, sec.keywords);
           },
           (s) => {
             // Priority 1: Match by collection_id
             if (sec.collection_id && s.collection_id === sec.collection_id) return true;
-            // Priority 2: Match by collection_name (exact)
-            if (sec.label && s.collection_name === sec.label) return true;
+            if (s.collection_id && s.collection_id !== -1) return false;
             // Fallback: Match by title keywords
             return matchesTitle(s.title, sec.keywords);
           }
