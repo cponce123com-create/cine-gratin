@@ -224,6 +224,11 @@ export const tmdbDiscover = (params: {
 }): Promise<TmdbDiscoverResult> =>
   adminPost("/api/admin/tmdb-discover", params);
 
+export const importCollection = (
+  collection_id: number
+): Promise<{ ok: boolean; collection: string; imported: number; existed: number; total: number; titles: string[] }> =>
+  adminPost("/api/admin/import-collection", { collection_id });
+
 export const importByTmdbIds = (
   tmdb_ids: number[],
   type: "movie" | "series"
