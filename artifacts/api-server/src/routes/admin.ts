@@ -468,25 +468,77 @@ router.post("/admin/cleanup-no-vidsrc", async (_req, res) => {
 });
 
 
-// GET /api/admin/vidsrc-list?type=movie|series&page=N
-// Proxy hacia vidsrc.me para evitar CORS desde el frontend
+// GET /api/admin/vidsrc-all?type=movie|series
+// Descarga TODAS las páginas de vidsrc.me y devuelve todos los IMDb IDs de una vez
+// El frontend no puede hacer esto por CORS
+router.get("/admin/vidsrc-all", async (req, res) => {
+  const type = req.query.type === "series" ? "tvshows" : "movies";
+
+  const fetchPage = async (page: number): Promise<{ imdb_id: string }[]> => {
+    const url = `https://vidsrc.me/${type}/latest/page-${page}.json`;
+    try {
+      const r = await fetch(url, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          "Accept": "application/json",
+        },
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!r.ok) return [];
+      const data = await r.json() as { result?: { imdb_id: string }[]; pages?: number };
+      return data.result ?? [];
+    } catch {
+      return [];
+    }
+  };
+
+  try {
+    // Obtener página 1 para conocer el total de páginas
+    const url1 = `https://vidsrc.me/${type}/latest/page-1.json`;
+    const r1 = await fetch(url1, {
+      headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!r1.ok) return res.status(500).json({ error: "vidsrc.me no responde" });
+
+    const data1 = await r1.json() as { result?: { imdb_id: string }[]; pages?: number };
+    const totalPages = data1.pages ?? 1;
+    const allIds = new Set<string>();
+
+    // Añadir IDs de página 1
+    for (const item of data1.result ?? []) {
+      if (item.imdb_id) allIds.add(item.imdb_id);
+    }
+
+    // Descargar el resto en lotes de 20 páginas en paralelo
+    const CHUNK = 20;
+    for (let page = 2; page <= totalPages; page += CHUNK) {
+      const pages = Array.from({ length: Math.min(CHUNK, totalPages - page + 1) }, (_, i) => page + i);
+      const results = await Promise.all(pages.map(fetchPage));
+      for (const items of results) {
+        for (const item of items) {
+          if (item.imdb_id) allIds.add(item.imdb_id);
+        }
+      }
+    }
+
+    res.json({ total: allIds.size, pages: totalPages, imdb_ids: Array.from(allIds) });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// GET /api/admin/vidsrc-list?type=movie|series&page=N  (kept for compatibility)
 router.get("/admin/vidsrc-list", async (req, res) => {
   const type = req.query.type === "series" ? "tvshows" : "movies";
   const page = parseInt(String(req.query.page ?? "1"), 10) || 1;
   const url = `https://vidsrc.me/${type}/latest/page-${page}.json`;
   try {
     const r = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Accept": "application/json",
-      },
+      headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
     });
-    if (!r.ok) {
-      return res.status(r.status).json({ error: `vidsrc.me responded ${r.status}` });
-    }
+    if (!r.ok) return res.status(r.status).json({ error: `vidsrc.me responded ${r.status}` });
     const data = await r.json();
-    // Add CORS header so browser can read it
-    res.setHeader("Access-Control-Allow-Origin", "*");
     res.json(data);
   } catch (e) {
     res.status(500).json({ error: String(e) });
