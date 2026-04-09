@@ -42,36 +42,56 @@ export default function VidsrcScanner() {
 
   useEffect(() => { loadCatalog(); }, [loadCatalog]);
 
-  // Descarga la lista completa de vidsrc.me en rangos de 100 páginas
-  // para evitar el timeout de 30s de Render en llamadas largas
+  // Descarga la lista completa de vidsrc.me en rangos de 50 páginas
+  // 3 rangos en paralelo, con reintentos en caso de fallo
   const fetchVidsrcMovSet = async (type: "movie" | "series"): Promise<Set<string>> => {
     const token = localStorage.getItem("cg_admin_token") ?? "";
     const headers = token ? { "Authorization": `Bearer ${token}` } : {};
     const available = new Set<string>();
-    const RANGE = 100; // páginas por llamada al backend
+    const RANGE = 50;   // páginas por llamada (más pequeño = menos timeout)
+    const PARALLEL = 3; // rangos simultáneos
+    const RETRIES = 2;  // reintentos por rango fallido
 
-    // Primera llamada: obtiene totalPages y las primeras 100 páginas
-    let totalPages = 100;
+    const fetchRange = async (from: number, to: number): Promise<string[]> => {
+      for (let attempt = 0; attempt <= RETRIES; attempt++) {
+        try {
+          const res = await fetch(`/api/admin/vidsrc-range?type=${type}&from=${from}&to=${to}`, { headers });
+          if (!res.ok) continue;
+          const data = await res.json() as { imdb_ids?: string[]; totalPages?: number };
+          return data.imdb_ids ?? [];
+        } catch { /* reintento */ }
+      }
+      return [];
+    };
+
+    // Primera llamada para obtener totalPages
+    let totalPages = RANGE;
     try {
       const res = await fetch(`/api/admin/vidsrc-range?type=${type}&from=1&to=${RANGE}`, { headers });
-      if (!res.ok) return available;
+      if (!res.ok) { console.error(`[vidsrc-range] HTTP ${res.status}`); return available; }
       const data = await res.json() as { totalPages?: number; imdb_ids?: string[] };
+      console.log(`[vidsrc-range] type=${type} totalPages=${data.totalPages} ids=${data.imdb_ids?.length}`);
       totalPages = data.totalPages ?? RANGE;
       for (const id of data.imdb_ids ?? []) available.add(id);
-      setProgress(p => ({ ...p, pagesLoaded: p.pagesLoaded + Math.min(RANGE, totalPages) }));
-    } catch { return available; }
+      setProgress(p => ({ ...p, pagesLoaded: p.pagesLoaded + Math.min(RANGE, totalPages), totalPages: p.totalPages || totalPages }));
+    } catch (e) { console.error("[vidsrc-range] catch:", e); return available; }
 
-    // Llamadas siguientes para el resto de rangos
+    // Resto de rangos en grupos de PARALLEL en paralelo
+    const allRanges: [number, number][] = [];
     for (let from = RANGE + 1; from <= totalPages; from += RANGE) {
+      allRanges.push([from, Math.min(from + RANGE - 1, totalPages)]);
+    }
+
+    for (let i = 0; i < allRanges.length; i += PARALLEL) {
       if (stopRef.current) break;
-      const to = Math.min(from + RANGE - 1, totalPages);
-      try {
-        const res = await fetch(`/api/admin/vidsrc-range?type=${type}&from=${from}&to=${to}`, { headers });
-        if (!res.ok) continue;
-        const data = await res.json() as { imdb_ids?: string[] };
-        for (const id of data.imdb_ids ?? []) available.add(id);
-        setProgress(p => ({ ...p, pagesLoaded: p.pagesLoaded + (to - from + 1) }));
-      } catch { /* continuar con el siguiente rango */ }
+      const batch = allRanges.slice(i, i + PARALLEL);
+      const results = await Promise.all(batch.map(([from, to]) => fetchRange(from, to)));
+      for (const ids of results) {
+        for (const id of ids) available.add(id);
+      }
+      const pagesLoaded = batch[batch.length - 1][1]; // última página del batch
+      setProgress(p => ({ ...p, pagesLoaded: p.pagesLoaded + batch.reduce((s, [f, t]) => s + (t - f + 1), 0) }));
+      void pagesLoaded; // suppress unused warning
     }
     return available;
   };
