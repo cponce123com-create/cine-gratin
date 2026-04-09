@@ -126,29 +126,32 @@ export default function AdminDashboard() {
     }
   };
 
-  // Verifica un título haciendo fetch() desde el navegador.
-  // vidsrc.net siempre devuelve HTTP 200 pero el HTML contiene
-  // "This media is unavailable" cuando no hay video disponible.
-  const checkOneVidsrc = async (imdbId: string, type: "movie" | "series"): Promise<boolean> => {
-    const url = type === "series"
-      ? `https://vidsrc.net/embed/tv/${imdbId}/`
-      : `https://vidsrc.net/embed/movie/${imdbId}/`;
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 15000);
-      const res = await fetch(url, {
-        signal: controller.signal,
-        // no-cors porque no necesitamos leer headers, solo el body
-        credentials: "omit",
-      });
-      clearTimeout(timer);
-      const html = await res.text();
-      // Si el HTML contiene el mensaje de no disponible → sin video
-      return !html.toLowerCase().includes("this media is unavailable");
-    } catch {
-      // Error de red o timeout → marcamos como inactivo
-      return false;
+  // Descarga todas las páginas de la lista pública de vidsrc.me desde el navegador.
+  // Devuelve un Set con todos los IMDb IDs que vidsrc.me tiene disponibles.
+  const fetchVidsrcList = async (
+    type: "movie" | "series",
+    onProgress: (page: number) => void
+  ): Promise<Set<string>> => {
+    const available = new Set<string>();
+    const base = type === "series"
+      ? "https://vidsrc.me/tvshows/latest/page-"
+      : "https://vidsrc.me/movies/latest/page-";
+
+    for (let page = 1; page <= 999; page++) {
+      try {
+        const res = await fetch(`${base}${page}.json`, { credentials: "omit" });
+        if (!res.ok) break;
+        const data = await res.json() as { title?: string; imdb_id?: string }[];
+        if (!Array.isArray(data) || data.length === 0) break;
+        for (const item of data) {
+          if (item.imdb_id) available.add(item.imdb_id);
+        }
+        onProgress(page);
+      } catch {
+        break;
+      }
     }
+    return available;
   };
 
   const handleVerifyVidsrc = async () => {
@@ -157,39 +160,44 @@ export default function AdminDashboard() {
     setVidsrcCounts({ active: 0, inactive: 0 });
     setVidsrcCleanResult(null);
     try {
+      // Paso 1: descargar catálogo completo de vidsrc.me (películas + series)
+      let pagesLoaded = 0;
+      const updatePages = (p: number) => { pagesLoaded = p; setVidsrcProgress({ checked: p, total: 0 }); };
+
+      const [movieSet, seriesSet] = await Promise.all([
+        fetchVidsrcList("movie", updatePages),
+        fetchVidsrcList("series", updatePages),
+      ]);
+
+      // Paso 2: cruzar con nuestro catálogo
+      setVidsrcPhase("verifying");
       const [movies, series] = await Promise.all([getMovies(), getSeries()]);
-      const movieItems = movies.filter((m) => m.imdb_id).map((m) => ({ imdb_id: m.imdb_id!, type: "movie" as const }));
-      const seriesItems = series.filter((s) => s.imdb_id).map((s) => ({ imdb_id: s.imdb_id!, type: "series" as const }));
-      const allItems = [...movieItems, ...seriesItems];
+      const allItems = [
+        ...movies.filter((m) => m.imdb_id).map((m) => ({ imdb_id: m.imdb_id!, type: "movie" as const })),
+        ...series.filter((s) => s.imdb_id).map((s) => ({ imdb_id: s.imdb_id!, type: "series" as const })),
+      ];
       const total = allItems.length;
       setVidsrcProgress({ checked: 0, total });
-      setVidsrcPhase("verifying");
 
       let active = 0, inactive = 0, checked = 0;
-      const CONCURRENCY = 5; // verificar 5 iframes a la vez
-      const SAVE_BATCH = 20; // guardar en BD cada 20 resultados
+      const SAVE_BATCH = 100;
       const pendingSave: { imdb_id: string; type: "movie" | "series"; available: boolean }[] = [];
 
-      for (let i = 0; i < allItems.length; i += CONCURRENCY) {
-        const chunk = allItems.slice(i, i + CONCURRENCY);
-        const chunkResults = await Promise.all(
-          chunk.map((item) => checkOneVidsrc(item.imdb_id, item.type).then((available) => ({ ...item, available })))
-        );
-        for (const r of chunkResults) {
-          if (r.available) active++; else inactive++;
-          checked++;
-          pendingSave.push(r);
-        }
+      for (const item of allItems) {
+        const available = item.type === "movie"
+          ? movieSet.has(item.imdb_id)
+          : seriesSet.has(item.imdb_id);
+        if (available) active++; else inactive++;
+        checked++;
+        pendingSave.push({ ...item, available });
         setVidsrcProgress({ checked, total });
         setVidsrcCounts({ active, inactive });
 
-        // Guardar en BD cada SAVE_BATCH resultados
         if (pendingSave.length >= SAVE_BATCH) {
           await saveVidsrcResults([...pendingSave]).catch(() => {});
           pendingSave.length = 0;
         }
       }
-      // Guardar los últimos resultados pendientes
       if (pendingSave.length > 0) {
         await saveVidsrcResults([...pendingSave]).catch(() => {});
       }
@@ -298,7 +306,7 @@ export default function AdminDashboard() {
             <div className="mb-4">
               <div className="flex items-center justify-between text-xs text-gray-400 mb-1.5">
                 <span>
-                  {vidsrcPhase === "fetching" ? "Cargando catálogo..." : `Verificando ${vidsrcProgress.checked} de ${vidsrcProgress.total}...`}
+                  {vidsrcPhase === "fetching" ? `Descargando lista de vidsrc.me — página ${vidsrcProgress.checked}...` : `Cruzando catálogo: ${vidsrcProgress.checked} de ${vidsrcProgress.total}...`}
                 </span>
                 {vidsrcPhase === "verifying" && vidsrcProgress.total > 0 && (
                   <span>{Math.round((vidsrcProgress.checked / vidsrcProgress.total) * 100)}%</span>
