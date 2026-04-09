@@ -431,7 +431,7 @@ router.post("/admin/import-by-tmdb-ids", async (req, res) => {
   }
 
   let imported = 0, existed = 0;
-  for (const tmdbId of tmdb_ids.slice(0, 500)) {
+  for (const tmdbId of tmdb_ids.slice(0, 2000)) {
     try {
       const ok = type === "movie" ? await importMovie(tmdbId) : await importSeries(tmdbId);
       if (ok) imported++; else existed++;
@@ -440,7 +440,7 @@ router.post("/admin/import-by-tmdb-ids", async (req, res) => {
     }
   }
 
-  res.json({ ok: true, summary: { imported, existed_or_error: existed, total: Math.min(tmdb_ids.length, 500) } });
+  res.json({ ok: true, summary: { imported, existed_or_error: existed, total: Math.min(tmdb_ids.length, 2000) } });
 });
 
 // POST /api/admin/cleanup-no-vidsrc — delete movies/series where vidsrc_status = 'inactive'
