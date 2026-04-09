@@ -75,7 +75,7 @@ type FilterMode = "genre" | "platform" | null;
 export default function Home() {
   const { data: movieData, isLoading: loadingMovies, error: errorMovies } = useQuery({
     queryKey: ["movies"],
-    queryFn: getMovies,
+    queryFn: () => getMovies({ limit: 10000 }), // Aumentar límite para capturar todas las sagas
     staleTime: 5 * 60 * 1000,
   });
   const { data: seriesData, isLoading: loadingSeries, error: errorSeries } = useQuery({
@@ -300,11 +300,12 @@ export default function Home() {
 
         {/* ── Custom sections ────────────────────────────────────────── */}
         {customCarousels.map((sec) => (
-          <GenreCarousel
-            key={sec.id}
-            title={sec.label}
-            items={sec.items}
-          />
+                <GenreCarousel
+                  key={sec.id}
+                  title={sec.label}
+                  items={sec.items}
+                  pageSize={30} // Mostrar más películas en las sagas
+                />
         ))}
 
         {sagaCarousels.length > 0 && (

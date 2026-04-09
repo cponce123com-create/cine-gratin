@@ -61,7 +61,13 @@ async function adminDelete(path: string): Promise<void> {
 
 // ── Public endpoints ──────────────────────────────────────────────────────────
 
-export const getMovies = (): Promise<Movie[]> => apiFetch("/api/movies");
+export const getMovies = (params?: { page?: number; limit?: number }): Promise<Movie[]> => {
+  const query = new URLSearchParams();
+  if (params?.page) query.append("page", params.page.toString());
+  if (params?.limit) query.append("limit", params.limit.toString());
+  const queryString = query.toString();
+  return apiFetch(`/api/movies${queryString ? `?${queryString}` : ""}`);
+};
 export const getMovie = (id: string): Promise<Movie> => apiFetch(`/api/movies/${id}`);
 export const getSeries = (): Promise<Series[]> => apiFetch("/api/series");
 export const getSeriesById = (id: string): Promise<Series> => apiFetch(`/api/series/${id}`);
