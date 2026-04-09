@@ -1,9 +1,9 @@
-import { Router } from "express";
+import { Router, type IRouter } from "express";
 import { pool } from "../lib/db";
 import { runAutoImport, importByImdbId, importMovie, importSeries } from "../jobs/auto-import";
 import { fetchMovieByTmdbId, fetchSeriesByTmdbId, tmdbFetch } from "../lib/tmdb-client";
 
-const router = Router();
+const router: IRouter = Router();
 
 // GET /api/admin/stats
 router.get("/admin/stats", async (_req, res) => {
