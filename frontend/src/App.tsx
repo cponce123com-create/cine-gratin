@@ -22,6 +22,7 @@ import ManageSeries from "@/pages/admin/ManageSeries";
 import SportChannels from "@/pages/admin/SportChannels";
 import EventChannels from "@/pages/admin/EventChannels";
 import TmdbScraper from "@/pages/admin/TmdbScraper";
+import VidsrcScanner from "@/pages/admin/VidsrcScanner";
 
 function PublicLayout() {
   return (
@@ -79,6 +80,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <TmdbScraper />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/vidsrc-scanner"
+          element={
+            <ProtectedRoute>
+              <VidsrcScanner />
             </ProtectedRoute>
           }
         />
