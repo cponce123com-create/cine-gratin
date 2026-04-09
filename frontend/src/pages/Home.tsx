@@ -80,7 +80,7 @@ export default function Home() {
   });
   const { data: seriesData, isLoading: loadingSeries, error: errorSeries } = useQuery({
     queryKey: ["series"],
-    queryFn: getSeries,
+    queryFn: () => getSeries({ limit: 5000 }), // Aumentar límite para capturar todas las sagas de series
     staleTime: 5 * 60 * 1000,
   });
 
@@ -221,13 +221,12 @@ export default function Home() {
         ...sec,
         items: buildMixed(
           allMovies, allSeries,
-          (m) => {
-            // Match by collection_id (most accurate)
-            if (sec.collection_id && m.collection_id === sec.collection_id) return true;
-            // Always allow keyword fallback for movies not yet assigned to this collection
-            if (m.collection_id && m.collection_id !== sec.collection_id) return false; // Exclude if it belongs to another saga
-            return matchesTitle(m.title, sec.keywords);
-          },
+	          (m) => {
+	            // Match by collection_id (most accurate)
+	            if (sec.collection_id && m.collection_id === sec.collection_id) return true;
+	            // Always allow keyword fallback for movies not yet assigned to this collection
+	            return matchesTitle(m.title, sec.keywords);
+	          },
           (s) => {
             // Match by collection_id
             if (sec.collection_id && s.collection_id === sec.collection_id) return true;

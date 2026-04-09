@@ -69,7 +69,13 @@ export const getMovies = (params?: { page?: number; limit?: number }): Promise<M
   return apiFetch(`/api/movies${queryString ? `?${queryString}` : ""}`);
 };
 export const getMovie = (id: string): Promise<Movie> => apiFetch(`/api/movies/${id}`);
-export const getSeries = (): Promise<Series[]> => apiFetch("/api/series");
+export const getSeries = (params?: { page?: number; limit?: number }): Promise<Series[]> => {
+  const query = new URLSearchParams();
+  if (params?.page) query.append("page", params.page.toString());
+  if (params?.limit) query.append("limit", params.limit.toString());
+  const queryString = query.toString();
+  return apiFetch(`/api/series${queryString ? `?${queryString}` : ""}`);
+};
 export const getSeriesById = (id: string): Promise<Series> => apiFetch(`/api/series/${id}`);
 
 export const searchMovies = (q: string, limit = 6): Promise<Movie[]> =>
