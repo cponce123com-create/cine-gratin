@@ -378,9 +378,11 @@ function CollectionImportSection() {
     setScanProgress({ current: 0, total: 0, updated: 0, no_collection: 0, error: 0, title: "" });
 
     const token = localStorage.getItem("cg_admin_token") ?? "";
+    // Send all known collection IDs so backend only scans those
+    const allIds = COLLECTIONS.map(c => c.id).join(",");
     const params = new URLSearchParams();
     if (token) params.set("token", token);
-    if (forceRescan) params.set("force", "1");
+    params.set("ids", allIds);
     const url = `/api/admin/scan-collections-stream?${params.toString()}`;
     const es = new EventSource(url);
     scanEsRef.current = es;
@@ -391,7 +393,11 @@ function CollectionImportSection() {
     });
     es.addEventListener("progress", (e) => {
       const d = JSON.parse(e.data);
-      setScanProgress({ current: d.i, total: d.total, updated: d.updated, no_collection: d.no_collection, error: d.error, title: d.title });
+      setScanProgress({
+        current: d.i, total: d.total,
+        updated: d.updated, no_collection: d.not_found, error: d.error,
+        title: d.collection || "",
+      });
     });
     es.addEventListener("done", () => { setScanning(false); setScanDone(true); es.close(); });
     es.addEventListener("error", () => { setScanning(false); es.close(); });
@@ -450,14 +456,10 @@ function CollectionImportSection() {
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-white text-sm font-semibold">Escanear colecciones existentes</p>
-            <p className="text-gray-500 text-xs mt-0.5">Actualiza el campo collection_id en todas las películas que aún no lo tienen. Necesario para que las sagas funcionen correctamente en el Home.</p>
+            <p className="text-gray-500 text-xs mt-0.5">Asigna el collection_id correcto a las películas de tus {COLLECTIONS.length} sagas configuradas. Necesario para que las sagas aparezcan correctas en el Home.</p>
           </div>
           <div className="flex flex-col items-end gap-2">
-            <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
-              <input type="checkbox" checked={forceRescan} onChange={e => setForceRescan(e.target.checked)}
-                className="w-3 h-3 accent-brand-red" />
-              Re-escanear todo
-            </label>
+
             {!scanning ? (
               <button onClick={handleScanCollections}
                 className="flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors">
@@ -482,8 +484,8 @@ function CollectionImportSection() {
               <div className={`h-1.5 rounded-full transition-all ${scanDone ? "bg-green-500" : "bg-brand-red"}`} style={{ width: `${scanPct}%` }} />
             </div>
             <div className="flex gap-4 text-xs">
-              <span className="text-green-400">✅ {scanProgress.updated} actualizadas</span>
-              <span className="text-gray-500">— {scanProgress.no_collection} sin colección</span>
+              <span className="text-green-400">✅ {scanProgress.updated} películas vinculadas</span>
+              <span className="text-gray-500">— {scanProgress.no_collection} sagas sin match</span>
               {scanProgress.error > 0 && <span className="text-red-400">❌ {scanProgress.error} errores</span>}
             </div>
           </div>
