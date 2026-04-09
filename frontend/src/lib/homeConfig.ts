@@ -97,36 +97,33 @@ export interface SagaSection {
 }
 
 export const SAGA_SECTIONS: SagaSection[] = [
-  {
-    id: "marvel",
-    label: "Universo Marvel",
-    keywords: ["iron man", "vengadores", "avengers", "capitán américa", "captain america", "thor", "hulk", "black widow", "doctor strange", "spider-man"],
-  },
-  {
-    id: "harry-potter",
-    label: "Harry Potter",
-    keywords: ["harry potter", "animales fantásticos", "fantastic beasts"],
-  },
-  {
-    id: "lord-of-the-rings",
-    label: "El Señor de los Anillos",
-    keywords: ["señor de los anillos", "lord of the rings", "hobbit"],
-  },
-  {
-    id: "yellowstone",
-    label: "Universo Yellowstone",
-    keywords: ["yellowstone", "1883", "1923"],
-  },
-  {
-    id: "star-wars",
-    label: "Star Wars",
-    keywords: ["star wars", "mandalorian", "andor", "obi-wan"],
-  },
-  {
-    id: "fast-furious",
-    label: "Fast & Furious",
-    keywords: ["fast & furious", "rápido y furioso", "fast and furious"],
-  },
+  { id: "marvel", label: "Universo Marvel", keywords: ["iron man", "vengadores", "avengers", "capitán américa", "captain america", "thor", "hulk", "black widow", "doctor strange", "spider-man", "guardians of the galaxy", "guardianes de la galaxia", "ant-man", "black panther", "eternals", "shang-chi", "wakanda"] },
+  { id: "dc", label: "DC Universe", keywords: ["batman", "superman", "wonder woman", "aquaman", "the flash", "shazam", "black adam", "joker", "suicide squad", "birds of prey", "green lantern"] },
+  { id: "harry-potter", label: "Harry Potter", keywords: ["harry potter", "animales fantásticos", "fantastic beasts"] },
+  { id: "lord-of-the-rings", label: "El Señor de los Anillos", keywords: ["señor de los anillos", "lord of the rings", "hobbit"] },
+  { id: "star-wars", label: "Star Wars", keywords: ["star wars", "mandalorian", "andor", "obi-wan", "boba fett", "ahsoka", "clone wars"] },
+  { id: "fast-furious", label: "Fast & Furious", keywords: ["fast & furious", "rápido y furioso", "fast and furious", "hobbs & shaw"] },
+  { id: "mission-impossible", label: "Misión: Imposible", keywords: ["mission: impossible", "misión: imposible", "mission impossible"] },
+  { id: "john-wick", label: "John Wick", keywords: ["john wick", "continental"] },
+  { id: "jurassic", label: "Jurassic Park", keywords: ["jurassic park", "jurassic world", "jurassic"] },
+  { id: "transformers", label: "Transformers", keywords: ["transformers", "bumblebee"] },
+  { id: "x-men", label: "X-Men", keywords: ["x-men", "wolverine", "deadpool", "logan", "magneto"] },
+  { id: "yellowstone", label: "Universo Yellowstone", keywords: ["yellowstone", "1883", "1923"] },
+  { id: "alien", label: "Alien", keywords: ["alien", "aliens", "prometheus", "covenant", "predator"] },
+  { id: "indiana-jones", label: "Indiana Jones", keywords: ["indiana jones"] },
+  { id: "pirates", label: "Piratas del Caribe", keywords: ["piratas del caribe", "pirates of the caribbean"] },
+  { id: "terminator", label: "Terminator", keywords: ["terminator"] },
+  { id: "matrix", label: "Matrix", keywords: ["matrix", "the matrix"] },
+  { id: "planet-of-apes", label: "El Planeta de los Simios", keywords: ["planet of the apes", "planeta de los simios", "kingdom of the planet"] },
+  { id: "despicable", label: "Mi Villano Favorito", keywords: ["despicable me", "mi villano favorito", "minions", "gru"] },
+  { id: "toy-story", label: "Toy Story", keywords: ["toy story", "buzz lightyear"] },
+  { id: "ice-age", label: "La Era del Hielo", keywords: ["ice age", "era del hielo"] },
+  { id: "shrek", label: "Shrek", keywords: ["shrek", "puss in boots", "el gato con botas"] },
+  { id: "hunger-games", label: "Los Juegos del Hambre", keywords: ["hunger games", "juegos del hambre", "catching fire", "mockingjay", "ballad of songbirds"] },
+  { id: "twilight", label: "Crepúsculo", keywords: ["twilight", "crepúsculo", "new moon", "eclipse", "breaking dawn"] },
+  { id: "bourne", label: "Jason Bourne", keywords: ["bourne", "jason bourne"] },
+  { id: "rocky-creed", label: "Rocky / Creed", keywords: ["rocky", "creed"] },
+  { id: "james-bond", label: "James Bond 007", keywords: ["james bond", "007", "skyfall", "spectre", "casino royale", "no time to die", "quantum of solace"] },
 ];
 
 export const PLATFORM_SECTIONS: PlatformSection[] = [
@@ -203,10 +200,15 @@ export const PLATFORM_SECTIONS: PlatformSection[] = [
 export interface CustomSection {
   id: string;
   label: string;
-  type: "classics" | "old-animation";
+  type: "classics" | "old-animation" | "estrenos";
 }
 
 export const CUSTOM_SECTIONS: CustomSection[] = [
+  {
+    id: "estrenos",
+    label: "🎬 Estrenos",
+    type: "estrenos",
+  },
   {
     id: "clasicas",
     label: "Clásicas",
