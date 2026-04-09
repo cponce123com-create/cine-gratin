@@ -751,76 +751,97 @@ router.post("/admin/reset-collection", async (req, res) => {
 });
 
 
-// GET /api/admin/scan-collections-stream — SSE: update collection_id for all movies missing it
-// ?force=1 to re-scan everything including movies already marked as -1
+// GET /api/admin/scan-collections-stream
+// Recibe collection_ids conocidos como query param y actualiza solo las películas de esas sagas.
+// Mucho más eficiente: O(N sagas) llamadas en vez de O(N películas).
+// ?ids=1241,119,10,... — lista de collection_ids a escanear
 router.get("/admin/scan-collections-stream", async (req, res) => {
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
   res.flushHeaders();
 
-  const force = req.query.force === "1";
-
   const send = (event: string, data: unknown) => {
     res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
   };
 
   try {
-    // Get movies missing collection_id, or all movies if force=true
-    const query = force
-      ? `SELECT id, imdb_id, title FROM movies WHERE imdb_id IS NOT NULL ORDER BY date_added DESC`
-      : `SELECT id, imdb_id, title FROM movies WHERE imdb_id IS NOT NULL AND (collection_id IS NULL OR collection_id = -1) ORDER BY date_added DESC`;
-    const { rows } = await pool.query(query);
+    // Parse collection IDs from query param
+    const idsParam = String(req.query.ids || "");
+    const collectionIds = idsParam
+      .split(",")
+      .map(s => parseInt(s.trim(), 10))
+      .filter(n => !isNaN(n) && n > 0);
 
-    send("start", { total: rows.length });
+    if (collectionIds.length === 0) {
+      send("error", { message: "No se proporcionaron IDs de colección. Usa ?ids=1241,119,..." });
+      res.end();
+      return;
+    }
 
-    let updated = 0, no_collection = 0, error = 0;
+    send("start", { total: collectionIds.length });
 
-    for (let i = 0; i < rows.length; i++) {
+    let updated = 0, not_found = 0, errorCount = 0;
+
+    for (let i = 0; i < collectionIds.length; i++) {
       if (req.destroyed) break;
-      const movie = rows[i];
+      const colId = collectionIds[i];
 
       try {
-        // Find TMDB ID from IMDb ID
-        const findRes = await tmdbFetch(`/find/${movie.imdb_id}?external_source=imdb_id`);
-        if (!findRes.ok) { error++; send("progress", { i: i+1, total: rows.length, title: movie.title, status: "error", updated, no_collection, error }); continue; }
-
-        const findData = await findRes.json() as { movie_results?: { id: number }[] };
-        const tmdbId = findData.movie_results?.[0]?.id;
-        if (!tmdbId) { no_collection++; send("progress", { i: i+1, total: rows.length, title: movie.title, status: "not_found", updated, no_collection, error }); continue; }
-
-        // Get movie details to find collection
-        const detailRes = await tmdbFetch(`/movie/${tmdbId}`);
-        if (!detailRes.ok) { error++; send("progress", { i: i+1, total: rows.length, title: movie.title, status: "error", updated, no_collection, error }); continue; }
-
-        const detail = await detailRes.json() as { belongs_to_collection?: { id: number; name: string } | null };
-        const collection = detail.belongs_to_collection;
-
-        if (!collection) {
-          no_collection++;
-          // Mark with -1 to avoid re-checking this movie next time
-          await pool.query(`UPDATE movies SET collection_id = -1 WHERE id = $1`, [movie.id]);
-          send("progress", { i: i+1, total: rows.length, title: movie.title, status: "no_collection", updated, no_collection, error });
+        // Fetch collection from TMDB to get all movies in it
+        const colRes = await tmdbFetch(`/collection/${colId}?language=es-MX`);
+        if (!colRes.ok) {
+          errorCount++;
+          send("progress", { i: i+1, total: collectionIds.length, collection_id: colId, status: "error", updated, not_found, error: errorCount });
           continue;
         }
 
-        // Update collection_id and collection_name
-        await pool.query(
-          `UPDATE movies SET collection_id = $1, collection_name = $2 WHERE id = $3`,
-          [collection.id, collection.name, movie.id]
-        );
-        updated++;
-        send("progress", { i: i+1, total: rows.length, title: movie.title, status: "updated", collection: collection.name, updated, no_collection, error });
+        const colData = await colRes.json() as {
+          id: number;
+          name: string;
+          parts: { id: number; title?: string }[];
+        };
 
-        // Small delay to respect TMDB rate limits
-        await new Promise(r => setTimeout(r, 250));
+        const parts = colData.parts ?? [];
+        let colUpdated = 0;
+
+        // For each movie in the collection, find it in our DB by external_ids and update collection_id
+        for (const part of parts) {
+          try {
+            const extRes = await tmdbFetch(`/movie/${part.id}/external_ids`);
+            if (!extRes.ok) continue;
+            const ext = await extRes.json() as { imdb_id?: string };
+            if (!ext.imdb_id) continue;
+
+            const result = await pool.query(
+              `UPDATE movies SET collection_id = $1, collection_name = $2
+               WHERE imdb_id = $3 AND (collection_id IS NULL OR collection_id != $1)
+               RETURNING id`,
+              [colData.id, colData.name, ext.imdb_id]
+            );
+            if (result.rowCount && result.rowCount > 0) colUpdated++;
+            await new Promise(r => setTimeout(r, 100));
+          } catch { /* skip this part */ }
+        }
+
+        if (colUpdated > 0) updated += colUpdated;
+        else not_found++;
+
+        send("progress", {
+          i: i+1, total: collectionIds.length,
+          collection: colData.name, collection_id: colId,
+          movies_in_collection: parts.length, movies_updated: colUpdated,
+          status: colUpdated > 0 ? "updated" : "no_match",
+          updated, not_found, error: errorCount
+        });
+
       } catch {
-        error++;
-        send("progress", { i: i+1, total: rows.length, title: movie.title, status: "error", updated, no_collection, error });
+        errorCount++;
+        send("progress", { i: i+1, total: collectionIds.length, collection_id: colId, status: "error", updated, not_found, error: errorCount });
       }
     }
 
-    send("done", { total: rows.length, updated, no_collection, error });
+    send("done", { total: collectionIds.length, updated, not_found, error: errorCount });
     res.end();
   } catch (e) {
     send("error", { message: String(e) });
