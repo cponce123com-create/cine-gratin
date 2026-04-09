@@ -704,4 +704,33 @@ router.post("/admin/import-collection", async (req, res) => {
   }
 });
 
+// POST /api/admin/reset-collection — delete all movies/series from a TMDB collection by ID
+router.post("/admin/reset-collection", async (req, res) => {
+  const { collection_id } = req.body as { collection_id: number };
+
+  if (!collection_id) {
+    return res.status(400).json({ error: "Se requiere collection_id" });
+  }
+
+  try {
+    const movieResult = await pool.query(
+      "DELETE FROM movies WHERE collection_id = $1 RETURNING id",
+      [collection_id]
+    );
+    const seriesResult = await pool.query(
+      "DELETE FROM cv_series WHERE collection_id = $1 RETURNING id",
+      [collection_id]
+    );
+
+    res.json({
+      ok: true,
+      deleted_movies: movieResult.rowCount || 0,
+      deleted_series: seriesResult.rowCount || 0,
+      total_deleted: (movieResult.rowCount || 0) + (seriesResult.rowCount || 0)
+    });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
 export default router;

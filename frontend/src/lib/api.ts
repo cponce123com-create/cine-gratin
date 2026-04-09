@@ -229,6 +229,11 @@ export const importCollection = (
 ): Promise<{ ok: boolean; collection: string; imported: number; existed: number; total: number; titles: string[] }> =>
   adminPost("/api/admin/import-collection", { collection_id });
 
+export const resetCollection = (
+  collection_id: number
+): Promise<{ ok: boolean; deleted_movies: number; deleted_series: number; total_deleted: number }> =>
+  adminPost("/api/admin/reset-collection", { collection_id });
+
 export const importByTmdbIds = (
   tmdb_ids: number[],
   type: "movie" | "series"

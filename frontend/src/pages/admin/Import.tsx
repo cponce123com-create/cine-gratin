@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
-import { getMovies, getSeries, runAutoImport, importByIds, scanNetworks, importCollection, type ScanNetworksResult } from "@/lib/api";
+import { getMovies, getSeries, runAutoImport, importByIds, scanNetworks, importCollection, resetCollection, type ScanNetworksResult } from "@/lib/api";
+import { SAGA_SECTIONS } from "@/lib/homeConfig";
 import type { Movie, Series, RunImportResult } from "@/lib/types";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -356,46 +357,13 @@ function RangeImportSection({ tab }: { tab: Tab }) {
 
 // ─── Collection Import Section ───────────────────────────────────────────────
 
-const KNOWN_COLLECTIONS = [
-  { id: 1241,   label: "Harry Potter" },
-  { id: 1241,   label: "Harry Potter" },
-  { id: 119,    label: "El Señor de los Anillos" },
-  { id: 10,     label: "Star Wars" },
-  { id: 87359,  label: "Misión: Imposible" },
-  { id: 404609, label: "John Wick" },
-  { id: 328,    label: "Jurassic Park" },
-  { id: 8650,   label: "Transformers" },
-  { id: 748,    label: "X-Men" },
-  { id: 8091,   label: "Alien" },
-  { id: 84,     label: "Indiana Jones" },
-  { id: 528,    label: "Terminator" },
-  { id: 173710, label: "El Planeta de los Simios (Reboot)" },
-  { id: 1709,   label: "El Planeta de los Simios (Original)" },
-  { id: 86066,  label: "Mi Villano Favorito / Minions" },
-  { id: 10194,  label: "Toy Story" },
-  { id: 131635, label: "Los Juegos del Hambre" },
-  { id: 33514,  label: "Crepúsculo" },
-  { id: 1575,   label: "Rocky" },
-  { id: 553717, label: "Creed" },
-  { id: 645,    label: "James Bond 007" },
-  { id: 9735,   label: "Fast & Furious" },
-  { id: 58580,  label: "Piratas del Caribe" },
-  { id: 2344,   label: "Matrix" },
-  { id: 8741,   label: "La Era del Hielo" },
-  { id: 3733,   label: "Shrek" },
-  { id: 31562,  label: "Jason Bourne" },
-  { id: 1733,   label: "Universo Yellowstone" },
-  { id: 3962,   label: "DC Universe" },
-  { id: 420,    label: "Marvel Cinematic Universe" },
-];
-
-// Remove duplicate
-const COLLECTIONS = KNOWN_COLLECTIONS.filter((c, i, arr) => arr.findIndex(x => x.id === c.id) === i);
+const COLLECTIONS = SAGA_SECTIONS.filter(s => s.collection_id).map(s => ({ id: s.collection_id!, label: s.label }));
 
 function CollectionImportSection() {
   const [customId, setCustomId] = useState("");
   const [loading, setLoading] = useState<number | null>(null);
-  const [results, setResults] = useState<Record<number, { collection: string; imported: number; existed: number; total: number }>>({});
+  const [reseting, setReseting] = useState<number | null>(null);
+  const [results, setResults] = useState<Record<number, { collection: string; imported: number; existed: number; total: number; deleted?: number }>>({});
   const [error, setError] = useState("");
 
   const handleImport = async (id: number) => {
@@ -403,11 +371,25 @@ function CollectionImportSection() {
     setError("");
     try {
       const res = await importCollection(id);
-      setResults(prev => ({ ...prev, [id]: { collection: res.collection, imported: res.imported, existed: res.existed, total: res.total } }));
+      setResults(prev => ({ ...prev, [id]: { ...prev[id], collection: res.collection, imported: res.imported, existed: res.existed, total: res.total } }));
     } catch (e: any) {
       setError(e.message || "Error al importar la colección.");
     } finally {
       setLoading(null);
+    }
+  };
+
+  const handleReset = async (id: number) => {
+    if (!confirm("¿Estás seguro de que quieres resetear esta saga? Se eliminarán todas las películas y series asociadas a esta colección.")) return;
+    setReseting(id);
+    setError("");
+    try {
+      const res = await resetCollection(id);
+      setResults(prev => ({ ...prev, [id]: { ...prev[id], deleted: res.total_deleted, imported: 0, existed: 0, total: 0 } }));
+    } catch (e: any) {
+      setError(e.message || "Error al resetear la colección.");
+    } finally {
+      setReseting(null);
     }
   };
 
@@ -460,28 +442,49 @@ function CollectionImportSection() {
                 <p className="text-gray-600 text-xs font-mono">ID: {col.id}</p>
                 {res && (
                   <p className="text-xs mt-0.5">
-                    <span className="text-green-400">+{res.imported} importadas</span>
+                    {res.deleted !== undefined && res.deleted > 0 && (
+                      <span className="text-red-400 mr-2">-{res.deleted} eliminadas</span>
+                    )}
+                    {res.imported > 0 && (
+                      <span className="text-green-400">+{res.imported} importadas</span>
+                    )}
                     {res.existed > 0 && <span className="text-gray-500"> · {res.existed} ya existían</span>}
                   </p>
                 )}
               </div>
-              <button
-                onClick={() => handleImport(col.id)}
-                disabled={loading !== null}
-                className={`flex-shrink-0 flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-50 ${
-                  res
-                    ? "bg-green-900/20 border-green-800/40 text-green-400"
-                    : "bg-brand-surface border-brand-border text-gray-300 hover:text-white hover:border-gray-500"
-                }`}
-              >
-                {isLoading ? (
-                  <span className="w-3 h-3 rounded-full border-2 border-gray-400 border-t-white animate-spin" />
-                ) : res ? (
-                  "✅ Importado"
-                ) : (
-                  "Importar"
-                )}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleReset(col.id)}
+                  disabled={loading !== null || reseting !== null}
+                  title="Resetear saga (eliminar para re-importar)"
+                  className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-lg border border-brand-border bg-brand-surface text-gray-500 hover:text-red-400 hover:border-red-900/50 transition-colors disabled:opacity-50"
+                >
+                  {reseting === col.id ? (
+                    <span className="w-3 h-3 rounded-full border-2 border-red-400 border-t-transparent animate-spin" />
+                  ) : (
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                </button>
+                <button
+                  onClick={() => handleImport(col.id)}
+                  disabled={loading !== null || reseting !== null}
+                  className={`flex-shrink-0 flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-50 ${
+                    res && res.total > 0
+                      ? "bg-green-900/20 border-green-800/40 text-green-400"
+                      : "bg-brand-surface border-brand-border text-gray-300 hover:text-white hover:border-gray-500"
+                  }`}
+                >
+                  {isLoading ? (
+                    <span className="w-3 h-3 rounded-full border-2 border-gray-400 border-t-white animate-spin" />
+                  ) : res && res.total > 0 ? (
+                    "✅ Importado"
+                  ) : (
+                    "Importar"
+                  )}
+                </button>
+              </div>
             </div>
           );
         })}
