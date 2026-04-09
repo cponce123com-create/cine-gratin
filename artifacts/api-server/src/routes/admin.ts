@@ -607,7 +607,10 @@ router.get("/admin/vidsrc-test", async (_req, res) => {
 });
 
 
-// GET /api/admin/rescan-metadata-stream — SSE stream to update metadata (collections, etc.)
+// GET /api/admin/rescan-metadata-stream — Optimizador de Sagas
+// Recibe ?ids=collectionId1,collectionId2,... y vincula las películas de esas colecciones.
+// Estrategia inversa: pregunta a TMDB qué películas tiene cada colección,
+// luego actualiza solo esas en la BD. O(N sagas) en vez de O(N películas).
 router.get("/admin/rescan-metadata-stream", async (req, res) => {
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
@@ -619,43 +622,72 @@ router.get("/admin/rescan-metadata-stream", async (req, res) => {
   };
 
   try {
-    const { rows: items } = await pool.query(
-      `SELECT id, imdb_id, title FROM movies ORDER BY date_added DESC`,
-      []
-    );
+    const idsParam = String(req.query.ids || "");
+    const collectionIds = idsParam
+      .split(",")
+      .map(s => parseInt(s.trim(), 10))
+      .filter(n => !isNaN(n) && n > 0);
 
-    send("start", { total: items.length });
+    if (collectionIds.length === 0) {
+      send("error", { message: "No se proporcionaron IDs de colección." });
+      res.end();
+      return;
+    }
 
-    let updated = 0, no_change = 0, error = 0;
+    send("start", { total: collectionIds.length });
 
-    for (let i = 0; i < items.length; i++) {
+    let updated = 0, no_change = 0, errorCount = 0;
+
+    for (let i = 0; i < collectionIds.length; i++) {
       if (req.destroyed) break;
-      const item = items[i];
+      const colId = collectionIds[i];
+
       try {
-        if (!item.imdb_id) { error++; continue; }
+        const colRes = await tmdbFetch(`/collection/${colId}?language=es-MX`);
+        if (!colRes.ok) {
+          errorCount++;
+          send("progress", { i: i+1, total: collectionIds.length, title: `Colección ${colId}`, status: "error", updated, no_change, error: errorCount });
+          continue;
+        }
 
-        const findRes = await tmdbFetch(`/find/${item.imdb_id}?external_source=imdb_id`);
-        if (!findRes.ok) { error++; continue; }
-        const findData = await findRes.json() as any;
-        const tmdbResults = findData.movie_results;
-        if (!tmdbResults?.length) { error++; continue; }
+        const colData = await colRes.json() as {
+          id: number; name: string;
+          parts: { id: number; title?: string }[];
+        };
 
-        const tmdbId = tmdbResults[0].id;
-        const data = await fetchMovieByTmdbId(tmdbId);
-        if (!data) { error++; continue; }
+        let colUpdated = 0;
+        for (const part of colData.parts ?? []) {
+          try {
+            const extRes = await tmdbFetch(`/movie/${part.id}/external_ids`);
+            if (!extRes.ok) continue;
+            const ext = await extRes.json() as { imdb_id?: string };
+            if (!ext.imdb_id) continue;
 
-        await pool.query(
-          `UPDATE movies SET collection_id = $1, collection_name = $2 WHERE id = $3`,
-          [data.collection_id, data.collection_name, item.id]
-        );
-        updated++;
-        send("progress", { i: i + 1, total: items.length, title: item.title, status: "updated", updated, no_change, error });
-      } catch (err) {
-        error++;
+            const result = await pool.query(
+              `UPDATE movies SET collection_id = $1, collection_name = $2
+               WHERE imdb_id = $3 RETURNING id`,
+              [colData.id, colData.name, ext.imdb_id]
+            );
+            if (result.rowCount && result.rowCount > 0) colUpdated++;
+            await new Promise(r => setTimeout(r, 80));
+          } catch { /* skip */ }
+        }
+
+        if (colUpdated > 0) updated += colUpdated; else no_change++;
+        send("progress", {
+          i: i+1, total: collectionIds.length, title: colData.name,
+          movies_in_collection: colData.parts?.length ?? 0, movies_updated: colUpdated,
+          status: colUpdated > 0 ? "updated" : "no_match",
+          updated, no_change, error: errorCount
+        });
+
+      } catch {
+        errorCount++;
+        send("progress", { i: i+1, total: collectionIds.length, title: `Colección ${colId}`, status: "error", updated, no_change, error: errorCount });
       }
     }
 
-    send("done", { total: items.length, updated, no_change, error });
+    send("done", { total: collectionIds.length, updated, no_change, error: errorCount });
     res.end();
   } catch (e) {
     send("error", { message: String(e) });
