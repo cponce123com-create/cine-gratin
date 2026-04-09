@@ -446,84 +446,32 @@ function ScanNetworksSection({ tab }: { tab: Tab }) {
         </div>
       )}
 
-      {error && (
+      {errorMsg && (
         <div className="bg-red-900/20 border border-red-800/40 rounded-lg px-4 py-3 text-red-400 text-sm">
-          {error}
+          {errorMsg}
         </div>
       )}
 
-      {summary && (
-        <div className="flex flex-wrap gap-4 bg-brand-surface border border-brand-border rounded-xl px-5 py-4">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-green-400" />
-            <span className="text-green-400 font-bold text-lg">{summary.updated}</span>
-            <span className="text-gray-400 text-sm">actualizadas</span>
+      {recentUpdates.length > 0 && (
+        <div className="border border-brand-border rounded-xl overflow-hidden max-h-[300px] overflow-y-auto">
+          <div className="px-4 py-2 bg-brand-surface border-b border-brand-border text-xs font-bold text-gray-500 uppercase tracking-wider">
+            Productoras actualizadas recientemente
           </div>
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-gray-500" />
-            <span className="text-gray-300 font-bold text-lg">{summary.no_change}</span>
-            <span className="text-gray-400 text-sm">sin cambios</span>
-          </div>
-          {summary.error > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-red-500" />
-              <span className="text-red-400 font-bold text-lg">{summary.error}</span>
-              <span className="text-gray-400 text-sm">con error</span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {results && results.length > 0 && (
-        <div className="border border-brand-border rounded-xl overflow-hidden max-h-[400px] overflow-y-auto">
-          <table className="w-full text-left border-collapse">
-            <thead className="bg-brand-surface sticky top-0 z-10">
-              <tr>
-                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Título</th>
-                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Productoras Detectadas</th>
-                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Estado</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-brand-border">
-              {results.map((res) => (
-                <tr key={res.id} className="hover:bg-brand-surface/40 transition-colors">
-                  <td className="px-4 py-3 text-sm text-gray-200 font-medium">{res.title}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-1">
-                      {res.new_networks.length > 0 ? (
-                        res.new_networks.map((n) => (
-                          <span key={n} className="text-[10px] bg-brand-red/10 border border-brand-red/20 text-brand-red px-1.5 py-0.5 rounded">
-                            {n}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-gray-600 text-xs italic">Ninguna</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                      res.status === "updated" ? "bg-green-900/30 text-green-400 border-green-800/40" :
-                      res.status === "error" ? "bg-red-900/30 text-red-400 border-red-800/40" :
-                      "bg-gray-800/60 text-gray-400 border-gray-700"
-                    }`}>
-                      {res.status === "updated" ? "Actualizado" : res.status === "error" ? "Error" : "Sin cambios"}
+          <div className="divide-y divide-brand-border">
+            {recentUpdates.map((u, i) => (
+              <div key={i} className="flex items-center gap-3 px-4 py-2.5">
+                <span className="text-sm text-gray-200 flex-1 truncate">{u.title}</span>
+                <div className="flex flex-wrap gap-1 justify-end">
+                  {u.networks.map((n) => (
+                    <span key={n} className="text-[10px] bg-brand-red/10 border border-brand-red/20 text-brand-red px-1.5 py-0.5 rounded">
+                      {n}
                     </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-      )}
-      
-      {results && (
-        <button
-          onClick={() => { setResults(null); setSummary(null); }}
-          className="text-gray-500 hover:text-gray-300 text-sm transition-colors"
-        >
-          Limpiar resultados
-        </button>
       )}
     </div>
   );
