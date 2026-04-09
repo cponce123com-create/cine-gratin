@@ -358,26 +358,43 @@ function RangeImportSection({ tab }: { tab: Tab }) {
 function ScanNetworksSection({ tab }: { tab: Tab }) {
   const isMovies = tab === "movies";
   const typeLabel = isMovies ? "películas" : "series";
-  const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState<ScanNetworksResult[] | null>(null);
-  const [summary, setSummary] = useState<{ updated: number; no_change: number; error: number } | null>(null);
-  const [error, setError] = useState("");
+  const [scanning, setScanning] = useState(false);
+  const [done, setDone] = useState(false);
+  const [progress, setProgress] = useState({ current: 0, total: 0, title: "", updated: 0, no_change: 0, error: 0 });
+  const [recentUpdates, setRecentUpdates] = useState<{ title: string; networks: string[] }[]>([]);
+  const [errorMsg, setErrorMsg] = useState("");
+  const esRef = useRef<EventSource | null>(null);
 
-  const handleScan = async () => {
-    setLoading(true);
-    setResults(null);
-    setSummary(null);
-    setError("");
-    try {
-      const resp = await scanNetworks(isMovies ? "movie" : "series");
-      setResults(resp.results);
-      setSummary(resp.summary);
-    } catch (err: any) {
-      setError(err.message || "Error al escanear productoras.");
-    } finally {
-      setLoading(false);
-    }
+  const handleScan = () => {
+    if (esRef.current) esRef.current.close();
+    setScanning(true);
+    setDone(false);
+    setErrorMsg("");
+    setRecentUpdates([]);
+    setProgress({ current: 0, total: 0, title: "", updated: 0, no_change: 0, error: 0 });
+
+    const token = localStorage.getItem("cg_admin_token") ?? "";
+    const url = `/api/admin/scan-networks-stream?type=${isMovies ? "movie" : "series"}${token ? `&token=${token}` : ""}`;
+    const es = new EventSource(url);
+    esRef.current = es;
+
+    es.addEventListener("start", (e) => {
+      const d = JSON.parse(e.data);
+      setProgress(p => ({ ...p, total: d.total }));
+    });
+    es.addEventListener("progress", (e) => {
+      const d = JSON.parse(e.data);
+      setProgress({ current: d.i, total: d.total, title: d.title, updated: d.updated, no_change: d.no_change, error: d.error });
+      if (d.status === "updated" && d.new_networks?.length > 0) {
+        setRecentUpdates(prev => [{ title: d.title, networks: d.new_networks }, ...prev].slice(0, 50));
+      }
+    });
+    es.addEventListener("done", () => { setScanning(false); setDone(true); es.close(); });
+    es.addEventListener("error", () => { setScanning(false); setErrorMsg("Error durante el escaneo."); es.close(); });
   };
+
+  const handleStop = () => { esRef.current?.close(); setScanning(false); };
+  const pct = progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0;
 
   return (
     <div className="bg-brand-card border border-brand-border rounded-2xl p-6 space-y-5">
@@ -388,23 +405,44 @@ function ScanNetworksSection({ tab }: { tab: Tab }) {
             Busca automáticamente en TMDB las productoras (Netflix, HBO, Disney+, etc.) para todas las {typeLabel} existentes.
           </p>
         </div>
-        {!loading && !results && (
-          <button
-            onClick={handleScan}
-            className="flex items-center gap-2 bg-brand-surface hover:bg-brand-border border border-brand-border text-white font-bold py-2 px-4 rounded-lg transition-colors text-sm"
-          >
+        {!scanning ? (
+          <button onClick={handleScan}
+            className="flex items-center gap-2 bg-brand-surface hover:bg-brand-border border border-brand-border text-white font-bold py-2 px-4 rounded-lg transition-colors text-sm">
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            Escanear ahora
+            {done ? "Escanear de nuevo" : "Escanear ahora"}
+          </button>
+        ) : (
+          <button onClick={handleStop}
+            className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-white text-sm font-bold py-2 px-4 rounded-lg transition-colors">
+            Detener
           </button>
         )}
       </div>
 
-      {loading && (
-        <div className="py-8 flex flex-col items-center justify-center space-y-4">
-          <div className="w-10 h-10 border-4 border-brand-red border-t-transparent rounded-full animate-spin" />
-          <p className="text-gray-400 text-sm animate-pulse">Escaneando metadatos en TMDB... Esto puede tardar unos minutos.</p>
+      {(scanning || done) && progress.total > 0 && (
+        <div className="space-y-2">
+          <div className="flex justify-between text-xs text-gray-400">
+            <span className="truncate max-w-xs">{scanning ? `Escaneando: ${progress.title}` : "Escaneo completado"}</span>
+            <span>{progress.current} / {progress.total} ({pct}%)</span>
+          </div>
+          <div className="w-full bg-brand-border rounded-full h-2">
+            <div className={`h-2 rounded-full transition-all duration-300 ${done ? "bg-green-500" : "bg-brand-red"}`}
+              style={{ width: `${pct}%` }} />
+          </div>
+          <div className="flex gap-5 text-xs">
+            <span className="text-green-400">✅ {progress.updated} actualizadas</span>
+            <span className="text-gray-400">— {progress.no_change} sin cambios</span>
+            {progress.error > 0 && <span className="text-red-400">❌ {progress.error} errores</span>}
+          </div>
+        </div>
+      )}
+
+      {scanning && progress.total === 0 && (
+        <div className="py-4 flex items-center gap-3 text-gray-400 text-sm">
+          <div className="w-5 h-5 border-2 border-brand-red border-t-transparent rounded-full animate-spin flex-shrink-0" />
+          Cargando catálogo...
         </div>
       )}
 
