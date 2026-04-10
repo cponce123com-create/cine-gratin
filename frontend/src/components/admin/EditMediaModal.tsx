@@ -135,6 +135,56 @@ export default function EditMediaModal({ item, type, onClose, onSaved }: EditMed
               Contenido destacado (aparece en el carrusel principal)
             </label>
           </div>
+
+          {/* Saga / collection */}
+          <div className="border border-brand-border rounded-xl p-4 space-y-3 bg-brand-dark/20">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Saga / Colección</span>
+              {(form.collection_id || form.collection_name) && (
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, collection_id: null, collection_name: "" })}
+                  className="text-xs text-red-400 hover:text-red-300 transition-colors"
+                >
+                  Quitar de saga
+                </button>
+              )}
+              {form.collection_id !== -1 && (
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, collection_id: -1, collection_name: "" })}
+                  className="text-xs text-yellow-500 hover:text-yellow-400 transition-colors ml-2"
+                  title="Excluir definitivamente de todas las sagas (no aparecerá por keywords)"
+                >
+                  Excluir de sagas
+                </button>
+              )}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs text-gray-500">ID TMDB</label>
+                <input
+                  type="number"
+                  value={form.collection_id ?? ""}
+                  onChange={e => setForm({ ...form, collection_id: e.target.value !== "" ? parseInt(e.target.value) : null })}
+                  placeholder="Ej: 1241"
+                  className="w-full bg-brand-dark border border-brand-border rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-brand-red"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-gray-500">Nombre de la saga</label>
+                <input
+                  value={form.collection_name || ""}
+                  onChange={e => setForm({ ...form, collection_name: e.target.value })}
+                  placeholder="Nombre (opcional)"
+                  className="w-full bg-brand-dark border border-brand-border rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-brand-red"
+                />
+              </div>
+            </div>
+            {form.collection_id === -1 && (
+              <p className="text-xs text-yellow-500/80">Esta película está excluida de todas las sagas.</p>
+            )}
+          </div>
         </form>
 
         <div className="px-6 py-4 border-t border-brand-border bg-brand-dark/50 flex justify-end gap-3">
