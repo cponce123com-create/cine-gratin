@@ -12,7 +12,7 @@ const FALLBACK_POSTER =
 export default function Movies() {
   const { data: movies, isLoading: loading, error } = useQuery({
     queryKey: ["movies"],
-    queryFn: getMovies,
+    queryFn: () => getMovies(),
     staleTime: 5 * 60 * 1000,
   });
 

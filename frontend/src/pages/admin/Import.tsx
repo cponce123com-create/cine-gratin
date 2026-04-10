@@ -1,6 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
-import { getMovies, getSeries, runAutoImport, importByIds, scanNetworks, type ScanNetworksResult } from "@/lib/api";
+import { getMovies, getSeries, runAutoImport, importByIds, scanNetworks, importCollection, resetCollection, type ScanNetworksResult } from "@/lib/api";
+import { SAGA_SECTIONS } from "@/lib/homeConfig";
 import type { Movie, Series, RunImportResult } from "@/lib/types";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -353,31 +354,267 @@ function RangeImportSection({ tab }: { tab: Tab }) {
   );
 }
 
+
+// ─── Collection Import Section ───────────────────────────────────────────────
+
+const COLLECTIONS = SAGA_SECTIONS.filter(s => s.collection_id).map(s => ({ id: s.collection_id!, label: s.label }));
+
+function CollectionImportSection() {
+  const [customId, setCustomId] = useState("");
+  const [loading, setLoading] = useState<number | null>(null);
+  const [reseting, setReseting] = useState<number | null>(null);
+  const [results, setResults] = useState<Record<number, { collection: string; imported: number; existed: number; total: number; deleted?: number }>>({});
+  const [error, setError] = useState("");
+  const [scanning, setScanning] = useState(false);
+  const [scanDone, setScanDone] = useState(false);
+  const [forceRescan, setForceRescan] = useState(false);
+  const [scanProgress, setScanProgress] = useState({ current: 0, total: 0, updated: 0, no_collection: 0, error: 0, title: "" });
+  const scanEsRef = useRef<EventSource | null>(null);
+
+  const handleScanCollections = () => {
+    if (scanEsRef.current) scanEsRef.current.close();
+    setScanning(true);
+    setScanDone(false);
+    setScanProgress({ current: 0, total: 0, updated: 0, no_collection: 0, error: 0, title: "" });
+
+    const token = localStorage.getItem("cg_admin_token") ?? "";
+    // Send all known collection IDs so backend only scans those
+    const allIds = COLLECTIONS.map(c => c.id).join(",");
+    const params = new URLSearchParams();
+    if (token) params.set("token", token);
+    params.set("ids", allIds);
+    const url = `/api/admin/scan-collections-stream?${params.toString()}`;
+    const es = new EventSource(url);
+    scanEsRef.current = es;
+
+    es.addEventListener("start", (e) => {
+      const d = JSON.parse(e.data);
+      setScanProgress(p => ({ ...p, total: d.total }));
+    });
+    es.addEventListener("progress", (e) => {
+      const d = JSON.parse(e.data);
+      setScanProgress({
+        current: d.i, total: d.total,
+        updated: d.updated, no_collection: d.not_found, error: d.error,
+        title: d.collection || "",
+      });
+    });
+    es.addEventListener("done", () => { setScanning(false); setScanDone(true); es.close(); });
+    es.addEventListener("error", () => { setScanning(false); es.close(); });
+  };
+
+  const scanPct = scanProgress.total > 0 ? Math.round((scanProgress.current / scanProgress.total) * 100) : 0;
+
+  const handleImport = async (id: number) => {
+    setLoading(id);
+    setError("");
+    try {
+      const res = await importCollection(id);
+      setResults(prev => ({ ...prev, [id]: { ...prev[id], collection: res.collection, imported: res.imported, existed: res.existed, total: res.total } }));
+    } catch (e: any) {
+      setError(e.message || "Error al importar la colección.");
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const handleReset = async (id: number) => {
+    if (!confirm("¿Estás seguro de que quieres resetear esta saga? Se eliminarán todas las películas y series asociadas a esta colección.")) return;
+    setReseting(id);
+    setError("");
+    try {
+      const res = await resetCollection(id);
+      setResults(prev => ({ ...prev, [id]: { ...prev[id], deleted: res.total_deleted, imported: 0, existed: 0, total: 0 } }));
+    } catch (e: any) {
+      setError(e.message || "Error al resetear la colección.");
+    } finally {
+      setReseting(null);
+    }
+  };
+
+  const handleCustomImport = () => {
+    const id = parseInt(customId.trim(), 10);
+    if (!id || isNaN(id)) { setError("Ingresa un ID de colección válido."); return; }
+    handleImport(id);
+  };
+
+  return (
+    <div className="bg-brand-card border border-brand-border rounded-2xl p-6 space-y-5">
+      <div>
+        <h2 className="text-white font-bold text-base mb-1">Importar por Colección TMDB</h2>
+        <p className="text-gray-500 text-sm">
+          Importa todas las películas de una saga completa usando el ID de colección de TMDB.
+        </p>
+      </div>
+
+      {error && (
+        <div className="bg-red-900/20 border border-red-800/40 rounded-lg px-4 py-3 text-red-400 text-sm">{error}</div>
+      )}
+
+      {/* Scan collections button */}
+      <div className="bg-brand-surface border border-brand-border rounded-xl p-4 space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-white text-sm font-semibold">Escanear colecciones existentes</p>
+            <p className="text-gray-500 text-xs mt-0.5">Asigna el collection_id correcto a las películas de tus {COLLECTIONS.length} sagas configuradas. Necesario para que las sagas aparezcan correctas en el Home.</p>
+          </div>
+          <div className="flex flex-col items-end gap-2">
+
+            {!scanning ? (
+              <button onClick={handleScanCollections}
+                className="flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors">
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35" strokeLinecap="round"/></svg>
+                {scanDone ? "Re-escanear" : "Escanear ahora"}
+              </button>
+            ) : (
+              <button onClick={() => { scanEsRef.current?.close(); setScanning(false); }}
+                className="bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors">
+                Detener
+              </button>
+            )}
+          </div>
+        </div>
+        {(scanning || scanDone) && scanProgress.total > 0 && (
+          <div className="space-y-1.5">
+            <div className="flex justify-between text-xs text-gray-500">
+              <span className="truncate max-w-xs">{scanning ? scanProgress.title : "Completado"}</span>
+              <span>{scanProgress.current}/{scanProgress.total} ({scanPct}%)</span>
+            </div>
+            <div className="w-full bg-brand-border rounded-full h-1.5">
+              <div className={`h-1.5 rounded-full transition-all ${scanDone ? "bg-green-500" : "bg-brand-red"}`} style={{ width: `${scanPct}%` }} />
+            </div>
+            <div className="flex gap-4 text-xs">
+              <span className="text-green-400">✅ {scanProgress.updated} películas vinculadas</span>
+              <span className="text-gray-500">— {scanProgress.no_collection} sagas sin match</span>
+              {scanProgress.error > 0 && <span className="text-red-400">❌ {scanProgress.error} errores</span>}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Custom collection ID input */}
+      <div className="flex gap-2">
+        <input
+          type="number"
+          value={customId}
+          onChange={e => setCustomId(e.target.value)}
+          placeholder="ID de colección TMDB (ej: 1241)"
+          className="flex-1 bg-brand-surface border border-brand-border rounded-lg px-3 py-2 text-gray-200 text-sm focus:outline-none focus:border-gray-500 transition-colors"
+        />
+        <button
+          onClick={handleCustomImport}
+          disabled={loading !== null}
+          className="flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
+        >
+          Importar
+        </button>
+      </div>
+
+      {/* Known collections grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {COLLECTIONS.map(col => {
+          const res = results[col.id];
+          const isLoading = loading === col.id;
+          return (
+            <div key={col.id} className="flex items-center justify-between gap-3 bg-brand-surface border border-brand-border rounded-xl px-4 py-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-gray-200 text-sm font-medium truncate">{col.label}</p>
+                <p className="text-gray-600 text-xs font-mono">ID: {col.id}</p>
+                {res && (
+                  <p className="text-xs mt-0.5">
+                    {res.deleted !== undefined && res.deleted > 0 && (
+                      <span className="text-red-400 mr-2">-{res.deleted} eliminadas</span>
+                    )}
+                    {res.imported > 0 && (
+                      <span className="text-green-400">+{res.imported} importadas</span>
+                    )}
+                    {res.existed > 0 && <span className="text-gray-500"> · {res.existed} ya existían</span>}
+                  </p>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleReset(col.id)}
+                  disabled={loading !== null || reseting !== null}
+                  title="Resetear saga (eliminar para re-importar)"
+                  className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-lg border border-brand-border bg-brand-surface text-gray-500 hover:text-red-400 hover:border-red-900/50 transition-colors disabled:opacity-50"
+                >
+                  {reseting === col.id ? (
+                    <span className="w-3 h-3 rounded-full border-2 border-red-400 border-t-transparent animate-spin" />
+                  ) : (
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                </button>
+                <button
+                  onClick={() => handleImport(col.id)}
+                  disabled={loading !== null || reseting !== null}
+                  className={`flex-shrink-0 flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-50 ${
+                    res && res.total > 0
+                      ? "bg-green-900/20 border-green-800/40 text-green-400"
+                      : "bg-brand-surface border-brand-border text-gray-300 hover:text-white hover:border-gray-500"
+                  }`}
+                >
+                  {isLoading ? (
+                    <span className="w-3 h-3 rounded-full border-2 border-gray-400 border-t-white animate-spin" />
+                  ) : res && res.total > 0 ? (
+                    "✅ Importado"
+                  ) : (
+                    "Importar"
+                  )}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Scan Networks Section ───────────────────────────────────────────────────
 
 function ScanNetworksSection({ tab }: { tab: Tab }) {
   const isMovies = tab === "movies";
   const typeLabel = isMovies ? "películas" : "series";
-  const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState<ScanNetworksResult[] | null>(null);
-  const [summary, setSummary] = useState<{ updated: number; no_change: number; error: number } | null>(null);
-  const [error, setError] = useState("");
+  const [scanning, setScanning] = useState(false);
+  const [done, setDone] = useState(false);
+  const [progress, setProgress] = useState({ current: 0, total: 0, title: "", updated: 0, no_change: 0, error: 0 });
+  const [recentUpdates, setRecentUpdates] = useState<{ title: string; networks: string[] }[]>([]);
+  const [errorMsg, setErrorMsg] = useState("");
+  const esRef = useRef<EventSource | null>(null);
 
-  const handleScan = async () => {
-    setLoading(true);
-    setResults(null);
-    setSummary(null);
-    setError("");
-    try {
-      const resp = await scanNetworks(isMovies ? "movie" : "series");
-      setResults(resp.results);
-      setSummary(resp.summary);
-    } catch (err: any) {
-      setError(err.message || "Error al escanear productoras.");
-    } finally {
-      setLoading(false);
-    }
+  const handleScan = () => {
+    if (esRef.current) esRef.current.close();
+    setScanning(true);
+    setDone(false);
+    setErrorMsg("");
+    setRecentUpdates([]);
+    setProgress({ current: 0, total: 0, title: "", updated: 0, no_change: 0, error: 0 });
+
+    const token = localStorage.getItem("cg_admin_token") ?? "";
+    const url = `/api/admin/scan-networks-stream?type=${isMovies ? "movie" : "series"}${token ? `&token=${token}` : ""}`;
+    const es = new EventSource(url);
+    esRef.current = es;
+
+    es.addEventListener("start", (e) => {
+      const d = JSON.parse(e.data);
+      setProgress(p => ({ ...p, total: d.total }));
+    });
+    es.addEventListener("progress", (e) => {
+      const d = JSON.parse(e.data);
+      setProgress({ current: d.i, total: d.total, title: d.title, updated: d.updated, no_change: d.no_change, error: d.error });
+      if (d.status === "updated" && d.new_networks?.length > 0) {
+        setRecentUpdates(prev => [{ title: d.title, networks: d.new_networks }, ...prev].slice(0, 50));
+      }
+    });
+    es.addEventListener("done", () => { setScanning(false); setDone(true); es.close(); });
+    es.addEventListener("error", () => { setScanning(false); setErrorMsg("Error durante el escaneo."); es.close(); });
   };
+
+  const handleStop = () => { esRef.current?.close(); setScanning(false); };
+  const pct = progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0;
 
   return (
     <div className="bg-brand-card border border-brand-border rounded-2xl p-6 space-y-5">
@@ -388,104 +625,73 @@ function ScanNetworksSection({ tab }: { tab: Tab }) {
             Busca automáticamente en TMDB las productoras (Netflix, HBO, Disney+, etc.) para todas las {typeLabel} existentes.
           </p>
         </div>
-        {!loading && !results && (
-          <button
-            onClick={handleScan}
-            className="flex items-center gap-2 bg-brand-surface hover:bg-brand-border border border-brand-border text-white font-bold py-2 px-4 rounded-lg transition-colors text-sm"
-          >
+        {!scanning ? (
+          <button onClick={handleScan}
+            className="flex items-center gap-2 bg-brand-surface hover:bg-brand-border border border-brand-border text-white font-bold py-2 px-4 rounded-lg transition-colors text-sm">
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            Escanear ahora
+            {done ? "Escanear de nuevo" : "Escanear ahora"}
+          </button>
+        ) : (
+          <button onClick={handleStop}
+            className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-white text-sm font-bold py-2 px-4 rounded-lg transition-colors">
+            Detener
           </button>
         )}
       </div>
 
-      {loading && (
-        <div className="py-8 flex flex-col items-center justify-center space-y-4">
-          <div className="w-10 h-10 border-4 border-brand-red border-t-transparent rounded-full animate-spin" />
-          <p className="text-gray-400 text-sm animate-pulse">Escaneando metadatos en TMDB... Esto puede tardar unos minutos.</p>
+      {(scanning || done) && progress.total > 0 && (
+        <div className="space-y-2">
+          <div className="flex justify-between text-xs text-gray-400">
+            <span className="truncate max-w-xs">{scanning ? `Escaneando: ${progress.title}` : "Escaneo completado"}</span>
+            <span>{progress.current} / {progress.total} ({pct}%)</span>
+          </div>
+          <div className="w-full bg-brand-border rounded-full h-2">
+            <div className={`h-2 rounded-full transition-all duration-300 ${done ? "bg-green-500" : "bg-brand-red"}`}
+              style={{ width: `${pct}%` }} />
+          </div>
+          <div className="flex gap-5 text-xs">
+            <span className="text-green-400">✅ {progress.updated} actualizadas</span>
+            <span className="text-gray-400">— {progress.no_change} sin cambios</span>
+            {progress.error > 0 && <span className="text-red-400">❌ {progress.error} errores</span>}
+          </div>
         </div>
       )}
 
-      {error && (
+      {scanning && progress.total === 0 && (
+        <div className="py-4 flex items-center gap-3 text-gray-400 text-sm">
+          <div className="w-5 h-5 border-2 border-brand-red border-t-transparent rounded-full animate-spin flex-shrink-0" />
+          Cargando catálogo...
+        </div>
+      )}
+
+      {errorMsg && (
         <div className="bg-red-900/20 border border-red-800/40 rounded-lg px-4 py-3 text-red-400 text-sm">
-          {error}
+          {errorMsg}
         </div>
       )}
 
-      {summary && (
-        <div className="flex flex-wrap gap-4 bg-brand-surface border border-brand-border rounded-xl px-5 py-4">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-green-400" />
-            <span className="text-green-400 font-bold text-lg">{summary.updated}</span>
-            <span className="text-gray-400 text-sm">actualizadas</span>
+      {recentUpdates.length > 0 && (
+        <div className="border border-brand-border rounded-xl overflow-hidden max-h-[300px] overflow-y-auto">
+          <div className="px-4 py-2 bg-brand-surface border-b border-brand-border text-xs font-bold text-gray-500 uppercase tracking-wider">
+            Productoras actualizadas recientemente
           </div>
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-gray-500" />
-            <span className="text-gray-300 font-bold text-lg">{summary.no_change}</span>
-            <span className="text-gray-400 text-sm">sin cambios</span>
-          </div>
-          {summary.error > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-red-500" />
-              <span className="text-red-400 font-bold text-lg">{summary.error}</span>
-              <span className="text-gray-400 text-sm">con error</span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {results && results.length > 0 && (
-        <div className="border border-brand-border rounded-xl overflow-hidden max-h-[400px] overflow-y-auto">
-          <table className="w-full text-left border-collapse">
-            <thead className="bg-brand-surface sticky top-0 z-10">
-              <tr>
-                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Título</th>
-                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Productoras Detectadas</th>
-                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Estado</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-brand-border">
-              {results.map((res) => (
-                <tr key={res.id} className="hover:bg-brand-surface/40 transition-colors">
-                  <td className="px-4 py-3 text-sm text-gray-200 font-medium">{res.title}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-1">
-                      {res.new_networks.length > 0 ? (
-                        res.new_networks.map((n) => (
-                          <span key={n} className="text-[10px] bg-brand-red/10 border border-brand-red/20 text-brand-red px-1.5 py-0.5 rounded">
-                            {n}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-gray-600 text-xs italic">Ninguna</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                      res.status === "updated" ? "bg-green-900/30 text-green-400 border-green-800/40" :
-                      res.status === "error" ? "bg-red-900/30 text-red-400 border-red-800/40" :
-                      "bg-gray-800/60 text-gray-400 border-gray-700"
-                    }`}>
-                      {res.status === "updated" ? "Actualizado" : res.status === "error" ? "Error" : "Sin cambios"}
+          <div className="divide-y divide-brand-border">
+            {recentUpdates.map((u, i) => (
+              <div key={i} className="flex items-center gap-3 px-4 py-2.5">
+                <span className="text-sm text-gray-200 flex-1 truncate">{u.title}</span>
+                <div className="flex flex-wrap gap-1 justify-end">
+                  {u.networks.map((n) => (
+                    <span key={n} className="text-[10px] bg-brand-red/10 border border-brand-red/20 text-brand-red px-1.5 py-0.5 rounded">
+                      {n}
                     </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-      )}
-      
-      {results && (
-        <button
-          onClick={() => { setResults(null); setSummary(null); }}
-          className="text-gray-500 hover:text-gray-300 text-sm transition-colors"
-        >
-          Limpiar resultados
-        </button>
       )}
     </div>
   );
@@ -813,6 +1019,89 @@ function AutoImportSection({ tab }: { tab: Tab }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+function MetadataRescanSection() {
+  const [scanning, setScanning] = useState(false);
+  const [done, setDone] = useState(false);
+  const [progress, setProgress] = useState({ current: 0, total: 0, title: "", updated: 0, no_change: 0, error: 0 });
+  const [errorMsg, setErrorMsg] = useState("");
+  const esRef = useRef<EventSource | null>(null);
+
+  const handleScan = () => {
+    if (esRef.current) esRef.current.close();
+    setScanning(true);
+    setDone(false);
+    setErrorMsg("");
+    setProgress({ current: 0, total: 0, title: "", updated: 0, no_change: 0, error: 0 });
+
+    const token = localStorage.getItem("cg_admin_token") ?? "";
+    const allIds = COLLECTIONS.map(c => c.id).join(",");
+    const url = `/api/admin/rescan-metadata-stream?token=${token}&ids=${allIds}`;
+    const es = new EventSource(url);
+    esRef.current = es;
+
+    es.addEventListener("start", (e) => {
+      const d = JSON.parse(e.data);
+      setProgress(p => ({ ...p, total: d.total }));
+    });
+    es.addEventListener("progress", (e) => {
+      const d = JSON.parse(e.data);
+      setProgress({ current: d.i, total: d.total, title: d.title || "", updated: d.updated, no_change: d.no_change, error: d.error || 0 });
+    });
+    es.addEventListener("done", () => { setScanning(false); setDone(true); es.close(); });
+    es.addEventListener("error", () => { setScanning(false); setErrorMsg("Error durante el escaneo de metadatos."); es.close(); });
+  };
+
+  const handleStop = () => { esRef.current?.close(); setScanning(false); };
+  const pct = progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0;
+
+  return (
+    <div className="bg-brand-card border border-brand-border rounded-2xl p-6 space-y-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-white font-bold text-base mb-1">Optimizador de Sagas</h2>
+          <p className="text-gray-500 text-sm">
+            Escanea las películas actuales y las vincula correctamente a sus sagas oficiales usando metadatos de TMDB.
+          </p>
+        </div>
+        {!scanning ? (
+          <button onClick={handleScan}
+            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 border border-green-500 text-white font-bold py-2 px-4 rounded-lg transition-colors text-sm">
+            Optimizar Sagas
+          </button>
+        ) : (
+          <button onClick={handleStop}
+            className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-white text-sm font-bold py-2 px-4 rounded-lg transition-colors">
+            Detener
+          </button>
+        )}
+      </div>
+
+      {(scanning || done) && progress.total > 0 && (
+        <div className="space-y-2">
+          <div className="flex justify-between text-xs text-gray-400">
+            <span className="truncate max-w-xs">{scanning ? `Procesando: ${progress.title}` : "Optimización completada"}</span>
+            <span>{progress.current} / {progress.total} ({pct}%)</span>
+          </div>
+          <div className="w-full bg-brand-border rounded-full h-2">
+            <div className={`h-2 rounded-full transition-all duration-300 ${done ? "bg-green-500" : "bg-brand-red"}`}
+              style={{ width: `${pct}%` }} />
+          </div>
+          <div className="flex gap-5 text-xs">
+            <span className="text-green-400">✅ {progress.updated} películas vinculadas</span>
+            {progress.error > 0 && <span className="text-red-400">❌ {progress.error} errores</span>}
+          </div>
+        </div>
+      )}
+
+      {errorMsg && (
+        <div className="bg-red-900/20 border border-red-800/40 rounded-lg px-4 py-3 text-red-400 text-sm">
+          {errorMsg}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AdminImport() {
   const [activeTab, setActiveTab] = useState<Tab>("movies");
 
@@ -850,6 +1139,8 @@ export default function AdminImport() {
 
         {/* Sections — re-mount on tab change for independent state */}
         <AutoImportSection key={`auto-${activeTab}`} tab={activeTab} />
+        {activeTab === "movies" && <MetadataRescanSection />}
+        <CollectionImportSection />
         <ScanNetworksSection key={`scan-${activeTab}`} tab={activeTab} />
         <BulkImportSection key={`bulk-${activeTab}`} tab={activeTab} />
         <RangeImportSection key={`range-${activeTab}`} tab={activeTab} />

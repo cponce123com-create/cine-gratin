@@ -89,44 +89,43 @@ export interface PlatformSection {
 
 // ── Saga sections ─────────────────────────────────────────────────────────────
 // keywords: matched against each item's title (case-insensitive substring)
+// NOTA: Se recomienda usar palabras clave variadas para capturar diferentes formatos de títulos
 
 export interface SagaSection {
   id: string;
   label: string;
   keywords: string[];
+  collection_id?: number;
 }
 
 export const SAGA_SECTIONS: SagaSection[] = [
-  {
-    id: "marvel",
-    label: "Universo Marvel",
-    keywords: ["iron man", "vengadores", "avengers", "capitán américa", "captain america", "thor", "hulk", "black widow", "doctor strange", "spider-man"],
-  },
-  {
-    id: "harry-potter",
-    label: "Harry Potter",
-    keywords: ["harry potter", "animales fantásticos", "fantastic beasts"],
-  },
-  {
-    id: "lord-of-the-rings",
-    label: "El Señor de los Anillos",
-    keywords: ["señor de los anillos", "lord of the rings", "hobbit"],
-  },
-  {
-    id: "yellowstone",
-    label: "Universo Yellowstone",
-    keywords: ["yellowstone", "1883", "1923"],
-  },
-  {
-    id: "star-wars",
-    label: "Star Wars",
-    keywords: ["star wars", "mandalorian", "andor", "obi-wan"],
-  },
-  {
-    id: "fast-furious",
-    label: "Fast & Furious",
-    keywords: ["fast & furious", "rápido y furioso", "fast and furious"],
-  },
+  { id: "marvel", label: "Universo Marvel", collection_id: 420, keywords: ["iron man", "vengadores", "avengers", "capitán américa", "captain america", "thor", "hulk", "black widow", "doctor strange", "spider-man", "spiderman", "guardians of the galaxy", "guardianes de la galaxia", "ant-man", "antman", "black panther", "eternals", "shang-chi", "shangchi", "wakanda", "marvel"] },
+  { id: "dc", label: "DC Universe", collection_id: 3962, keywords: ["batman", "superman", "wonder woman", "aquaman", "the flash", "shazam", "black adam", "joker", "suicide squad", "birds of prey", "green lantern", "dc universe"] },
+  { id: "harry-potter", label: "Harry Potter", collection_id: 1241, keywords: ["harry potter", "animales fantásticos", "fantastic beasts", "potter"] },
+  { id: "lord-of-the-rings", label: "El Señor de los Anillos", collection_id: 119, keywords: ["señor de los anillos", "lord of the rings", "hobbit", "anillos", "rings"] },
+  { id: "star-wars", label: "Star Wars", collection_id: 10, keywords: ["star wars", "mandalorian", "andor", "obi-wan", "obiwan", "boba fett", "ahsoka", "clone wars", "skywalker"] },
+  { id: "fast-furious", label: "Fast & Furious", collection_id: 9735, keywords: ["fast & furious", "fast and furious", "rápido y furioso", "rapido y furioso", "hobbs & shaw", "hobbs and shaw", "fast furious"] },
+  { id: "mission-impossible", label: "Misión: Imposible", collection_id: 87359, keywords: ["mission: impossible", "mission impossible", "misión: imposible", "mision: imposible", "mision imposible"] },
+  { id: "john-wick", label: "John Wick", collection_id: 404609, keywords: ["john wick", "continental", "wick"] },
+  { id: "jurassic", label: "Jurassic Park", collection_id: 328, keywords: ["jurassic park", "jurassic world", "jurassic"] },
+  { id: "transformers", label: "Transformers", collection_id: 8650, keywords: ["transformers", "bumblebee", "transformer"] },
+  { id: "x-men", label: "X-Men", collection_id: 748, keywords: ["x-men", "xmen", "wolverine", "deadpool", "logan", "magneto", "professor x"] },
+  { id: "yellowstone", label: "Universo Yellowstone", collection_id: 1733, keywords: ["yellowstone", "1883", "1923"] },
+  { id: "alien", label: "Alien", collection_id: 8091, keywords: ["alien", "aliens", "prometheus", "covenant", "predator"] },
+  { id: "indiana-jones", label: "Indiana Jones", collection_id: 84, keywords: ["indiana jones", "indiana"] },
+  { id: "pirates", label: "Piratas del Caribe", collection_id: 58580, keywords: ["piratas del caribe", "pirates of the caribbean", "pirates caribbean", "caribe"] },
+  { id: "terminator", label: "Terminator", collection_id: 528, keywords: ["terminator"] },
+  { id: "matrix", label: "Matrix", collection_id: 2344, keywords: ["matrix", "the matrix"] },
+  { id: "planet-of-apes", label: "El Planeta de los Simios", collection_id: 173710, keywords: ["planet of the apes", "planeta de los simios", "kingdom of the planet", "apes"] },
+  { id: "despicable", label: "Mi Villano Favorito", collection_id: 86066, keywords: ["despicable me", "despicable", "mi villano favorito", "minions", "gru"] },
+  { id: "toy-story", label: "Toy Story", collection_id: 10194, keywords: ["toy story", "buzz lightyear", "woody"] },
+  { id: "ice-age", label: "La Era del Hielo", collection_id: 8741, keywords: ["ice age", "era del hielo", "scrat"] },
+  { id: "shrek", label: "Shrek", collection_id: 3733, keywords: ["shrek", "puss in boots", "puss", "el gato con botas", "gato con botas"] },
+  { id: "hunger-games", label: "Los Juegos del Hambre", collection_id: 131635, keywords: ["hunger games", "juegos del hambre", "catching fire", "mockingjay", "ballad of songbirds", "katniss"] },
+  { id: "twilight", label: "Crepúsculo", collection_id: 33514, keywords: ["twilight", "crepúsculo", "crepusculo", "new moon", "eclipse", "breaking dawn"] },
+  { id: "bourne", label: "Jason Bourne", collection_id: 31562, keywords: ["bourne", "jason bourne"] },
+  { id: "rocky-creed", label: "Rocky / Creed", collection_id: 1575, keywords: ["rocky", "creed"] },
+  { id: "james-bond", label: "James Bond 007", collection_id: 645, keywords: ["james bond", "007", "skyfall", "spectre", "casino royale", "no time to die", "quantum of solace", "bond"] },
 ];
 
 export const PLATFORM_SECTIONS: PlatformSection[] = [
@@ -203,10 +202,15 @@ export const PLATFORM_SECTIONS: PlatformSection[] = [
 export interface CustomSection {
   id: string;
   label: string;
-  type: "classics" | "old-animation";
+  type: "classics" | "old-animation" | "estrenos";
 }
 
 export const CUSTOM_SECTIONS: CustomSection[] = [
+  {
+    id: "estrenos",
+    label: "🎬 Estrenos",
+    type: "estrenos",
+  },
   {
     id: "clasicas",
     label: "Clásicas",

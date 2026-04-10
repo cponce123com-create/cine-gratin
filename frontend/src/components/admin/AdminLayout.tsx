@@ -71,6 +71,16 @@ const NAV: NavItem[] = [
     ),
   },
   {
+    to: "/admin/vidsrc-scanner",
+    label: "Escáner VIDSRC",
+    icon: (
+      <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="2" /><path d="M16.72 11a5 5 0 1 0 .28 1" />
+        <path d="M5 12.55a11 11 0 0 1 14.08 0" /><path d="M1.42 9a16 16 0 0 1 21.16 0" />
+      </svg>
+    ),
+  },
+  {
     to: "/admin/sport-channels",
     label: "⚽ Deportes",
     icon: (

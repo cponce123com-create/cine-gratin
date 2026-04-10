@@ -12,7 +12,7 @@ import {
   cleanupNoVidsrc,
   getMovies,
   getSeries,
-  verifyVidsrc,
+  saveVidsrcResults,
 } from "@/lib/api";
 import type { AutoImportStatus, AutoImportLog, RunImportResult, AdminStats } from "@/lib/types";
 
@@ -127,33 +127,80 @@ export default function AdminDashboard() {
     }
   };
 
+  // Descarga todas las páginas de la lista pública de vidsrc.me desde el navegador.
+  // Devuelve un Set con todos los IMDb IDs que vidsrc.me tiene disponibles.
+  const fetchVidsrcList = async (
+    type: "movie" | "series",
+    onProgress: (page: number) => void
+  ): Promise<Set<string>> => {
+    const available = new Set<string>();
+    const base = type === "series"
+      ? "https://vidsrc.me/tvshows/latest/page-"
+      : "https://vidsrc.me/movies/latest/page-";
+
+    for (let page = 1; page <= 999; page++) {
+      try {
+        const res = await fetch(`${base}${page}.json`, { credentials: "omit" });
+        if (!res.ok) break;
+        const data = await res.json() as { title?: string; imdb_id?: string }[];
+        if (!Array.isArray(data) || data.length === 0) break;
+        for (const item of data) {
+          if (item.imdb_id) available.add(item.imdb_id);
+        }
+        onProgress(page);
+      } catch {
+        break;
+      }
+    }
+    return available;
+  };
+
   const handleVerifyVidsrc = async () => {
     setVidsrcPhase("fetching");
     setVidsrcProgress({ checked: 0, total: 0 });
     setVidsrcCounts({ active: 0, inactive: 0 });
     setVidsrcCleanResult(null);
     try {
-      const [movies, series] = await Promise.all([getMovies(), getSeries()]);
-      const movieIds = movies.filter((m) => m.imdb_id).map((m) => m.imdb_id!);
-      const seriesIds = series.filter((s) => s.imdb_id).map((s) => s.imdb_id!);
-      const total = movieIds.length + seriesIds.length;
-      setVidsrcProgress({ checked: 0, total });
+      // Paso 1: descargar catálogo completo de vidsrc.me (películas + series)
+      let pagesLoaded = 0;
+      const updatePages = (p: number) => { pagesLoaded = p; setVidsrcProgress({ checked: p, total: 0 }); };
+
+      const [movieSet, seriesSet] = await Promise.all([
+        fetchVidsrcList("movie", updatePages),
+        fetchVidsrcList("series", updatePages),
+      ]);
+
+      // Paso 2: cruzar con nuestro catálogo
       setVidsrcPhase("verifying");
+      const [movies, series] = await Promise.all([getMovies(), getSeries()]);
+      const allItems = [
+        ...movies.filter((m) => m.imdb_id).map((m) => ({ imdb_id: m.imdb_id!, type: "movie" as const })),
+        ...series.filter((s) => s.imdb_id).map((s) => ({ imdb_id: s.imdb_id!, type: "series" as const })),
+      ];
+      const total = allItems.length;
+      setVidsrcProgress({ checked: 0, total });
 
       let active = 0, inactive = 0, checked = 0;
-      const BATCH = 50;
+      const SAVE_BATCH = 100;
+      const pendingSave: { imdb_id: string; type: "movie" | "series"; available: boolean }[] = [];
 
-      for (let i = 0; i < movieIds.length; i += BATCH) {
-        const results = await verifyVidsrc(movieIds.slice(i, i + BATCH), "movie");
-        results.forEach((r) => { if (r.available) active++; else inactive++; checked++; });
+      for (const item of allItems) {
+        const available = item.type === "movie"
+          ? movieSet.has(item.imdb_id)
+          : seriesSet.has(item.imdb_id);
+        if (available) active++; else inactive++;
+        checked++;
+        pendingSave.push({ ...item, available });
         setVidsrcProgress({ checked, total });
         setVidsrcCounts({ active, inactive });
+
+        if (pendingSave.length >= SAVE_BATCH) {
+          await saveVidsrcResults([...pendingSave]).catch(() => {});
+          pendingSave.length = 0;
+        }
       }
-      for (let i = 0; i < seriesIds.length; i += BATCH) {
-        const results = await verifyVidsrc(seriesIds.slice(i, i + BATCH), "series");
-        results.forEach((r) => { if (r.available) active++; else inactive++; checked++; });
-        setVidsrcProgress({ checked, total });
-        setVidsrcCounts({ active, inactive });
+      if (pendingSave.length > 0) {
+        await saveVidsrcResults([...pendingSave]).catch(() => {});
       }
       setVidsrcPhase("done");
     } catch (err: unknown) {
@@ -263,7 +310,7 @@ export default function AdminDashboard() {
             <div className="mb-4">
               <div className="flex items-center justify-between text-xs text-gray-400 mb-1.5">
                 <span>
-                  {vidsrcPhase === "fetching" ? "Cargando catálogo..." : `Verificando ${vidsrcProgress.checked} de ${vidsrcProgress.total}...`}
+                  {vidsrcPhase === "fetching" ? `Descargando lista de vidsrc.me — página ${vidsrcProgress.checked}...` : `Cruzando catálogo: ${vidsrcProgress.checked} de ${vidsrcProgress.total}...`}
                 </span>
                 {vidsrcPhase === "verifying" && vidsrcProgress.total > 0 && (
                   <span>{Math.round((vidsrcProgress.checked / vidsrcProgress.total) * 100)}%</span>

@@ -12,7 +12,7 @@ const FALLBACK_POSTER =
 export default function SeriesList() {
   const { data: series, isLoading: loading, error } = useQuery({
     queryKey: ["series"],
-    queryFn: getSeries,
+    queryFn: () => getSeries(),
     staleTime: 5 * 60 * 1000,
   });
 

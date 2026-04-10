@@ -15,6 +15,7 @@ const FALLBACK_BG =
   "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=1400&auto=format&fit=crop";
 
 const MIN_ITEMS_TO_SHOW = 2;
+const SAGA_PAGE_SIZE = 30; // Mostrar más items en sagas por defecto
 
 function matchesKeywords(genres: string[] | undefined, keywords: string[]): boolean {
   if (!genres || genres.length === 0) return false;
@@ -30,9 +31,23 @@ function matchesNetworks(itemNetworks: string[] | undefined, targets: string[]):
   );
 }
 
+function normalizeTitle(title: string): string {
+  // Normalizar: convertir a minúsculas, eliminar acentos, reemplazar caracteres especiales
+  return title
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // Eliminar diacríticos
+    .replace(/[&]/g, 'and') // Reemplazar & por and
+    .replace(/[^a-z0-9\s]/g, '') // Eliminar caracteres especiales
+    .trim();
+}
+
 function matchesTitle(title: string, keywords: string[]): boolean {
-  const lowerTitle = title.toLowerCase();
-  return keywords.some((kw) => lowerTitle.includes(kw.toLowerCase()));
+  const normalizedTitle = normalizeTitle(title);
+  return keywords.some((kw) => {
+    const normalizedKw = normalizeTitle(kw);
+    return normalizedTitle.includes(normalizedKw);
+  });
 }
 
 function buildMixed(
@@ -60,12 +75,12 @@ type FilterMode = "genre" | "platform" | null;
 export default function Home() {
   const { data: movieData, isLoading: loadingMovies, error: errorMovies } = useQuery({
     queryKey: ["movies"],
-    queryFn: getMovies,
+    queryFn: () => getMovies({ limit: 10000 }), // Aumentar límite para capturar todas las sagas
     staleTime: 5 * 60 * 1000,
   });
   const { data: seriesData, isLoading: loadingSeries, error: errorSeries } = useQuery({
     queryKey: ["series"],
-    queryFn: getSeries,
+    queryFn: () => getSeries({ limit: 5000 }), // Aumentar límite para capturar todas las sagas de series
     staleTime: 5 * 60 * 1000,
   });
 
@@ -157,6 +172,18 @@ export default function Home() {
           (m) => (Number(m.year) || 0) <= 1990 && matchesKeywords(m.genres, ["animación", "animation"]),
           (s) => (Number(s.year) || 0) <= 1990 && matchesKeywords(s.genres, ["animación", "animation"])
         ).sort((a, b) => (Number(b.item.views) || 0) - (Number(a.item.views) || 0));
+      } else if (sec.type === "estrenos") {
+        const currentYear = new Date().getFullYear();
+        items = buildMixed(
+          allMovies, allSeries,
+          (m) => (Number(m.year) || 0) >= currentYear - 1,
+          (s) => (Number(s.year) || 0) >= currentYear - 1
+        ).sort((a, b) => {
+          // Sort by date_added first (newest in catalog), then by year
+          const dateA = a.item.date_added ? new Date(a.item.date_added).getTime() : 0;
+          const dateB = b.item.date_added ? new Date(b.item.date_added).getTime() : 0;
+          return dateB - dateA;
+        });
       }
       return { ...sec, items };
     }).filter(s => s.items.length >= MIN_ITEMS_TO_SHOW);
@@ -194,8 +221,17 @@ export default function Home() {
         ...sec,
         items: buildMixed(
           allMovies, allSeries,
-          (m) => matchesTitle(m.title, sec.keywords),
-          (s) => matchesTitle(s.title, sec.keywords)
+	          (m) => {
+	            // Match by collection_id (most accurate)
+	            if (sec.collection_id && m.collection_id === sec.collection_id) return true;
+	            // Always allow keyword fallback for movies not yet assigned to this collection
+	            return matchesTitle(m.title, sec.keywords);
+	          },
+          (s) => {
+            // Match by collection_id
+            if (sec.collection_id && s.collection_id === sec.collection_id) return true;
+            return matchesTitle(s.title, sec.keywords);
+          }
         ),
       })).filter((s) => s.items.length >= 1), // Sagas can show even with 1 item
     [allMovies, allSeries]
@@ -263,11 +299,12 @@ export default function Home() {
 
         {/* ── Custom sections ────────────────────────────────────────── */}
         {customCarousels.map((sec) => (
-          <GenreCarousel
-            key={sec.id}
-            title={sec.label}
-            items={sec.items}
-          />
+                <GenreCarousel
+                  key={sec.id}
+                  title={sec.label}
+                  items={sec.items}
+                  pageSize={30} // Mostrar más películas en las sagas
+                />
         ))}
 
         {sagaCarousels.length > 0 && (
@@ -280,7 +317,7 @@ export default function Home() {
               <p className="text-gray-400 text-sm mt-1">Explora tus franquicias favoritas</p>
             </div>
             {sagaCarousels.map((saga) => (
-              <GenreCarousel key={saga.id} title={saga.label} items={saga.items} />
+              <GenreCarousel key={saga.id} title={saga.label} items={saga.items} pageSize={SAGA_PAGE_SIZE} />
             ))}
           </div>
         )}

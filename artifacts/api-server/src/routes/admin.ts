@@ -1,16 +1,16 @@
-import { Router } from "express";
+import { Router, type IRouter } from "express";
 import { pool } from "../lib/db";
 import { runAutoImport, importByImdbId, importMovie, importSeries } from "../jobs/auto-import";
 import { fetchMovieByTmdbId, fetchSeriesByTmdbId, tmdbFetch } from "../lib/tmdb-client";
 
-const router = Router();
+const router: IRouter = Router();
 
 // GET /api/admin/stats
 router.get("/admin/stats", async (_req, res) => {
   try {
     const [moviesCount, seriesCount, totalViews, topMovies, topSeries, recentTrends] = await Promise.all([
-      pool.query("SELECT COUNT(*) as count FROM movies"),
-      pool.query("SELECT COUNT(*) as count FROM cv_series"),
+      pool.query("SELECT COUNT(DISTINCT imdb_id) as count FROM movies WHERE vidsrc_status = 'active'"),
+      pool.query("SELECT COUNT(DISTINCT imdb_id) as count FROM cv_series WHERE vidsrc_status = 'active'"),
       pool.query(`
         SELECT 
           (SELECT COALESCE(SUM(views), 0) FROM movies) + 
@@ -132,50 +132,103 @@ router.post("/admin/import-by-ids", async (req, res) => {
 });
 
 // POST /api/admin/verify-vidsrc
+// Recibe resultados del escáner y los guarda en BD con un bulk UPDATE por tipo
 router.post("/admin/verify-vidsrc", async (req, res) => {
-  const { imdb_ids, type = "movie" } = req.body as { imdb_ids: string[]; type?: "movie" | "series" };
+  const { results: clientResults } = req.body as {
+    results: { imdb_id: string; type: "movie" | "series"; available: boolean }[];
+  };
 
-  if (!Array.isArray(imdb_ids) || imdb_ids.length === 0) {
-    return res.status(400).json({ error: "Se requiere un array imdb_ids" });
+  if (!Array.isArray(clientResults) || clientResults.length === 0) {
+    return res.status(400).json({ error: "Se requiere un array results" });
   }
 
-  const results: { imdb_id: string; available: boolean }[] = [];
+  try {
+    // Separar por tipo y estado
+    const movieActive   = clientResults.filter(r => r.type === "movie"   && r.available).map(r => r.imdb_id);
+    const movieInactive = clientResults.filter(r => r.type === "movie"   && !r.available).map(r => r.imdb_id);
+    const seriesActive  = clientResults.filter(r => r.type === "series"  && r.available).map(r => r.imdb_id);
+    const seriesInactive= clientResults.filter(r => r.type === "series"  && !r.available).map(r => r.imdb_id);
 
-  for (const imdbId of imdb_ids.slice(0, 50)) {
-    try {
-      const url = type === "series"
-        ? `https://vidsrc.net/embed/tv/${imdbId}/1-1/`
-        : `https://vidsrc.net/embed/movie/${imdbId}/`;
+    // Un solo UPDATE por grupo usando ANY($1)
+    if (movieActive.length)    await pool.query("UPDATE movies     SET vidsrc_status = 'active'   WHERE imdb_id = ANY($1)", [movieActive]);
+    if (movieInactive.length)  await pool.query("UPDATE movies     SET vidsrc_status = 'inactive' WHERE imdb_id = ANY($1)", [movieInactive]);
+    if (seriesActive.length)   await pool.query("UPDATE cv_series  SET vidsrc_status = 'active'   WHERE imdb_id = ANY($1)", [seriesActive]);
+    if (seriesInactive.length) await pool.query("UPDATE cv_series  SET vidsrc_status = 'inactive' WHERE imdb_id = ANY($1)", [seriesInactive]);
 
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 6000);
+    res.json({ saved: clientResults.length, active: movieActive.length + seriesActive.length, inactive: movieInactive.length + seriesInactive.length });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
 
-      let available = false;
+// GET /api/admin/scan-networks-stream — SSE stream para escanear productoras con progreso
+router.get("/admin/scan-networks-stream", async (req, res) => {
+  const type = (req.query.type as string) === "series" ? "series" : "movie";
+  const table = type === "series" ? "cv_series" : "movies";
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  const send = (event: string, data: unknown) => {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  try {
+    const { rows: items } = await pool.query(
+      `SELECT id, imdb_id, title, networks FROM ${table} ORDER BY date_added DESC`,
+      []
+    );
+
+    send("start", { total: items.length });
+
+    let updated = 0, no_change = 0, error = 0;
+
+    for (let i = 0; i < items.length; i++) {
+      if (req.destroyed) break;
+      const item = items[i];
       try {
-        const r = await fetch(url, {
-          method: "HEAD",
-          signal: controller.signal,
-          headers: { "User-Agent": "Mozilla/5.0" },
-        });
-        available = r.status < 400;
-      } catch {
-        available = false;
-      } finally {
-        clearTimeout(timeout);
+        if (!item.imdb_id) {
+          error++;
+          send("progress", { i: i + 1, total: items.length, title: item.title, status: "error", updated, no_change, error });
+          continue;
+        }
+
+        const findRes = await tmdbFetch(`/find/${item.imdb_id}?external_source=imdb_id`);
+        if (!findRes.ok) { error++; send("progress", { i: i + 1, total: items.length, title: item.title, status: "error", updated, no_change, error }); continue; }
+        const findData = await findRes.json() as any;
+        const tmdbResults = type === "series" ? findData.tv_results : findData.movie_results;
+        if (!tmdbResults?.length) { error++; send("progress", { i: i + 1, total: items.length, title: item.title, status: "error", updated, no_change, error }); continue; }
+
+        const tmdbId = tmdbResults[0].id;
+        const data = type === "series" ? await fetchSeriesByTmdbId(tmdbId) : await fetchMovieByTmdbId(tmdbId);
+        if (!data?.networks) { error++; send("progress", { i: i + 1, total: items.length, title: item.title, status: "error", updated, no_change, error }); continue; }
+
+        const newNetworks = data.networks as string[];
+        const oldNetworks = (item.networks || []) as string[];
+        const isDifferent = JSON.stringify([...newNetworks].sort()) !== JSON.stringify([...oldNetworks].sort());
+
+        if (isDifferent) {
+          await pool.query(`UPDATE ${table} SET networks = $1 WHERE id = $2`, [newNetworks, item.id]);
+          updated++;
+          send("progress", { i: i + 1, total: items.length, title: item.title, status: "updated", new_networks: newNetworks, updated, no_change, error });
+        } else {
+          no_change++;
+          send("progress", { i: i + 1, total: items.length, title: item.title, status: "no_change", updated, no_change, error });
+        }
+      } catch (err) {
+        error++;
+        send("progress", { i: i + 1, total: items.length, title: item.title, status: "error", updated, no_change, error });
       }
-
-      results.push({ imdb_id: imdbId, available });
-
-      // Update DB
-      const status = available ? "active" : "inactive";
-      const table = type === "series" ? "cv_series" : "movies";
-      await pool.query(`UPDATE ${table} SET vidsrc_status = $1 WHERE imdb_id = $2`, [status, imdbId]);
-    } catch (err) {
-      results.push({ imdb_id: imdbId, available: false });
     }
-  }
 
-  res.json(results);
+    send("done", { total: items.length, updated, no_change, error });
+    res.end();
+  } catch (e) {
+    send("error", { message: String(e) });
+    res.end();
+  }
 });
 
 // POST /api/admin/scan-networks — scan existing media to update networks/production companies
@@ -184,7 +237,6 @@ router.post("/admin/scan-networks", async (req, res) => {
   const table = type === "series" ? "cv_series" : "movies";
 
   try {
-    // Get items that have empty networks or we want to refresh
     const { rows: items } = await pool.query(
       `SELECT id, imdb_id, title, networks FROM ${table} ORDER BY date_added DESC LIMIT $1`,
       [limit]
@@ -193,60 +245,25 @@ router.post("/admin/scan-networks", async (req, res) => {
     const results = [];
     for (const item of items) {
       try {
-        if (!item.imdb_id) {
-          results.push({ id: item.id, title: item.title, status: "error", error: "No IMDb ID" });
-          continue;
-        }
-
-        // Find TMDB ID first
+        if (!item.imdb_id) { results.push({ id: item.id, title: item.title, status: "error", error: "No IMDb ID" }); continue; }
         const findRes = await tmdbFetch(`/find/${item.imdb_id}?external_source=imdb_id`);
-        if (!findRes.ok) {
-          results.push({ id: item.id, title: item.title, status: "error", error: "TMDB find failed" });
-          continue;
-        }
+        if (!findRes.ok) { results.push({ id: item.id, title: item.title, status: "error", error: "TMDB find failed" }); continue; }
         const findData = await findRes.json() as any;
         const tmdbResults = type === "series" ? findData.tv_results : findData.movie_results;
-
-        if (!tmdbResults || tmdbResults.length === 0) {
-          results.push({ id: item.id, title: item.title, status: "error", error: "Not found on TMDB" });
-          continue;
-        }
-
+        if (!tmdbResults?.length) { results.push({ id: item.id, title: item.title, status: "error", error: "Not found on TMDB" }); continue; }
         const tmdbId = tmdbResults[0].id;
         const data = type === "series" ? await fetchSeriesByTmdbId(tmdbId) : await fetchMovieByTmdbId(tmdbId);
-
-        if (!data || !data.networks) {
-          results.push({ id: item.id, title: item.title, status: "error", error: "Could not fetch details" });
-          continue;
-        }
-
+        if (!data?.networks) { results.push({ id: item.id, title: item.title, status: "error", error: "Could not fetch details" }); continue; }
         const newNetworks = data.networks as string[];
         const oldNetworks = (item.networks || []) as string[];
-
-        // Check if they are different
         const isDifferent = JSON.stringify([...newNetworks].sort()) !== JSON.stringify([...oldNetworks].sort());
-
         if (isDifferent) {
           await pool.query(`UPDATE ${table} SET networks = $1 WHERE id = $2`, [newNetworks, item.id]);
-          results.push({
-            id: item.id,
-            title: item.title,
-            old_networks: oldNetworks,
-            new_networks: newNetworks,
-            status: "updated"
-          });
+          results.push({ id: item.id, title: item.title, old_networks: oldNetworks, new_networks: newNetworks, status: "updated" });
         } else {
-          results.push({
-            id: item.id,
-            title: item.title,
-            old_networks: oldNetworks,
-            new_networks: newNetworks,
-            status: "no_change"
-          });
+          results.push({ id: item.id, title: item.title, old_networks: oldNetworks, new_networks: newNetworks, status: "no_change" });
         }
-      } catch (err) {
-        results.push({ id: item.id, title: item.title, status: "error", error: String(err) });
-      }
+      } catch (err) { results.push({ id: item.id, title: item.title, status: "error", error: String(err) }); }
     }
 
     const summary = {
@@ -341,7 +358,7 @@ router.post("/admin/tmdb-discover", async (req, res) => {
     language,
     min_votes = 50,
     page = 1,
-    count = 500,
+    count = 2000,
   } = req.body as {
     type?: "movie" | "series";
     genre_ids?: string;
@@ -355,7 +372,7 @@ router.post("/admin/tmdb-discover", async (req, res) => {
   };
 
   // Each TMDB page = 20 items. Clamp batch size to [20, 500].
-  const batchSize = Math.min(Math.max(20, count), 500);
+  const batchSize = Math.min(Math.max(20, count), 2000);
   const pagesPerBatch = Math.ceil(batchSize / 20); // e.g. 25 for 500
   const startTmdbPage = (page - 1) * pagesPerBatch + 1;
 
@@ -447,7 +464,7 @@ router.post("/admin/import-by-tmdb-ids", async (req, res) => {
   }
 
   let imported = 0, existed = 0;
-  for (const tmdbId of tmdb_ids.slice(0, 500)) {
+  for (const tmdbId of tmdb_ids.slice(0, 2000)) {
     try {
       const ok = type === "movie" ? await importMovie(tmdbId) : await importSeries(tmdbId);
       if (ok) imported++; else existed++;
@@ -456,17 +473,17 @@ router.post("/admin/import-by-tmdb-ids", async (req, res) => {
     }
   }
 
-  res.json({ ok: true, summary: { imported, existed_or_error: existed, total: Math.min(tmdb_ids.length, 500) } });
+  res.json({ ok: true, summary: { imported, existed_or_error: existed, total: Math.min(tmdb_ids.length, 2000) } });
 });
 
 // POST /api/admin/cleanup-no-vidsrc — delete movies/series where vidsrc_status = 'inactive'
 router.post("/admin/cleanup-no-vidsrc", async (_req, res) => {
   try {
     const movieResult = await pool.query(
-      "DELETE FROM movies WHERE vidsrc_status = 'inactive' RETURNING id"
+      "DELETE FROM movies WHERE vidsrc_status = 'inactive' OR vidsrc_status IS NULL RETURNING id"
     );
     const seriesResult = await pool.query(
-      "DELETE FROM cv_series WHERE vidsrc_status = 'inactive' RETURNING id"
+      "DELETE FROM cv_series WHERE vidsrc_status = 'inactive' OR vidsrc_status IS NULL RETURNING id"
     );
     const deletedMovies = movieResult.rowCount || 0;
     const deletedSeries = seriesResult.rowCount || 0;
@@ -480,6 +497,387 @@ router.post("/admin/cleanup-no-vidsrc", async (_req, res) => {
     });
   } catch (e) {
     res.status(500).json({ error: String(e) });
+  }
+});
+
+
+// GET /api/admin/vidsrc-range?type=movie|series&from=1&to=100
+// GET /api/admin/vidsrc-range?type=movie|series&from=N&to=M
+// Descarga páginas [from..to] de vidsrc.me UNA POR UNA con 150ms de pausa
+// Lento pero 100% confiable — vidsrc.me rate-limita requests paralelas
+router.get("/admin/vidsrc-range", async (req, res) => {
+  const type = req.query.type === "series" ? "tvshows" : "movies";
+  const from = Math.max(1, parseInt(String(req.query.from ?? "1"), 10) || 1);
+  const to   = Math.min(from + 49, parseInt(String(req.query.to ?? String(from + 49)), 10) || from + 49);
+
+  const fetchPage = async (page: number): Promise<string[]> => {
+    const url = `https://vidsrc.me/${type}/latest/page-${page}.json`;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const r = await fetch(url, {
+          headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
+          signal: AbortSignal.timeout(15_000),
+        });
+        if (!r.ok) { await new Promise(r => setTimeout(r, 1000)); continue; }
+        const data = await r.json() as { result?: { imdb_id?: string }[]; pages?: number };
+        const ids = (data.result ?? []).map(i => i.imdb_id).filter(Boolean) as string[];
+        if (ids.length === 0 && attempt < 2) {
+          await new Promise(r => setTimeout(r, 500)); continue;
+        }
+        return ids;
+      } catch { await new Promise(r => setTimeout(r, 1000)); }
+    }
+    return [];
+  };
+
+  try {
+    let totalPages = to;
+    const allIds: string[] = [];
+
+    // Página 1 devuelve el total real de páginas
+    if (from === 1) {
+      const r1 = await fetch(`https://vidsrc.me/${type}/latest/page-1.json`, {
+        headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!r1.ok) return res.status(500).json({ error: "vidsrc.me no responde" });
+      const d1 = await r1.json() as { result?: { imdb_id?: string }[]; pages?: number };
+      totalPages = d1.pages ?? to;
+      allIds.push(...(d1.result ?? []).map(i => i.imdb_id).filter(Boolean) as string[]);
+    }
+
+    // Descargar páginas UNA A UNA con pausa de 150ms — respeta el rate limit
+    const startPage = from === 1 ? 2 : from;
+    for (let p = startPage; p <= to; p++) {
+      const ids = await fetchPage(p);
+      allIds.push(...ids);
+      await new Promise(r => setTimeout(r, 150));
+    }
+
+    res.json({ totalPages, imdb_ids: allIds });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// GET /api/admin/vidsrc-list?type=movie|series&page=N  (kept for compatibility)
+router.get("/admin/vidsrc-list", async (req, res) => {
+  const type = req.query.type === "series" ? "tvshows" : "movies";
+  const page = parseInt(String(req.query.page ?? "1"), 10) || 1;
+  const url = `https://vidsrc.me/${type}/latest/page-${page}.json`;
+  try {
+    const r = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
+    });
+    if (!r.ok) return res.status(r.status).json({ error: `vidsrc.me responded ${r.status}` });
+    const data = await r.json();
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+
+// GET /api/admin/vidsrc-test — busca IMDb IDs específicos en todas las páginas de series
+router.get("/admin/vidsrc-test", async (_req, res) => {
+  const targetIds = new Set(["tt5555260", "tt6226232", "tt31938062"]); // This Is Us, Young Sheldon, The Pitt
+  const found: Record<string, number> = {};
+  let totalPages = 410;
+
+  for (let p = 1; p <= totalPages; p++) {
+    try {
+      const r = await fetch(`https://vidsrc.me/tvshows/latest/page-${p}.json`, {
+        headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(10_000),
+      });
+      if (!r.ok) continue;
+      const d = await r.json() as { result?: { imdb_id?: string }[]; pages?: number };
+      if (p === 1) totalPages = d.pages ?? 410;
+      for (const item of d.result ?? []) {
+        if (item.imdb_id && targetIds.has(item.imdb_id)) {
+          found[item.imdb_id] = p;
+          targetIds.delete(item.imdb_id);
+        }
+      }
+      if (targetIds.size === 0) break; // found all
+      await new Promise(r => setTimeout(r, 150));
+    } catch { /* continue */ }
+  }
+
+  res.json({ totalPages, found, notFound: Array.from(targetIds) });
+});
+
+
+// GET /api/admin/rescan-metadata-stream — Optimizador de Sagas
+// Recibe ?ids=collectionId1,collectionId2,... y vincula las películas de esas colecciones.
+// Estrategia inversa: pregunta a TMDB qué películas tiene cada colección,
+// luego actualiza solo esas en la BD. O(N sagas) en vez de O(N películas).
+router.get("/admin/rescan-metadata-stream", async (req, res) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  const send = (event: string, data: unknown) => {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  try {
+    const idsParam = String(req.query.ids || "");
+    const collectionIds = idsParam
+      .split(",")
+      .map(s => parseInt(s.trim(), 10))
+      .filter(n => !isNaN(n) && n > 0);
+
+    if (collectionIds.length === 0) {
+      send("error", { message: "No se proporcionaron IDs de colección." });
+      res.end();
+      return;
+    }
+
+    send("start", { total: collectionIds.length });
+
+    let updated = 0, no_change = 0, errorCount = 0;
+
+    for (let i = 0; i < collectionIds.length; i++) {
+      if (req.destroyed) break;
+      const colId = collectionIds[i];
+
+      try {
+        const colRes = await tmdbFetch(`/collection/${colId}?language=es-MX`);
+        if (!colRes.ok) {
+          errorCount++;
+          send("progress", { i: i+1, total: collectionIds.length, title: `Colección ${colId}`, status: "error", updated, no_change, error: errorCount });
+          continue;
+        }
+
+        const colData = await colRes.json() as {
+          id: number; name: string;
+          parts: { id: number; title?: string }[];
+        };
+
+        let colUpdated = 0;
+        for (const part of colData.parts ?? []) {
+          try {
+            const extRes = await tmdbFetch(`/movie/${part.id}/external_ids`);
+            if (!extRes.ok) continue;
+            const ext = await extRes.json() as { imdb_id?: string };
+            if (!ext.imdb_id) continue;
+
+            const result = await pool.query(
+              `UPDATE movies SET collection_id = $1, collection_name = $2
+               WHERE imdb_id = $3 RETURNING id`,
+              [colData.id, colData.name, ext.imdb_id]
+            );
+            if (result.rowCount && result.rowCount > 0) colUpdated++;
+            await new Promise(r => setTimeout(r, 80));
+          } catch { /* skip */ }
+        }
+
+        if (colUpdated > 0) updated += colUpdated; else no_change++;
+        send("progress", {
+          i: i+1, total: collectionIds.length, title: colData.name,
+          movies_in_collection: colData.parts?.length ?? 0, movies_updated: colUpdated,
+          status: colUpdated > 0 ? "updated" : "no_match",
+          updated, no_change, error: errorCount
+        });
+
+      } catch {
+        errorCount++;
+        send("progress", { i: i+1, total: collectionIds.length, title: `Colección ${colId}`, status: "error", updated, no_change, error: errorCount });
+      }
+    }
+
+    send("done", { total: collectionIds.length, updated, no_change, error: errorCount });
+    res.end();
+  } catch (e) {
+    send("error", { message: String(e) });
+    res.end();
+  }
+});
+
+// POST /api/admin/import-collection — import all movies from a TMDB collection by ID
+router.post("/admin/import-collection", async (req, res) => {
+  const { collection_id } = req.body as { collection_id: number };
+
+  if (!collection_id) {
+    return res.status(400).json({ error: "Se requiere collection_id" });
+  }
+
+  try {
+    // Fetch collection details from TMDB
+    const r = await tmdbFetch(`/collection/${collection_id}?language=es-MX`);
+    if (!r.ok) return res.status(404).json({ error: "Colección no encontrada en TMDB" });
+
+    const data = await r.json() as {
+      id: number;
+      name: string;
+      parts: { id: number; title?: string; name?: string; media_type?: string }[];
+    };
+
+    const parts = data.parts ?? [];
+    if (parts.length === 0) {
+      return res.json({ ok: true, collection: data.name, imported: 0, existed: 0, total: 0, titles: [] });
+    }
+
+    let imported = 0, existed = 0;
+    const titles: string[] = [];
+
+    for (const part of parts) {
+      try {
+        const ok = await importMovie(part.id);
+        if (ok) {
+          imported++;
+          titles.push(part.title || part.name || String(part.id));
+        } else {
+          // Movie already exists — update its collection_id via external_ids lookup
+          existed++;
+          try {
+            const extR = await tmdbFetch(`/movie/${part.id}/external_ids`);
+            if (extR.ok) {
+              const ext = await extR.json() as { imdb_id?: string };
+              if (ext.imdb_id) {
+                await pool.query(
+                  `UPDATE movies SET collection_id = $1, collection_name = $2 WHERE imdb_id = $3`,
+                  [data.id, data.name, ext.imdb_id]
+                );
+              }
+            }
+          } catch { /* ignore */ }
+        }
+      } catch { existed++; }
+    }
+
+    res.json({ ok: true, collection: data.name, imported, existed, total: parts.length, titles });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// POST /api/admin/reset-collection — delete all movies/series from a TMDB collection by ID
+router.post("/admin/reset-collection", async (req, res) => {
+  const { collection_id } = req.body as { collection_id: number };
+
+  if (!collection_id) {
+    return res.status(400).json({ error: "Se requiere collection_id" });
+  }
+
+  try {
+    const movieResult = await pool.query(
+      "DELETE FROM movies WHERE collection_id = $1 RETURNING id",
+      [collection_id]
+    );
+    const seriesResult = await pool.query(
+      "DELETE FROM cv_series WHERE collection_id = $1 RETURNING id",
+      [collection_id]
+    );
+
+    res.json({
+      ok: true,
+      deleted_movies: movieResult.rowCount || 0,
+      deleted_series: seriesResult.rowCount || 0,
+      total_deleted: (movieResult.rowCount || 0) + (seriesResult.rowCount || 0)
+    });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+
+// GET /api/admin/scan-collections-stream
+// Recibe collection_ids conocidos como query param y actualiza solo las películas de esas sagas.
+// Mucho más eficiente: O(N sagas) llamadas en vez de O(N películas).
+// ?ids=1241,119,10,... — lista de collection_ids a escanear
+router.get("/admin/scan-collections-stream", async (req, res) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  const send = (event: string, data: unknown) => {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  try {
+    // Parse collection IDs from query param
+    const idsParam = String(req.query.ids || "");
+    const collectionIds = idsParam
+      .split(",")
+      .map(s => parseInt(s.trim(), 10))
+      .filter(n => !isNaN(n) && n > 0);
+
+    if (collectionIds.length === 0) {
+      send("error", { message: "No se proporcionaron IDs de colección. Usa ?ids=1241,119,..." });
+      res.end();
+      return;
+    }
+
+    send("start", { total: collectionIds.length });
+
+    let updated = 0, not_found = 0, errorCount = 0;
+
+    for (let i = 0; i < collectionIds.length; i++) {
+      if (req.destroyed) break;
+      const colId = collectionIds[i];
+
+      try {
+        // Fetch collection from TMDB to get all movies in it
+        const colRes = await tmdbFetch(`/collection/${colId}?language=es-MX`);
+        if (!colRes.ok) {
+          errorCount++;
+          send("progress", { i: i+1, total: collectionIds.length, collection_id: colId, status: "error", updated, not_found, error: errorCount });
+          continue;
+        }
+
+        const colData = await colRes.json() as {
+          id: number;
+          name: string;
+          parts: { id: number; title?: string }[];
+        };
+
+        const parts = colData.parts ?? [];
+        let colUpdated = 0;
+
+        // For each movie in the collection, find it in our DB by external_ids and update collection_id
+        for (const part of parts) {
+          try {
+            const extRes = await tmdbFetch(`/movie/${part.id}/external_ids`);
+            if (!extRes.ok) continue;
+            const ext = await extRes.json() as { imdb_id?: string };
+            if (!ext.imdb_id) continue;
+
+            const result = await pool.query(
+              `UPDATE movies SET collection_id = $1, collection_name = $2
+               WHERE imdb_id = $3 AND (collection_id IS NULL OR collection_id != $1)
+               RETURNING id`,
+              [colData.id, colData.name, ext.imdb_id]
+            );
+            if (result.rowCount && result.rowCount > 0) colUpdated++;
+            await new Promise(r => setTimeout(r, 100));
+          } catch { /* skip this part */ }
+        }
+
+        if (colUpdated > 0) updated += colUpdated;
+        else not_found++;
+
+        send("progress", {
+          i: i+1, total: collectionIds.length,
+          collection: colData.name, collection_id: colId,
+          movies_in_collection: parts.length, movies_updated: colUpdated,
+          status: colUpdated > 0 ? "updated" : "no_match",
+          updated, not_found, error: errorCount
+        });
+
+      } catch {
+        errorCount++;
+        send("progress", { i: i+1, total: collectionIds.length, collection_id: colId, status: "error", updated, not_found, error: errorCount });
+      }
+    }
+
+    send("done", { total: collectionIds.length, updated, not_found, error: errorCount });
+    res.end();
+  } catch (e) {
+    send("error", { message: String(e) });
+    res.end();
   }
 });
 

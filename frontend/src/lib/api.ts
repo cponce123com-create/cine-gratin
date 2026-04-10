@@ -61,9 +61,21 @@ async function adminDelete(path: string): Promise<void> {
 
 // ── Public endpoints ──────────────────────────────────────────────────────────
 
-export const getMovies = (): Promise<Movie[]> => apiFetch("/api/movies");
+export const getMovies = (params?: { page?: number; limit?: number }): Promise<Movie[]> => {
+  const query = new URLSearchParams();
+  if (params?.page) query.append("page", params.page.toString());
+  if (params?.limit) query.append("limit", params.limit.toString());
+  const queryString = query.toString();
+  return apiFetch(`/api/movies${queryString ? `?${queryString}` : ""}`);
+};
 export const getMovie = (id: string): Promise<Movie> => apiFetch(`/api/movies/${id}`);
-export const getSeries = (): Promise<Series[]> => apiFetch("/api/series");
+export const getSeries = (params?: { page?: number; limit?: number }): Promise<Series[]> => {
+  const query = new URLSearchParams();
+  if (params?.page) query.append("page", params.page.toString());
+  if (params?.limit) query.append("limit", params.limit.toString());
+  const queryString = query.toString();
+  return apiFetch(`/api/series${queryString ? `?${queryString}` : ""}`);
+};
 export const getSeriesById = (id: string): Promise<Series> => apiFetch(`/api/series/${id}`);
 
 export const searchMovies = (q: string, limit = 6): Promise<Movie[]> =>
@@ -105,11 +117,35 @@ export const importByIds = (
 ): Promise<ImportByIdsResponse> =>
   adminPost("/api/admin/import-by-ids", { imdb_ids, type });
 
-export const verifyVidsrc = (
+export const saveVidsrcResults = (
+  results: { imdb_id: string; type: "movie" | "series"; available: boolean }[]
+): Promise<VidsrcResult[]> =>
+  adminPost("/api/admin/verify-vidsrc", { results });
+
+// verifyVidsrc: descarga la lista pública de vidsrc.me y cruza con los ids dados
+export const verifyVidsrc = async (
   imdb_ids: string[],
   type: "movie" | "series"
-): Promise<VidsrcResult[]> =>
-  adminPost("/api/admin/verify-vidsrc", { imdb_ids, type });
+): Promise<VidsrcResult[]> => {
+  // Descargar lista completa de vidsrc.me para este tipo
+  const available = new Set<string>();
+  const base = type === "series"
+    ? "https://vidsrc.me/tvshows/latest/page-"
+    : "https://vidsrc.me/movies/latest/page-";
+  for (let page = 1; page <= 999; page++) {
+    try {
+      const res = await fetch(`${base}${page}.json`, { credentials: "omit" });
+      if (!res.ok) break;
+      const data = await res.json() as { imdb_id?: string }[];
+      if (!Array.isArray(data) || data.length === 0) break;
+      for (const item of data) { if (item.imdb_id) available.add(item.imdb_id); }
+    } catch { break; }
+  }
+
+  const payload = imdb_ids.map((id) => ({ imdb_id: id, type, available: available.has(id) }));
+  await saveVidsrcResults(payload).catch(() => {});
+  return payload.map(({ imdb_id, available: av }) => ({ imdb_id, available: av }));
+};
 
 export const getAdminStats = (): Promise<AdminStats> =>
   adminFetch("/api/admin/stats");
@@ -199,6 +235,16 @@ export const tmdbDiscover = (params: {
   count?: number;
 }): Promise<TmdbDiscoverResult> =>
   adminPost("/api/admin/tmdb-discover", params);
+
+export const importCollection = (
+  collection_id: number
+): Promise<{ ok: boolean; collection: string; imported: number; existed: number; total: number; titles: string[] }> =>
+  adminPost("/api/admin/import-collection", { collection_id });
+
+export const resetCollection = (
+  collection_id: number
+): Promise<{ ok: boolean; deleted_movies: number; deleted_series: number; total_deleted: number }> =>
+  adminPost("/api/admin/reset-collection", { collection_id });
 
 export const importByTmdbIds = (
   tmdb_ids: number[],

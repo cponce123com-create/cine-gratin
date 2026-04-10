@@ -25,6 +25,7 @@ const ManageSeries = lazy(() => import("@/pages/admin/ManageSeries"));
 const SportChannels = lazy(() => import("@/pages/admin/SportChannels"));
 const EventChannels = lazy(() => import("@/pages/admin/EventChannels"));
 const TmdbScraper = lazy(() => import("@/pages/admin/TmdbScraper"));
+const VidsrcScanner = lazy(() => import("@/pages/admin/VidsrcScanner"));
 
 function AdminFallback() {
   return (
@@ -99,6 +100,16 @@ export default function App() {
             <ProtectedRoute>
               <Suspense fallback={<AdminFallback />}>
                 <TmdbScraper />
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/vidsrc-scanner"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<AdminFallback />}>
+                <VidsrcScanner />
               </Suspense>
             </ProtectedRoute>
           }

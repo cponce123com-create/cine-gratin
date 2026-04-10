@@ -11,18 +11,20 @@ interface GenreCarouselProps {
   id?: string;
   title: string;
   items: MixedItem[];
+  pageSize?: number; // Permitir personalizar el tamaño de página
 }
 
 const PAGE_SIZE = 20;
 
-const GenreCarousel = memo(function GenreCarousel({ id, title, items }: GenreCarouselProps) {
+const GenreCarousel = memo(function GenreCarousel({ id, title, items, pageSize = PAGE_SIZE }: GenreCarouselProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [visibleCount, setVisibleCount] = useState(pageSize);
 
   if (items.length === 0) return null;
 
   const visibleItems = items.slice(0, visibleCount);
   const hasMore = visibleCount < items.length;
+  const itemsToLoad = pageSize || PAGE_SIZE;
 
   const scroll = (dir: "left" | "right") => {
     if (!scrollRef.current) return;
@@ -31,7 +33,7 @@ const GenreCarousel = memo(function GenreCarousel({ id, title, items }: GenreCar
   };
 
   const loadMore = () => {
-    setVisibleCount((prev) => prev + PAGE_SIZE);
+    setVisibleCount((prev) => prev + pageSize);
     setTimeout(() => {
       if (scrollRef.current) {
         scrollRef.current.scrollTo({ left: scrollRef.current.scrollWidth, behavior: "smooth" });
@@ -79,7 +81,7 @@ const GenreCarousel = memo(function GenreCarousel({ id, title, items }: GenreCar
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
             </div>
-            <span className="text-sm font-bold text-gray-400 group-hover:text-white">Ver más</span>
+            <span className="text-sm font-bold text-gray-400 group-hover:text-white">+{items.length - visibleCount}</span>
           </button>
         )}
       </div>

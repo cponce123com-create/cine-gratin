@@ -11,11 +11,7 @@ interface Server {
 }
 
 const SERVERS: Server[] = [
-  { label: "Servidor 1", url: (id, s, e) => `https://vidsrc.net/embed/tv/${id}/${s}-${e}/` },
-  { label: "Servidor 2", url: (id, s, e) => `https://vidsrc.pro/embed/tv/${id}/${s}/${e}` },
-  { label: "Servidor 3", url: (id, s, e) => `https://vidsrc.xyz/embed/tv/${id}/${s}/${e}` },
-  { label: "Servidor 4", url: (id, s, e) => `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}` },
-  { label: "Servidor 5", url: (id, s, e) => `https://vidsrc.me/embed/tv/${id}/${s}/${e}` },
+  { label: "Servidor 1", url: (id, s, e) => `https://vsembed.ru/embed/tv/${id}/${s}-${e}/` },
 ];
 
 function parseSeasons(raw: unknown): SeasonData[] {
@@ -171,20 +167,7 @@ export default function SeriesPlayer() {
           </div>
         </div>
 
-        {/* Row 3: black screen hint — always visible */}
-        <div className="flex items-center justify-between text-[11px]">
-          <span className="text-white/35">
-            ¿Pantalla en negro? Prueba otro servidor arriba.
-          </span>
-          {activeServer < SERVERS.length - 1 && (
-            <button
-              onClick={() => setActiveServer((s) => s + 1)}
-              className="text-brand-red hover:text-red-400 font-semibold transition-colors flex items-center gap-1"
-            >
-              Siguiente servidor <ChevronRightIcon />
-            </button>
-          )}
-        </div>
+
 
         {/* Episode selector panel */}
         {showSelectors && (
