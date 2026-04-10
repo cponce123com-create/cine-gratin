@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useDeferredValue } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Helmet } from "react-helmet-async";
@@ -10,6 +10,7 @@ import { SkeletonHero } from "@/components/SkeletonCard";
 import { GENRE_SECTIONS, PLATFORM_SECTIONS, SAGA_SECTIONS, CUSTOM_SECTIONS } from "@/lib/homeConfig";
 import type { Movie, Series } from "@/lib/types";
 import { useContinueWatching } from "@/hooks/useContinueWatching";
+import { useIntersectionObserver } from "@/hooks/useIntersectionObserver";
 
 const FALLBACK_BG =
   "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=1400&auto=format&fit=crop";
@@ -73,14 +74,15 @@ function buildMixed(
 type FilterMode = "genre" | "platform" | null;
 
 export default function Home() {
+  // Reducir límites iniciales para mejorar el tiempo de carga
   const { data: movieData, isLoading: loadingMovies, error: errorMovies } = useQuery({
     queryKey: ["movies"],
-    queryFn: () => getMovies({ limit: 10000 }), // Aumentar límite para capturar todas las sagas
+    queryFn: () => getMovies({ limit: 2000 }), // Reducido de 10000 a 2000 para carga más rápida
     staleTime: 5 * 60 * 1000,
   });
   const { data: seriesData, isLoading: loadingSeries, error: errorSeries } = useQuery({
     queryKey: ["series"],
-    queryFn: () => getSeries({ limit: 5000 }), // Aumentar límite para capturar todas las sagas de series
+    queryFn: () => getSeries({ limit: 1000 }), // Reducido de 5000 a 1000 para carga más rápida
     staleTime: 5 * 60 * 1000,
   });
 
@@ -88,6 +90,11 @@ export default function Home() {
   const [activeGenre, setActiveGenre] = useState<string | null>(null);
   const [activePlatform, setActivePlatform] = useState<string | null>(null);
   const [filterMode, setFilterMode] = useState<FilterMode>(null);
+  
+  // Lazy loading para secciones de géneros, plataformas y sagas
+  const { ref: genreRef, isVisible: genreVisible } = useIntersectionObserver();
+  const { ref: platformRef, isVisible: platformVisible } = useIntersectionObserver();
+  const { ref: sagaRef, isVisible: sagaVisible } = useIntersectionObserver();
 
   const allMovies = movieData ?? [];
   const allSeries = seriesData ?? [];
@@ -157,6 +164,7 @@ export default function Home() {
     [allSeries]
   );
 
+  // Memoizar solo cuando sea necesario (cuando el usuario hace scroll)
   const customCarousels = useMemo(() => {
     return CUSTOM_SECTIONS.map((sec) => {
       let items: MixedItem[] = [];
@@ -189,35 +197,43 @@ export default function Home() {
     }).filter(s => s.items.length >= MIN_ITEMS_TO_SHOW);
   }, [allMovies, allSeries]);
 
+  // Solo procesar géneros cuando sean visibles en el viewport
   const genreCarousels = useMemo(
-    () =>
-      GENRE_SECTIONS.map((sec) => ({
+    () => {
+      if (!genreVisible) return [];
+      return GENRE_SECTIONS.map((sec) => ({
         ...sec,
         items: buildMixed(
           allMovies, allSeries,
           (m) => matchesKeywords(m.genres, sec.keywords),
           (s) => matchesKeywords(s.genres, sec.keywords)
         ),
-      })).filter((s) => s.items.length >= MIN_ITEMS_TO_SHOW),
-    [allMovies, allSeries]
+      })).filter((s) => s.items.length >= MIN_ITEMS_TO_SHOW);
+    },
+    [allMovies, allSeries, genreVisible]
   );
 
+  // Solo procesar plataformas cuando sean visibles en el viewport
   const platformCarousels = useMemo(
-    () =>
-      PLATFORM_SECTIONS.map((sec) => ({
+    () => {
+      if (!platformVisible) return [];
+      return PLATFORM_SECTIONS.map((sec) => ({
         ...sec,
         items: buildMixed(
           allMovies, allSeries,
           (m) => matchesNetworks(m.networks, sec.networks),
           (s) => matchesNetworks(s.networks, sec.networks)
         ),
-      })).filter((s) => s.items.length >= MIN_ITEMS_TO_SHOW),
-    [allMovies, allSeries]
+      })).filter((s) => s.items.length >= MIN_ITEMS_TO_SHOW);
+    },
+    [allMovies, allSeries, platformVisible]
   );
 
+  // Solo procesar sagas cuando sean visibles en el viewport
   const sagaCarousels = useMemo(
-    () =>
-      SAGA_SECTIONS.map((sec) => ({
+    () => {
+      if (!sagaVisible) return [];
+      return SAGA_SECTIONS.map((sec) => ({
         ...sec,
         items: buildMixed(
           allMovies, allSeries,
@@ -242,8 +258,9 @@ export default function Home() {
             return matchesTitle(s.title, sec.keywords);
           }
         ),
-      })).filter((s) => s.items.length >= 1),
-    [allMovies, allSeries]
+      })).filter((s) => s.items.length >= 1);
+    },
+    [allMovies, allSeries, sagaVisible]
   );
 
   const isLoading = loadingMovies || loadingSeries;
@@ -316,6 +333,8 @@ export default function Home() {
                 />
         ))}
 
+        {/* Lazy loading trigger para sagas */}
+        <div ref={sagaRef} />
         {sagaCarousels.length > 0 && (
           <div className="mt-12 mb-8">
             <div className="px-4 sm:px-6 lg:px-8 mb-6">
@@ -343,6 +362,9 @@ export default function Home() {
         )}
 
         {/* ── Genre & Platform sections ─────────────────────────────── */}
+        {/* Lazy loading trigger para géneros y plataformas */}
+        <div ref={genreRef} />
+        <div ref={platformRef} />
         {!isLoading && (genreCarousels.length > 0 || platformCarousels.length > 0) && (
           <>
             <div className="px-4 sm:px-6 lg:px-8 mb-5 mt-2">
