@@ -10,7 +10,10 @@ interface Server {
 }
 
 const SERVERS: Server[] = [
-  { label: "Servidor 1", url: (id) => `https://vsembed.ru/embed/movie/${id}/` },
+  { label: "Servidor 1", url: (id) => `https://vidsrc.xyz/embed/movie?imdb=${id}` },
+  { label: "Servidor 2", url: (id) => `https://vidsrc.to/embed/movie/${id}` },
+  { label: "Servidor 3", url: (id) => `https://www.2embed.cc/embed/${id}` },
+  { label: "Servidor 4", url: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1` },
 ];
 
 export default function MoviePlayer() {
@@ -131,14 +134,6 @@ function BackIcon() {
     <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
       <path d="M19 12H5" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M12 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function ChevronRightIcon() {
-  return (
-    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-      <path d="M9 18l6-6-6-6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
