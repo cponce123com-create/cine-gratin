@@ -226,8 +226,9 @@ export default function Home() {
             if (sec.collection_id) {
               if (m.collection_id === sec.collection_id) return true;
               if (m.collection_id != null) return false; // belongs to a different collection
+            } else if (m.collection_id != null) {
+              return false; // saga has no collection_id — skip items assigned to other collections
             }
-            // keyword fallback only for items with no collection_id yet
             return matchesTitle(m.title, sec.keywords);
           },
           (s) => {
@@ -235,6 +236,8 @@ export default function Home() {
             if (sec.collection_id) {
               if (s.collection_id === sec.collection_id) return true;
               if (s.collection_id != null) return false;
+            } else if (s.collection_id != null) {
+              return false; // saga has no collection_id — skip items assigned to other collections
             }
             return matchesTitle(s.title, sec.keywords);
           }
