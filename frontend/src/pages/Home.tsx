@@ -52,96 +52,6 @@ async function fetchTmdbTrailers(type: string): Promise<TmdbTrailerItem[]> {
   return res.json();
 }
 
-// ── TmdbTrendingSection component ─────────────────────────────────────────────
-function TmdbTrendingSection() {
-  const [window, setWindow] = useState<"day" | "week">("day");
-
-  const { data: items = [], isLoading } = useQuery({
-    queryKey: ["tmdb-trending", window],
-    queryFn: () => fetchTmdbTrending(window),
-    staleTime: 30 * 60 * 1000,
-  });
-
-  return (
-    <div className="px-4 sm:px-6 lg:px-8 mb-10">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-3">
-          <span className="w-2 h-7 bg-brand-red rounded-full" />
-          Tendencias TMDB
-        </h2>
-        <div className="flex gap-1 bg-brand-surface border border-brand-border rounded-full p-0.5">
-          {(["day", "week"] as const).map((w) => (
-            <button
-              key={w}
-              onClick={() => setWindow(w)}
-              className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
-                window === w
-                  ? "bg-brand-red text-white"
-                  : "text-gray-400 hover:text-white"
-              }`}
-            >
-              {w === "day" ? "Hoy" : "Esta semana"}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Carousel */}
-      {isLoading ? (
-        <div className="flex gap-3 overflow-hidden">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="flex-shrink-0 w-32 sm:w-36 h-48 sm:h-52 bg-brand-surface rounded-xl animate-pulse" />
-          ))}
-        </div>
-      ) : (
-        <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
-          {items.map((item) => (
-            <a
-              key={item.tmdb_id}
-              href={`https://www.themoviedb.org/${item.media_type === "tv" ? "tv" : "movie"}/${item.tmdb_id}`}
-              target="_blank"
-              rel="noreferrer"
-              className="flex-shrink-0 w-32 sm:w-36 group"
-            >
-              <div className="relative rounded-xl overflow-hidden bg-brand-surface aspect-[2/3]">
-                {item.poster_url ? (
-                  <img
-                    src={item.poster_url}
-                    alt={item.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    loading="lazy"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-600 text-xs text-center px-2">
-                    {item.title}
-                  </div>
-                )}
-                {/* Rating badge */}
-                {item.rating > 0 && (
-                  <div className="absolute top-1.5 right-1.5 bg-black/70 backdrop-blur-sm rounded-full px-1.5 py-0.5 text-[10px] font-bold text-brand-gold">
-                    ★ {item.rating}
-                  </div>
-                )}
-                {/* Type badge */}
-                <div className="absolute top-1.5 left-1.5 bg-black/70 backdrop-blur-sm rounded-full px-1.5 py-0.5 text-[9px] font-bold text-gray-300 uppercase">
-                  {item.media_type === "tv" ? "Serie" : "Película"}
-                </div>
-              </div>
-              <p className="mt-1.5 text-xs font-semibold text-gray-200 truncate group-hover:text-white transition-colors">
-                {item.title}
-              </p>
-              {item.year && (
-                <p className="text-[10px] text-gray-500">{item.year}</p>
-              )}
-            </a>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── TmdbTrailersSection component ─────────────────────────────────────────────
 function TmdbTrailersSection() {
   const TABS = [
@@ -332,6 +242,12 @@ export default function Home() {
     staleTime: 5 * 60 * 1000,
   });
 
+  const { data: tmdbTrending = [] } = useQuery({
+    queryKey: ["tmdb-trending-week"],
+    queryFn: () => fetchTmdbTrending("week"),
+    staleTime: 30 * 60 * 1000,
+  });
+
   const navigate = useNavigate();
   const [activeGenre, setActiveGenre] = useState<string | null>(null);
   const [activePlatform, setActivePlatform] = useState<string | null>(null);
@@ -393,13 +309,22 @@ export default function Home() {
   }, [allMovies, allSeries]);
 
   const trending = useMemo(() => {
-    const mixed = buildMixed(allMovies, allSeries, () => true, () => true);
-    return mixed
-      .sort((a, b) => (Number(b.item.views) || 0) - (Number(a.item.views) || 0))
-      .slice(0, 40)
-      .sort(() => Math.random() - 0.5)
-      .slice(0, 24);
-  }, [allMovies, allSeries]);
+    if (!tmdbTrending.length) return [];
+
+    const result: MixedItem[] = [];
+    
+    tmdbTrending.forEach((tmdbItem) => {
+      if (tmdbItem.media_type === "movie") {
+        const found = allMovies.find(m => m.tmdb_id === tmdbItem.tmdb_id);
+        if (found) result.push({ item: found, type: "movie" });
+      } else if (tmdbItem.media_type === "tv") {
+        const found = allSeries.find(s => s.tmdb_id === tmdbItem.tmdb_id);
+        if (found) result.push({ item: found, type: "series" });
+      }
+    });
+
+    return result;
+  }, [allMovies, allSeries, tmdbTrending]);
 
   const popularMovies = useMemo(() =>
     [...allMovies].sort((a, b) => (Number(b.views) || 0) - (Number(a.views) || 0)),
@@ -558,7 +483,6 @@ export default function Home() {
         )}
 
         {/* ── TMDB Live sections ────────────────────────────────────── */}
-        <TmdbTrendingSection />
         <TmdbTrailersSection />
 
         {recentlyAdded.length > 0 && (
