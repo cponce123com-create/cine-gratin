@@ -47,6 +47,7 @@ export default function AdminDashboard() {
 
   type VidsrcPhase = "idle" | "fetching" | "verifying" | "done" | "cleaning";
   const [vidsrcPhase, setVidsrcPhase] = useState<VidsrcPhase>("idle");
+  const [vidsrcCleaning, setVidsrcCleaning] = useState(false);
   const [vidsrcProgress, setVidsrcProgress] = useState({ checked: 0, total: 0 });
   const [vidsrcCounts, setVidsrcCounts] = useState({ active: 0, inactive: 0 });
   const [vidsrcCleanResult, setVidsrcCleanResult] = useState<{ movies: number; series: number; total: number } | null>(null);
@@ -164,6 +165,7 @@ export default function AdminDashboard() {
   const handleCleanupVidsrc = async () => {
     if (!confirm(`¿Eliminar ${vidsrcCounts.inactive} título(s) sin video en VIDSRC? Esta acción no se puede deshacer.`)) return;
     setVidsrcPhase("cleaning");
+    setVidsrcCleaning(true);
     try {
       const res = await cleanupNoVidsrc();
       setVidsrcCleanResult(res.summary);
@@ -173,6 +175,8 @@ export default function AdminDashboard() {
     } catch (err: unknown) {
       setVidsrcPhase("done");
       alert(err instanceof Error ? err.message : "Error al eliminar.");
+    } finally {
+      setVidsrcCleaning(false);
     }
   };
 
@@ -323,7 +327,7 @@ export default function AdminDashboard() {
             {vidsrcPhase === "done" && vidsrcCounts.inactive > 0 && (
               <button
                 onClick={handleCleanupVidsrc}
-                disabled={vidsrcPhase === "cleaning"}
+                disabled={vidsrcCleaning}
                 className="flex items-center gap-2 bg-red-900/20 border border-red-800/40 hover:bg-red-900/30 text-red-400 text-sm font-semibold py-2 px-4 rounded-lg transition-colors disabled:opacity-50"
               >
                 <TrashIcon />
