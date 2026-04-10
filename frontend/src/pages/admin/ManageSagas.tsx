@@ -26,7 +26,7 @@ export default function ManageSagas() {
   const { data: series = [] } = useQuery({ queryKey: ["series"], queryFn: () => getSeries() });
 
   const [selectedSagaId, setSelectedSagaId] = useState(SAGA_SECTIONS[0]?.id ?? "");
-  const [saving, setSaving] = useState<string | null>(null);
+  const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
 
   const saga = SAGA_SECTIONS.find((s) => s.id === selectedSagaId)!;
@@ -67,11 +67,11 @@ export default function ManageSagas() {
   }, [allItems, saga, search]);
 
   const doUpdate = async (items: MediaItem[], collectionId: number | null, collectionName: string | null) => {
-    const key = items.map((i) => i.id).join(",");
-    setSaving(key);
+    const ids = new Set(items.map((i) => String(i.id)));
+    setSavingIds(ids);
     try {
       await updateCollection(items.map((item) => ({
-        id: item.id as string,
+        id: String(item.id),
         type: item._type,
         collection_id: collectionId,
         collection_name: collectionName,
@@ -79,10 +79,11 @@ export default function ManageSagas() {
       await qc.invalidateQueries({ queryKey: ["movies"] });
       await qc.invalidateQueries({ queryKey: ["series"] });
       toast.success(collectionId === -1 ? "Excluido de sagas" : collectionId ? "Asignado a saga" : "Quitado de saga");
-    } catch {
+    } catch (e) {
+      console.error("doUpdate error:", e);
       toast.error("Error al actualizar");
     } finally {
-      setSaving(null);
+      setSavingIds(new Set());
     }
   };
 
@@ -150,7 +151,7 @@ export default function ManageSagas() {
                 <ItemRow
                   key={item.id}
                   item={item}
-                  saving={saving === item.id}
+                  saving={savingIds.has(String(item.id))}
                   actions={[
                     { label: "Quitar de saga", color: "red", onClick: () => removeFromSaga(item) },
                     { label: "Excluir de sagas", color: "yellow", onClick: () => excludeFromSagas(item) },
@@ -169,7 +170,7 @@ export default function ManageSagas() {
                   saga.collection_id ? (
                     <button
                       onClick={assignAllKeyword}
-                      disabled={saving !== null}
+                      disabled={savingIds.size > 0}
                       className="text-xs font-bold text-brand-gold hover:text-yellow-300 transition-colors disabled:opacity-50"
                     >
                       Asignar todos →
@@ -185,7 +186,7 @@ export default function ManageSagas() {
                   <ItemRow
                     key={item.id}
                     item={item}
-                    saving={saving === item.id}
+                    saving={savingIds.has(String(item.id))}
                     actions={[
                       ...(saga.collection_id
                         ? [{ label: "Asignar a saga", color: "green" as const, onClick: () => assignToSaga(item) }]
@@ -212,7 +213,7 @@ export default function ManageSagas() {
                     <ItemRow
                       key={item.id}
                       item={item}
-                      saving={saving === item.id}
+                      saving={savingIds.has(String(item.id))}
                       compact
                       actions={[
                         ...(saga.collection_id

@@ -1,5 +1,6 @@
 import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
+import { Toaster } from "sonner";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -49,6 +50,7 @@ function PublicLayout() {
 export default function App() {
   return (
     <BrowserRouter>
+      <Toaster richColors position="top-right" />
       <Routes>
         {/* Standalone routes — no Navbar/Footer */}
         <Route path="/player/movie/:imdbId" element={<MoviePlayer />} />
