@@ -687,7 +687,8 @@ router.get("/admin/rescan-metadata-stream", async (req, res) => {
 
             const result = await pool.query(
               `UPDATE movies SET collection_id = $1, collection_name = $2
-               WHERE imdb_id = $3 RETURNING id`,
+               WHERE imdb_id = $3 AND collection_id IS DISTINCT FROM $1
+               RETURNING id`,
               [colData.id, colData.name, ext.imdb_id]
             );
             if (result.rowCount && result.rowCount > 0) colUpdated++;
@@ -876,9 +877,10 @@ router.get("/admin/scan-collections-stream", async (req, res) => {
             const ext = await extRes.json() as { imdb_id?: string };
             if (!ext.imdb_id) continue;
 
+            // Update always — this corrects movies that were previously misassigned
             const result = await pool.query(
               `UPDATE movies SET collection_id = $1, collection_name = $2
-               WHERE imdb_id = $3 AND (collection_id IS NULL OR collection_id != $1)
+               WHERE imdb_id = $3 AND collection_id IS DISTINCT FROM $1
                RETURNING id`,
               [colData.id, colData.name, ext.imdb_id]
             );
@@ -912,4 +914,98 @@ router.get("/admin/scan-collections-stream", async (req, res) => {
   }
 });
 
+// GET /api/admin/sync-all-collections-stream
+// Recorre TODAS las películas en la BD, consulta TMDB por su imdb_id,
+// y actualiza collection_id / collection_name si TMDB dice que pertenece a una colección.
+// Útil para películas importadas antes de que existiera el campo collection_id.
+router.get("/admin/sync-all-collections-stream", async (req, res) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  const send = (event: string, data: unknown) => {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  try {
+    const { rows: movies } = await pool.query(
+      `SELECT id, imdb_id, title, collection_id FROM movies WHERE imdb_id IS NOT NULL AND imdb_id != '' ORDER BY date_added DESC`
+    );
+
+    send("start", { total: movies.length });
+
+    let updated = 0, skipped = 0, errorCount = 0;
+
+    for (let i = 0; i < movies.length; i++) {
+      if (req.destroyed) break;
+      const movie = movies[i] as { id: string; imdb_id: string; title: string; collection_id: number | null };
+
+      try {
+        // Look up by imdb_id on TMDB
+        const findRes = await tmdbFetch(`/find/${movie.imdb_id}?external_source=imdb_id`);
+        if (!findRes.ok) { errorCount++; continue; }
+        const findData = await findRes.json() as { movie_results?: { id: number }[] };
+        const tmdbId = findData.movie_results?.[0]?.id;
+        if (!tmdbId) { skipped++; continue; }
+
+        // Get movie details to check belongs_to_collection
+        const detailRes = await tmdbFetch(`/movie/${tmdbId}?language=es-MX`);
+        if (!detailRes.ok) { errorCount++; continue; }
+        const detail = await detailRes.json() as {
+          belongs_to_collection?: { id: number; name: string } | null;
+        };
+
+        const col = detail.belongs_to_collection;
+
+        if (col && col.id !== movie.collection_id) {
+          await pool.query(
+            `UPDATE movies SET collection_id = $1, collection_name = $2 WHERE id = $3`,
+            [col.id, col.name, movie.id]
+          );
+          updated++;
+          send("progress", {
+            i: i + 1, total: movies.length, title: movie.title,
+            status: "updated", collection: col.name, collection_id: col.id,
+            updated, skipped, error: errorCount
+          });
+        } else if (!col && movie.collection_id != null && movie.collection_id !== -1) {
+          // TMDB says no collection — clear it (unless manually excluded with -1)
+          await pool.query(
+            `UPDATE movies SET collection_id = NULL, collection_name = NULL WHERE id = $1`,
+            [movie.id]
+          );
+          updated++;
+          send("progress", {
+            i: i + 1, total: movies.length, title: movie.title,
+            status: "cleared", updated, skipped, error: errorCount
+          });
+        } else {
+          skipped++;
+        }
+
+        // Respect TMDB rate limits
+        await new Promise(r => setTimeout(r, 120));
+      } catch {
+        errorCount++;
+      }
+
+      // Send progress every 10 items to avoid flooding
+      if (i % 10 === 0) {
+        send("progress", {
+          i: i + 1, total: movies.length, title: movie.title,
+          status: "scanning", updated, skipped, error: errorCount
+        });
+      }
+    }
+
+    send("done", { total: movies.length, updated, skipped, error: errorCount });
+    res.end();
+  } catch (e) {
+    send("error", { message: String(e) });
+    res.end();
+  }
+});
+
 export default router;
+
