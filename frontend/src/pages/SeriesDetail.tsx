@@ -9,14 +9,28 @@ const BASE_URL =
   (import.meta.env["VITE_API_URL"] as string | undefined) ||
   "https://cine-gratin.onrender.com";
 
-const FALLBACK_BG =
-  "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=1400&auto=format&fit=crop";
-const FALLBACK_POSTER =
-  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='300' viewBox='0 0 200 300'%3E%3Crect width='200' height='300' fill='%231a1a1a'/%3E%3Ctext x='100' y='150' font-family='sans-serif' font-size='14' fill='%23555' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E";
-const FALLBACK_PERSON =
-  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='150' viewBox='0 0 100 150'%3E%3Crect width='100' height='150' fill='%231e1e1e'/%3E%3Ccircle cx='50' cy='55' r='22' fill='%23333'/%3E%3Cellipse cx='50' cy='130' rx='35' ry='30' fill='%23333'/%3E%3C/svg%3E";
-
 // ── Types ─────────────────────────────────────────────────────────────────────
+
+interface TmdbImage {
+  url: string;
+  url_original: string;
+  thumb: string;
+}
+
+interface TmdbImages {
+  backdrops: TmdbImage[];
+  posters: TmdbImage[];
+}
+
+interface TmdbRecommendation {
+  tmdb_id: number;
+  media_type: string;
+  title: string;
+  poster_url: string;
+  year: string;
+  rating: number;
+  overview: string;
+}
 
 interface PersonProfile {
   id: number;
@@ -37,13 +51,32 @@ interface PersonProfile {
   }[];
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Fetch helpers ─────────────────────────────────────────────────────────────
 
 async function fetchPerson(personId: number): Promise<PersonProfile> {
   const res = await fetch(`${BASE_URL}/api/tmdb/person/${personId}`);
   if (!res.ok) throw new Error("No se pudo cargar el perfil");
   return res.json();
 }
+
+async function fetchImages(imdbId: string, type: "movie" | "series"): Promise<TmdbImages> {
+  const res = await fetch(`${BASE_URL}/api/tmdb/images/${imdbId}?type=${type}`);
+  if (!res.ok) throw new Error("No se pudieron cargar imágenes");
+  return res.json();
+}
+
+async function fetchRecommendations(imdbId: string, type: "movie" | "series"): Promise<TmdbRecommendation[]> {
+  const res = await fetch(`${BASE_URL}/api/tmdb/recommendations/${imdbId}?type=${type}`);
+  if (!res.ok) return [];
+  return res.json();
+}
+
+const FALLBACK_BG =
+  "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=1400&auto=format&fit=crop";
+const FALLBACK_POSTER =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='300' viewBox='0 0 200 300'%3E%3Crect width='200' height='300' fill='%231a1a1a'/%3E%3Ctext x='100' y='150' font-family='sans-serif' font-size='14' fill='%23555' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E";
+const FALLBACK_PERSON =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='150' viewBox='0 0 100 150'%3E%3Crect width='100' height='150' fill='%231e1e1e'/%3E%3Ccircle cx='50' cy='55' r='22' fill='%23333'/%3E%3Cellipse cx='50' cy='130' rx='35' ry='30' fill='%23333'/%3E%3C/svg%3E";
 
 function parseSeasons(raw: unknown): SeasonData[] {
   if (!raw) return [];
@@ -428,6 +461,135 @@ function MediaSection({ videos, mainTrailerKey }: { videos: TmdbVideo[]; mainTra
   );
 }
 
+// ── GallerySection ────────────────────────────────────────────────────────────
+
+function GallerySection({ imdbId, type }: { imdbId: string; type: "movie" | "series" }) {
+  const [activeTab, setActiveTab] = useState<"backdrops" | "posters">("posters");
+  const [lightbox, setLightbox] = useState<string | null>(null);
+
+  const { data: images, isLoading } = useQuery({
+    queryKey: ["tmdb-images", imdbId, type],
+    queryFn: () => fetchImages(imdbId, type),
+    staleTime: 60 * 60 * 1000,
+  });
+
+  const items = activeTab === "backdrops" ? (images?.backdrops ?? []) : (images?.posters ?? []);
+
+  if (!isLoading && !images?.backdrops?.length && !images?.posters?.length) return null;
+
+  return (
+    <div className="mt-12">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <h2 className="text-xl font-bold text-white">Imágenes</h2>
+        <div className="flex gap-1">
+          {(["posters", "backdrops"] as const).map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-3 py-1 rounded-full text-xs font-bold transition-all border ${
+                activeTab === tab
+                  ? "bg-brand-red border-red-700 text-white"
+                  : "bg-brand-surface border-brand-border text-gray-400 hover:text-white"
+              }`}
+            >
+              {tab === "posters" ? "Carteles" : "Imágenes de fondo"}
+              {images && (
+                <span className="ml-1 text-[10px] opacity-60">
+                  {tab === "posters" ? images.posters.length : images.backdrops.length}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="flex gap-3 overflow-hidden">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className={`flex-shrink-0 bg-brand-surface rounded-xl animate-pulse ${activeTab === "posters" ? "w-32 h-48" : "w-56 h-32"}`} />
+          ))}
+        </div>
+      ) : (
+        <div className={`grid gap-2 ${
+          activeTab === "posters"
+            ? "grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8"
+            : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4"
+        }`}>
+          {items.map((img, i) => (
+            <button
+              key={i}
+              onClick={() => setLightbox(img.url_original)}
+              className="group overflow-hidden rounded-lg border border-brand-border hover:border-brand-red/60 transition-colors"
+            >
+              <div className={activeTab === "posters" ? "aspect-[2/3]" : "aspect-video"}>
+                <img src={img.thumb} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4"
+          onClick={() => setLightbox(null)}
+        >
+          <button onClick={() => setLightbox(null)} className="absolute top-4 right-4 text-white/70 hover:text-white text-3xl font-bold">✕</button>
+          <img src={lightbox} alt="" className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl" onClick={e => e.stopPropagation()} />
+          <a href={lightbox} target="_blank" rel="noreferrer" className="absolute bottom-4 right-4 text-xs text-gray-400 hover:text-white transition-colors">Ver original ↗</a>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── RecommendationsSection ────────────────────────────────────────────────────
+
+function RecommendationsSection({ imdbId, type, title }: { imdbId: string; type: "movie" | "series"; title: string }) {
+  const { data: recs = [], isLoading } = useQuery({
+    queryKey: ["tmdb-recs", imdbId, type],
+    queryFn: () => fetchRecommendations(imdbId, type),
+    staleTime: 60 * 60 * 1000,
+  });
+
+  if (!isLoading && recs.length === 0) return null;
+
+  return (
+    <div className="mt-12">
+      <h2 className="text-xl font-bold text-white mb-4">
+        Si te gustó <span className="text-brand-red italic">{title}</span>, también te puede gustar…
+      </h2>
+      {isLoading ? (
+        <div className="flex gap-3 overflow-hidden">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="flex-shrink-0 w-32 h-48 bg-brand-surface rounded-xl animate-pulse" />
+          ))}
+        </div>
+      ) : (
+        <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+          {recs.map(rec => (
+            <div key={rec.tmdb_id} className="flex-shrink-0 w-32 group">
+              <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-brand-surface border border-brand-border">
+                {rec.poster_url
+                  ? <img src={rec.poster_url} alt={rec.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
+                  : <div className="w-full h-full flex items-center justify-center text-gray-600 text-xs text-center px-2">{rec.title}</div>
+                }
+                {rec.rating > 0 && (
+                  <div className="absolute top-1.5 right-1.5 bg-black/70 backdrop-blur-sm rounded-full px-1.5 py-0.5 text-[10px] font-bold text-brand-gold">
+                    ★ {rec.rating}
+                  </div>
+                )}
+              </div>
+              <p className="mt-1.5 text-xs font-semibold text-gray-200 truncate group-hover:text-white transition-colors">{rec.title}</p>
+              {rec.year && <p className="text-[10px] text-gray-500">{rec.year}</p>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function SeriesDetail() {
@@ -679,6 +841,16 @@ export default function SeriesDetail() {
               {reviews.map((r, i) => <ReviewCard key={i} review={r} />)}
             </div>
           </div>
+        )}
+
+        {/* ── Galería de imágenes ───────────────────────── */}
+        {series.imdb_id && (
+          <GallerySection imdbId={series.imdb_id} type="series" />
+        )}
+
+        {/* ── Recomendaciones ───────────────────────────── */}
+        {series.imdb_id && (
+          <RecommendationsSection imdbId={series.imdb_id} type="series" title={series.title} />
         )}
       </div>
     </div>
