@@ -6,6 +6,8 @@ import { getSeries } from "@/lib/api";
 import GenreFilter from "@/components/GenreFilter";
 import { SkeletonGrid } from "@/components/SkeletonCard";
 
+const GRID_PAGE_SIZE = 60;
+
 const FALLBACK_POSTER =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='300' viewBox='0 0 200 300'%3E%3Crect width='200' height='300' fill='%231a1a1a'/%3E%3Ctext x='100' y='150' font-family='sans-serif' font-size='14' fill='%23555' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E";
 
@@ -19,11 +21,15 @@ export default function SeriesList() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [genre, setGenre] = useState("Todos");
+  const [visibleCount, setVisibleCount] = useState(GRID_PAGE_SIZE);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(t);
   }, [search]);
+
+  // Reset pagination when filters change
+  useEffect(() => { setVisibleCount(GRID_PAGE_SIZE); }, [debouncedSearch, genre]);
 
   const genres = useMemo(() => {
     const set = new Set<string>();
@@ -102,35 +108,47 @@ export default function SeriesList() {
         )}
 
         {!loading && !error && filtered.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-            {filtered.map((item) => (
-              <Link key={item.id} to={`/serie/${item.id}`} className="group block">
-                <div className="aspect-[2/3] w-full rounded-lg overflow-hidden bg-brand-surface card-hover">
-                  <img
-                    src={item.poster_url || FALLBACK_POSTER}
-                    alt={item.title}
-                    loading="lazy"
-                    onError={(e) => { (e.currentTarget as HTMLImageElement).src = FALLBACK_POSTER; }}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div className="mt-2">
-                  <p className="text-xs text-gray-300 font-medium truncate group-hover:text-white transition-colors">
-                    {item.title}
-                  </p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    {item.year && <span className="text-xs text-gray-500">{item.year}</span>}
-                    {item.rating !== undefined && (
-                      <span className="text-xs text-brand-gold">&#9733; {Number(item.rating).toFixed(1)}</span>
-                    )}
-                    {item.total_seasons ? (
-                      <span className="text-xs text-gray-500">{item.total_seasons} temp.</span>
-                    ) : null}
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+              {filtered.slice(0, visibleCount).map((item) => (
+                <Link key={item.id} to={`/serie/${item.id}`} className="group block">
+                  <div className="aspect-[2/3] w-full rounded-lg overflow-hidden bg-brand-surface card-hover">
+                    <img
+                      src={item.poster_url || FALLBACK_POSTER}
+                      alt={item.title}
+                      loading="lazy"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).src = FALLBACK_POSTER; }}
+                      className="w-full h-full object-cover"
+                    />
                   </div>
-                </div>
-              </Link>
-            ))}
-          </div>
+                  <div className="mt-2">
+                    <p className="text-xs text-gray-300 font-medium truncate group-hover:text-white transition-colors">
+                      {item.title}
+                    </p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {item.year && <span className="text-xs text-gray-500">{item.year}</span>}
+                      {item.rating !== undefined && (
+                        <span className="text-xs text-brand-gold">&#9733; {Number(item.rating).toFixed(1)}</span>
+                      )}
+                      {item.total_seasons ? (
+                        <span className="text-xs text-gray-500">{item.total_seasons} temp.</span>
+                      ) : null}
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+            {visibleCount < filtered.length && (
+              <div className="text-center mt-8">
+                <button
+                  onClick={() => setVisibleCount((c) => c + GRID_PAGE_SIZE)}
+                  className="bg-brand-surface border border-brand-border hover:border-gray-500 text-gray-300 hover:text-white text-sm font-semibold py-2.5 px-8 rounded-lg transition-colors"
+                >
+                  Mostrar más ({filtered.length - visibleCount} restantes)
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

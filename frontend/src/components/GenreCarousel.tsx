@@ -24,7 +24,6 @@ const GenreCarousel = memo(function GenreCarousel({ id, title, items, pageSize =
 
   const visibleItems = items.slice(0, visibleCount);
   const hasMore = visibleCount < items.length;
-  const itemsToLoad = pageSize || PAGE_SIZE;
 
   const scroll = (dir: "left" | "right") => {
     if (!scrollRef.current) return;

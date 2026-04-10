@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { toast } from "sonner";
 import AdminLayout from "@/components/admin/AdminLayout";
 import StatsCard from "@/components/admin/StatsCard";
 import TopContentList from "@/components/admin/TopContentList";
@@ -90,8 +91,9 @@ export default function AdminDashboard() {
       const newEnabled = !status.enabled;
       await toggleAutoImport(newEnabled);
       setStatus((prev) => (prev ? { ...prev, enabled: newEnabled } : prev));
-    } catch {
-      // silently fail — user can refresh
+      toast.success(newEnabled ? "Auto-importación activada" : "Auto-importación desactivada");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Error al cambiar estado");
     } finally {
       setToggling(false);
     }
@@ -118,10 +120,10 @@ export default function AdminDashboard() {
     setCleaning(true);
     try {
       const res = await cleanupMissingImages("all");
-      alert(`Limpieza completada: Se eliminaron ${res.summary.movies} películas y ${res.summary.series} series sin imagen.`);
+      toast.success(`Eliminados: ${res.summary.movies} películas y ${res.summary.series} series sin imagen.`);
       await loadStats();
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Error al realizar la limpieza.");
+      toast.error(err instanceof Error ? err.message : "Error al realizar la limpieza.");
     } finally {
       setCleaning(false);
     }
@@ -138,12 +140,18 @@ export default function AdminDashboard() {
       ? "https://vidsrc.me/tvshows/latest/page-"
       : "https://vidsrc.me/movies/latest/page-";
 
+    let consecutiveFailures = 0;
     for (let page = 1; page <= 999; page++) {
       try {
         const res = await fetch(`${base}${page}.json`, { credentials: "omit" });
-        if (!res.ok) break;
+        if (!res.ok) {
+          consecutiveFailures++;
+          if (consecutiveFailures >= 3) break;
+          continue;
+        }
         const data = await res.json() as { title?: string; imdb_id?: string }[];
         if (!Array.isArray(data) || data.length === 0) break;
+        consecutiveFailures = 0;
         for (const item of data) {
           if (item.imdb_id) available.add(item.imdb_id);
         }
@@ -205,7 +213,7 @@ export default function AdminDashboard() {
       setVidsrcPhase("done");
     } catch (err: unknown) {
       setVidsrcPhase("idle");
-      alert(err instanceof Error ? err.message : "Error al verificar VIDSRC.");
+      toast.error(err instanceof Error ? err.message : "Error al verificar VIDSRC.");
     }
   };
 
@@ -221,7 +229,7 @@ export default function AdminDashboard() {
       await loadStats();
     } catch (err: unknown) {
       setVidsrcPhase("done");
-      alert(err instanceof Error ? err.message : "Error al eliminar.");
+      toast.error(err instanceof Error ? err.message : "Error al eliminar.");
     } finally {
       setVidsrcCleaning(false);
     }
