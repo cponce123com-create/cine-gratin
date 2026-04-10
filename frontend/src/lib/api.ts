@@ -291,3 +291,9 @@ export interface TmdbCollectionSearchItem {
 
 export const searchTmdbCollections = (query: string): Promise<TmdbCollectionSearchItem[]> =>
   apiFetch(`/api/tmdb/collections/search?query=${encodeURIComponent(query)}`);
+
+export const getActiveSagas = (): Promise<number[]> =>
+  adminFetch("/api/admin/active-sagas");
+
+export const toggleSagaActive = (collection_id: number, active: boolean): Promise<{ ok: boolean }> =>
+  adminPost("/api/admin/active-sagas", { collection_id, active });

@@ -1021,16 +1021,47 @@ router.get("/admin/sync-all-collections-stream", async (req, res) => {
   }
 });
 
-// GET /api/admin/dynamic-sagas — returns distinct collections from movies table
+// GET /api/admin/dynamic-sagas — returns distinct collections from movies table that are ACTIVE
 router.get("/admin/dynamic-sagas", async (_req, res) => {
   try {
     const result = await pool.query(
-      `SELECT DISTINCT collection_id, collection_name 
-       FROM movies 
-       WHERE collection_id IS NOT NULL 
-       ORDER BY collection_name`
+      `SELECT DISTINCT m.collection_id, m.collection_name 
+       FROM movies m
+       INNER JOIN cv_active_sagas a ON a.collection_id = m.collection_id
+       WHERE m.collection_id IS NOT NULL 
+       ORDER BY m.collection_name`
     );
     res.json(result.rows);
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// GET /api/admin/active-sagas — returns array of active collection IDs
+router.get("/admin/active-sagas", async (_req, res) => {
+  try {
+    const result = await pool.query("SELECT collection_id FROM cv_active_sagas");
+    res.json(result.rows.map(r => r.collection_id));
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// POST /api/admin/active-sagas — toggle saga active state
+router.post("/admin/active-sagas", async (req, res) => {
+  const { collection_id, active } = req.body as { collection_id: number; active: boolean };
+  if (!collection_id) return res.status(400).json({ error: "collection_id is required" });
+
+  try {
+    if (active) {
+      await pool.query(
+        "INSERT INTO cv_active_sagas (collection_id) VALUES ($1) ON CONFLICT DO NOTHING",
+        [collection_id]
+      );
+    } else {
+      await pool.query("DELETE FROM cv_active_sagas WHERE collection_id = $1", [collection_id]);
+    }
+    res.json({ ok: true, collection_id, active });
   } catch (e) {
     res.status(500).json({ error: String(e) });
   }
