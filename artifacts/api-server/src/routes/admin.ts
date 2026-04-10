@@ -761,36 +761,31 @@ router.post("/admin/import-collection", async (req, res) => {
         if (ok) {
           imported++;
           titles.push(part.title || part.name || String(part.id));
-          // Bug Fix 1: Update collection_id for newly imported movie
-          try {
-            const extR = await tmdbFetch(`/movie/${part.id}/external_ids`);
-            if (extR.ok) {
-              const ext = await extR.json() as { imdb_id?: string };
-              if (ext.imdb_id) {
-                await pool.query(
-                  `UPDATE movies SET collection_id = $1, collection_name = $2 WHERE imdb_id = $3`,
-                  [data.id, data.name, ext.imdb_id]
-                );
-              }
-            }
-          } catch { /* ignore */ }
         } else {
-          // Movie already exists — update its collection_id via external_ids lookup
           existed++;
-          try {
-            const extR = await tmdbFetch(`/movie/${part.id}/external_ids`);
-            if (extR.ok) {
-              const ext = await extR.json() as { imdb_id?: string };
-              if (ext.imdb_id) {
-                await pool.query(
-                  `UPDATE movies SET collection_id = $1, collection_name = $2 WHERE imdb_id = $3`,
-                  [data.id, data.name, ext.imdb_id]
-                );
-              }
-            }
-          } catch { /* ignore */ }
         }
-      } catch { existed++; }
+
+        // Independientemente de si es nueva o ya existía, actualizamos el collection_id
+        // buscando por imdb_id (vía external_ids de TMDB)
+        try {
+          const extR = await tmdbFetch(`/movie/${part.id}/external_ids`);
+          if (extR.ok) {
+            const ext = await extR.json() as { imdb_id?: string };
+            if (ext.imdb_id) {
+              await pool.query(
+                `UPDATE movies SET collection_id = $1, collection_name = $2 
+                 WHERE imdb_id = $3 AND (collection_id IS NULL OR collection_id != $1)`,
+                [data.id, data.name, ext.imdb_id]
+              );
+            }
+          }
+        } catch (err) {
+          console.error(`Error actualizando collection_id para movie ${part.id}:`, err);
+        }
+      } catch (err) {
+        existed++;
+        console.error(`Error importando/actualizando movie ${part.id} en colección:`, err);
+      }
     }
 
     res.json({ ok: true, collection: data.name, imported, existed, total: parts.length, titles });

@@ -20,13 +20,12 @@ const PAGE_SIZE = 12;
 const GenreCarousel = memo(function GenreCarousel({ id, title, items, pageSize = PAGE_SIZE }: GenreCarouselProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   // Iniciar con menos items para mejorar el tiempo de carga
-  const [visibleCount, setVisibleCount] = useState(Math.min(pageSize, 12));
+  const [visibleCount, setVisibleCount] = useState(pageSize);
 
   if (items.length === 0) return null;
 
-  // Limitar a 12 items inicialmente para mejorar el rendimiento
-  const visibleItems = items.slice(0, Math.min(visibleCount, 12));
-  const hasMore = Math.min(visibleCount, 12) < items.length;
+  const visibleItems = items.slice(0, visibleCount);
+  const hasMore = visibleCount < items.length;
 
   const scroll = (dir: "left" | "right") => {
     if (!scrollRef.current) return;
@@ -83,7 +82,7 @@ const GenreCarousel = memo(function GenreCarousel({ id, title, items, pageSize =
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
             </div>
-            <span className="text-sm font-bold text-gray-400 group-hover:text-white">+{Math.max(0, items.length - Math.min(visibleCount, 12))}</span>
+            <span className="text-sm font-bold text-gray-400 group-hover:text-white">+{Math.max(0, items.length - visibleCount)}</span>
           </button>
         )}
       </div>
