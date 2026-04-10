@@ -733,5 +733,36 @@ router.get("/tmdb/trailers", async (req, res) => {
   }
 });
 
+// GET /api/tmdb/collections/search?query=... — search TMDB collections
+router.get("/tmdb/collections/search", async (req, res) => {
+  const { query } = req.query;
+  if (!query) {
+    res.status(400).json({ error: "Falta el parámetro query" });
+    return;
+  }
+
+  try {
+    const searchRes = await tmdbFetch(`/search/collection?query=${encodeURIComponent(query as string)}&language=es-MX`);
+    if (!searchRes.ok) {
+      const err = await searchRes.json() as { status_message?: string };
+      res.status(502).json({ error: err.status_message || "Error al buscar colecciones en TMDB" });
+      return;
+    }
+
+    const data = await searchRes.json() as { results: any[] };
+    const results = data.results.map(c => ({
+      id: c.id,
+      name: c.name,
+      poster_path: c.poster_path ? `${TMDB_IMG}/w342${c.poster_path}` : null,
+      backdrop_path: c.backdrop_path ? `${TMDB_IMG}/w780${c.backdrop_path}` : null,
+    }));
+
+    res.json(results);
+  } catch (err) {
+    console.error("TMDB collection search error:", err);
+    res.status(500).json({ error: "Error al conectar con TMDB" });
+  }
+});
+
 export default router;
 

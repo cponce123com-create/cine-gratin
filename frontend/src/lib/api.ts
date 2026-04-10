@@ -281,3 +281,13 @@ export const importByTmdbIds = (
   type: "movie" | "series"
 ): Promise<{ ok: boolean; summary: { imported: number; existed_or_error: number; total: number } }> =>
   adminPost("/api/admin/import-by-tmdb-ids", { tmdb_ids, type });
+
+export interface TmdbCollectionSearchItem {
+  id: number;
+  name: string;
+  poster_path: string | null;
+  backdrop_path: string | null;
+}
+
+export const searchTmdbCollections = (query: string): Promise<TmdbCollectionSearchItem[]> =>
+  apiFetch(`/api/tmdb/collections/search?query=${encodeURIComponent(query)}`);
