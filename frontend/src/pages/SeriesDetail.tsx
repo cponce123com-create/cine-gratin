@@ -1,14 +1,49 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Helmet } from "react-helmet-async";
 import { getSeriesById } from "@/lib/api";
-import type { SeasonData, TmdbVideo, TmdbReview } from "@/lib/types";
+import type { SeasonData, TmdbVideo, TmdbReview, CastMember } from "@/lib/types";
+
+const BASE_URL =
+  (import.meta.env["VITE_API_URL"] as string | undefined) ||
+  "https://cine-gratin.onrender.com";
 
 const FALLBACK_BG =
   "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=1400&auto=format&fit=crop";
 const FALLBACK_POSTER =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='300' viewBox='0 0 200 300'%3E%3Crect width='200' height='300' fill='%231a1a1a'/%3E%3Ctext x='100' y='150' font-family='sans-serif' font-size='14' fill='%23555' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E";
+const FALLBACK_PERSON =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='150' viewBox='0 0 100 150'%3E%3Crect width='100' height='150' fill='%231e1e1e'/%3E%3Ccircle cx='50' cy='55' r='22' fill='%23333'/%3E%3Cellipse cx='50' cy='130' rx='35' ry='30' fill='%23333'/%3E%3C/svg%3E";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface PersonProfile {
+  id: number;
+  name: string;
+  biography: string;
+  birthday: string | null;
+  deathday: string | null;
+  place_of_birth: string | null;
+  known_for_department: string;
+  profile_url: string;
+  known_for: {
+    id: number; media_type: string; title: string;
+    character: string; poster_url: string; year: string; rating: number;
+  }[];
+  all_credits: {
+    id: number; media_type: string; title: string;
+    character: string; year: string;
+  }[];
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+async function fetchPerson(personId: number): Promise<PersonProfile> {
+  const res = await fetch(`${BASE_URL}/api/tmdb/person/${personId}`);
+  if (!res.ok) throw new Error("No se pudo cargar el perfil");
+  return res.json();
+}
 
 function parseSeasons(raw: unknown): SeasonData[] {
   if (!raw) return [];
@@ -18,17 +53,31 @@ function parseSeasons(raw: unknown): SeasonData[] {
   return Array.isArray(raw) ? (raw as SeasonData[]) : [];
 }
 
+const VIDEO_ORDER = ["Trailer", "Teaser", "Clip", "Featurette", "Behind the Scenes", "Bloopers"];
+
+function sortVideos(videos: TmdbVideo[]): TmdbVideo[] {
+  return [...videos].sort((a, b) => {
+    const ia = VIDEO_ORDER.indexOf(a.type);
+    const ib = VIDEO_ORDER.indexOf(b.type);
+    const orderA = ia === -1 ? 99 : ia;
+    const orderB = ib === -1 ? 99 : ib;
+    if (orderA !== orderB) return orderA - orderB;
+    if (a.official && !b.official) return -1;
+    if (!a.official && b.official) return 1;
+    return 0;
+  });
+}
+
+// ── VideoCard ─────────────────────────────────────────────────────────────────
+
+const VIDEO_TYPE_COLORS: Record<string, string> = {
+  Trailer: "bg-red-600", Teaser: "bg-orange-500", Clip: "bg-blue-500",
+  Featurette: "bg-purple-500", "Behind the Scenes": "bg-green-600", Bloopers: "bg-yellow-500",
+};
+
 function VideoTypeLabel({ type }: { type: string }) {
-  const colors: Record<string, string> = {
-    Trailer: "bg-red-600",
-    Teaser: "bg-orange-500",
-    Clip: "bg-blue-500",
-    Featurette: "bg-purple-500",
-    "Behind the Scenes": "bg-green-600",
-    Bloopers: "bg-yellow-500",
-  };
   return (
-    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${colors[type] ?? "bg-gray-600"} text-white`}>
+    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${VIDEO_TYPE_COLORS[type] ?? "bg-gray-600"} text-white`}>
       {type}
     </span>
   );
@@ -57,24 +106,22 @@ function VideoCard({ video }: { video: TmdbVideo }) {
     >
       <img src={thumb} alt={video.name} className="w-full h-full object-cover" />
       <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors" />
-      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+      <div className="absolute inset-0 flex items-center justify-center">
         <div className="w-12 h-12 rounded-full bg-brand-red/90 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-          <svg className="w-5 h-5 text-white ml-0.5" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M8 5v14l11-7z" />
-          </svg>
+          <svg className="w-5 h-5 text-white ml-0.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
         </div>
       </div>
       <div className="absolute bottom-0 inset-x-0 p-2 bg-gradient-to-t from-black/90 to-transparent">
         <div className="flex items-start gap-1.5">
           <VideoTypeLabel type={video.type} />
-          <p className="text-white text-xs font-medium leading-tight line-clamp-2 flex-1 text-left">
-            {video.name}
-          </p>
+          <p className="text-white text-xs font-medium leading-tight line-clamp-2 flex-1 text-left">{video.name}</p>
         </div>
       </div>
     </button>
   );
 }
+
+// ── ReviewCard ────────────────────────────────────────────────────────────────
 
 function ReviewCard({ review }: { review: TmdbReview }) {
   const [expanded, setExpanded] = useState(false);
@@ -83,7 +130,6 @@ function ReviewCard({ review }: { review: TmdbReview }) {
   const dateStr = review.created_at
     ? new Date(review.created_at).toLocaleDateString("es-MX", { year: "numeric", month: "long" })
     : null;
-
   return (
     <div className="bg-brand-surface border border-brand-border rounded-xl p-5">
       <div className="flex items-start justify-between gap-3 mb-3">
@@ -98,23 +144,291 @@ function ReviewCard({ review }: { review: TmdbReview }) {
         </div>
         {review.rating !== null && review.rating !== undefined && (
           <span className="flex items-center gap-1 text-brand-gold font-bold text-sm flex-shrink-0">
-            <span>&#9733;</span>
-            <span>{Number(review.rating).toFixed(1)}</span>
+            ★ {Number(review.rating).toFixed(1)}
           </span>
         )}
       </div>
       <p className="text-gray-300 text-sm leading-relaxed">{text}</p>
       {isLong && (
-        <button
-          onClick={() => setExpanded((v) => !v)}
-          className="mt-2 text-brand-red hover:text-red-400 text-xs font-medium transition-colors"
-        >
+        <button onClick={() => setExpanded(v => !v)} className="mt-2 text-brand-red hover:text-red-400 text-xs font-medium transition-colors">
           {expanded ? "Leer menos" : "Leer más"}
         </button>
       )}
     </div>
   );
 }
+
+// ── ActorModal ────────────────────────────────────────────────────────────────
+
+function ActorModal({ personId, onClose }: { personId: number; onClose: () => void }) {
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const [showAllCredits, setShowAllCredits] = useState(false);
+
+  const { data: person, isLoading, error } = useQuery({
+    queryKey: ["person", personId],
+    queryFn: () => fetchPerson(personId),
+    staleTime: 60 * 60 * 1000,
+  });
+
+  const age = person?.birthday && !person.deathday
+    ? Math.floor((Date.now() - new Date(person.birthday).getTime()) / (365.25 * 24 * 3600 * 1000))
+    : null;
+
+  const creditsToShow = person
+    ? showAllCredits ? person.all_credits : person.all_credits.slice(0, 10)
+    : [];
+
+  return (
+    <div
+      ref={overlayRef}
+      className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 overflow-y-auto"
+      onClick={e => { if (e.target === overlayRef.current) onClose(); }}
+    >
+      <div className="relative w-full max-w-3xl bg-brand-card border border-brand-border rounded-2xl overflow-hidden shadow-2xl my-8">
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full bg-black/60 hover:bg-black/80 flex items-center justify-center text-white text-lg transition-colors"
+        >✕</button>
+
+        {isLoading && (
+          <div className="flex items-center justify-center h-64">
+            <div className="w-8 h-8 rounded-full border-2 border-brand-red border-t-transparent animate-spin" />
+          </div>
+        )}
+        {error && <div className="p-8 text-center text-red-400">No se pudo cargar el perfil del actor.</div>}
+
+        {person && (
+          <div className="flex flex-col sm:flex-row">
+            <div className="sm:w-56 flex-shrink-0 bg-brand-surface">
+              <img
+                src={person.profile_url || FALLBACK_PERSON}
+                alt={person.name}
+                className="w-full aspect-[2/3] object-cover object-top"
+                onError={e => { (e.currentTarget as HTMLImageElement).src = FALLBACK_PERSON; }}
+              />
+              <div className="p-4 space-y-3">
+                {person.known_for_department && (
+                  <div>
+                    <p className="text-gray-500 text-[11px] uppercase tracking-wider">Conocido por</p>
+                    <p className="text-white text-sm font-semibold">{person.known_for_department}</p>
+                  </div>
+                )}
+                {person.birthday && (
+                  <div>
+                    <p className="text-gray-500 text-[11px] uppercase tracking-wider">Nacimiento</p>
+                    <p className="text-white text-sm">
+                      {new Date(person.birthday).toLocaleDateString("es-MX", { year: "numeric", month: "long", day: "numeric" })}
+                      {age && <span className="text-gray-400"> ({age} años)</span>}
+                    </p>
+                  </div>
+                )}
+                {person.deathday && (
+                  <div>
+                    <p className="text-gray-500 text-[11px] uppercase tracking-wider">Fallecimiento</p>
+                    <p className="text-white text-sm">
+                      {new Date(person.deathday).toLocaleDateString("es-MX", { year: "numeric", month: "long", day: "numeric" })}
+                    </p>
+                  </div>
+                )}
+                {person.place_of_birth && (
+                  <div>
+                    <p className="text-gray-500 text-[11px] uppercase tracking-wider">Lugar de nacimiento</p>
+                    <p className="text-white text-sm">{person.place_of_birth}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex-1 p-5 overflow-y-auto max-h-[80vh] sm:max-h-[600px]">
+              <h2 className="text-2xl font-black text-white mb-4">{person.name}</h2>
+
+              {person.biography && (
+                <div className="mb-5">
+                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Biografía</h3>
+                  <p className="text-gray-300 text-sm leading-relaxed line-clamp-6 hover:line-clamp-none transition-all cursor-pointer">
+                    {person.biography}
+                  </p>
+                </div>
+              )}
+
+              {person.known_for.length > 0 && (
+                <div className="mb-5">
+                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Conocido por</h3>
+                  <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+                    {person.known_for.map(work => (
+                      <div key={`${work.media_type}-${work.id}`} className="flex-shrink-0 w-20">
+                        <div className="aspect-[2/3] rounded-lg overflow-hidden bg-brand-surface mb-1">
+                          {work.poster_url
+                            ? <img src={work.poster_url} alt={work.title} className="w-full h-full object-cover" loading="lazy" />
+                            : <div className="w-full h-full flex items-center justify-center text-gray-600 text-[10px] text-center px-1">{work.title}</div>
+                          }
+                        </div>
+                        <p className="text-[10px] text-gray-300 truncate leading-tight">{work.title}</p>
+                        {work.year && <p className="text-[10px] text-gray-600">{work.year}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {person.all_credits.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                    Interpretación <span className="font-normal text-gray-600">({person.all_credits.length})</span>
+                  </h3>
+                  <div className="space-y-1">
+                    {creditsToShow.map((c, i) => (
+                      <div key={i} className="flex items-center gap-3 py-1.5 border-b border-brand-border/30 last:border-0">
+                        <span className="text-gray-600 text-xs w-10 shrink-0 text-right">{c.year || "—"}</span>
+                        <p className="text-sm text-white font-medium flex-1 truncate">{c.title}</p>
+                        {c.character && <p className="text-xs text-gray-500 shrink-0 truncate max-w-[120px]">como {c.character}</p>}
+                        <span className="text-[10px] text-gray-600 shrink-0 uppercase">{c.media_type === "tv" ? "Serie" : "Película"}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {person.all_credits.length > 10 && (
+                    <button
+                      onClick={() => setShowAllCredits(v => !v)}
+                      className="mt-3 text-brand-red hover:text-red-400 text-xs font-bold transition-colors"
+                    >
+                      {showAllCredits ? "Ver menos" : `Ver todos (${person.all_credits.length})`}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── CastSection ───────────────────────────────────────────────────────────────
+
+function CastSection({ cast }: { cast: CastMember[] }) {
+  const [selectedPersonId, setSelectedPersonId] = useState<number | null>(null);
+  if (!cast || cast.length === 0) return null;
+
+  return (
+    <>
+      <div className="mt-12">
+        <h2 className="text-xl font-bold text-white mb-4">
+          Reparto principal
+          <span className="ml-2 text-sm font-normal text-gray-500">{cast.length}</span>
+        </h2>
+        <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+          {cast.map(member => (
+            <button
+              key={member.id}
+              onClick={() => setSelectedPersonId(member.id)}
+              className="flex-shrink-0 w-28 text-left group"
+            >
+              <div className="aspect-[2/3] rounded-xl overflow-hidden bg-brand-surface border border-brand-border group-hover:border-brand-red/60 transition-colors">
+                <img
+                  src={member.profile_url || FALLBACK_PERSON}
+                  alt={member.name}
+                  className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-300"
+                  loading="lazy"
+                  onError={e => { (e.currentTarget as HTMLImageElement).src = FALLBACK_PERSON; }}
+                />
+              </div>
+              <p className="mt-1.5 text-xs font-bold text-white truncate group-hover:text-brand-red transition-colors">
+                {member.name}
+              </p>
+              {member.character && (
+                <p className="text-[10px] text-gray-500 truncate">{member.character}</p>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {selectedPersonId !== null && (
+        <ActorModal personId={selectedPersonId} onClose={() => setSelectedPersonId(null)} />
+      )}
+    </>
+  );
+}
+
+// ── MediaSection ──────────────────────────────────────────────────────────────
+
+const MEDIA_TABS = [
+  { id: "popular",  label: "Más popular" },
+  { id: "trailers", label: "Tráileres" },
+  { id: "teasers",  label: "Teasers" },
+  { id: "clips",    label: "Clips" },
+  { id: "bts",      label: "Behind the Scenes" },
+  { id: "all",      label: "Todo" },
+];
+
+function MediaSection({ videos, mainTrailerKey }: { videos: TmdbVideo[]; mainTrailerKey?: string }) {
+  const [activeTab, setActiveTab] = useState("popular");
+  const sorted = sortVideos(videos);
+
+  const filterMap: Record<string, TmdbVideo[]> = {
+    popular:  sorted.slice(0, 9),
+    trailers: sorted.filter(v => v.type === "Trailer"),
+    teasers:  sorted.filter(v => v.type === "Teaser"),
+    clips:    sorted.filter(v => v.type === "Clip"),
+    bts:      sorted.filter(v => ["Behind the Scenes", "Featurette", "Bloopers"].includes(v.type)),
+    all:      sorted,
+  };
+
+  const visibleTabs = MEDIA_TABS.filter(tab => (filterMap[tab.id]?.length ?? 0) > 0);
+  const currentVideos = filterMap[activeTab] ?? [];
+
+  if (videos.length === 0 && !mainTrailerKey) return null;
+
+  return (
+    <div className="mt-12">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <h2 className="text-xl font-bold text-white">
+          Media
+          {videos.length > 0 && <span className="ml-2 text-sm font-normal text-gray-500">{videos.length} vídeos</span>}
+        </h2>
+        {visibleTabs.length > 1 && (
+          <div className="flex gap-1 flex-wrap">
+            {visibleTabs.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-3 py-1 rounded-full text-xs font-bold transition-all border ${
+                  activeTab === tab.id
+                    ? "bg-brand-red border-red-700 text-white"
+                    : "bg-brand-surface border-brand-border text-gray-400 hover:text-white"
+                }`}
+              >
+                {tab.label}
+                {tab.id !== "popular" && tab.id !== "all" && (
+                  <span className="ml-1 text-[10px] opacity-60">{filterMap[tab.id]?.length ?? 0}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {currentVideos.length > 0 ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {currentVideos.map(v => <VideoCard key={v.key} video={v} />)}
+        </div>
+      ) : mainTrailerKey ? (
+        <div className="relative aspect-video w-full max-w-3xl rounded-xl overflow-hidden bg-brand-surface shadow-2xl">
+          <iframe
+            src={`https://www.youtube.com/embed/${mainTrailerKey}`}
+            title="Tráiler"
+            className="absolute inset-0 w-full h-full"
+            allowFullScreen
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function SeriesDetail() {
   const { id } = useParams<{ id: string }>();
@@ -141,13 +455,15 @@ export default function SeriesDetail() {
     [episodeCount]
   );
 
-  const trailerKey = series?.yt_trailer_code ?? null;
   const ogImage = series?.background_url || series?.poster_url || "";
-
   const allVideos: TmdbVideo[] = series?.videos ?? [];
-  const extraVideos = allVideos.filter((v) => v.type !== "Trailer");
-  const trailerVideos = allVideos.filter((v) => v.type === "Trailer");
   const reviews: TmdbReview[] = series?.reviews ?? [];
+  const castFull: CastMember[] = (series as any)?.cast_full ?? [];
+
+  const statusLabel =
+    series?.status === "Ended" ? "Finalizada"
+    : series?.status === "Returning Series" ? "En emisión"
+    : series?.status || null;
 
   if (loading) {
     return (
@@ -180,13 +496,6 @@ export default function SeriesDetail() {
       : String(series.year)
     : null;
 
-  const statusLabel =
-    series.status === "Ended"
-      ? "Finalizada"
-      : series.status === "Returning Series"
-      ? "En emisión"
-      : series.status || null;
-
   return (
     <div className="min-h-screen bg-brand-dark">
       <Helmet>
@@ -198,13 +507,13 @@ export default function SeriesDetail() {
         <meta property="og:type" content="video.tv_show" />
       </Helmet>
 
-      {/* Backdrop hero */}
+      {/* Backdrop */}
       <div className="relative w-full h-[55vh] min-h-[380px] overflow-hidden">
         <img
           src={series.background_url || series.poster_url || FALLBACK_BG}
           alt={series.title}
           className="w-full h-full object-cover object-top"
-          onError={(e) => { (e.currentTarget as HTMLImageElement).src = FALLBACK_BG; }}
+          onError={e => { (e.currentTarget as HTMLImageElement).src = FALLBACK_BG; }}
         />
         <div className="absolute inset-0 hero-gradient" />
         <div className="absolute inset-x-0 bottom-0 h-40 hero-gradient-bottom" />
@@ -212,21 +521,21 @@ export default function SeriesDetail() {
           onClick={() => navigate(-1)}
           className="absolute top-20 left-6 flex items-center gap-2 text-gray-300 hover:text-white text-sm transition-colors"
         >
-          <span>&#8592;</span>
-          <span>Volver</span>
+          ← Volver
         </button>
       </div>
 
       {/* Content */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 -mt-24 relative z-10 pb-16">
         <div className="flex flex-col sm:flex-row gap-8">
+
           {/* Poster */}
           <div className="flex-shrink-0 w-36 sm:w-48 md:w-56">
             <img
               src={series.poster_url || FALLBACK_POSTER}
               alt={series.title}
               className="w-full aspect-[2/3] object-cover rounded-xl shadow-2xl border border-brand-border"
-              onError={(e) => { (e.currentTarget as HTMLImageElement).src = FALLBACK_POSTER; }}
+              onError={e => { (e.currentTarget as HTMLImageElement).src = FALLBACK_POSTER; }}
             />
           </div>
 
@@ -234,18 +543,13 @@ export default function SeriesDetail() {
           <div className="flex-1 pt-2 sm:pt-12">
             <h1 className="text-2xl sm:text-4xl font-black text-white mb-2 leading-tight">
               {series.title}
-              {yearRange && (
-                <span className="ml-2 text-lg sm:text-2xl font-normal text-gray-400">
-                  ({yearRange})
-                </span>
-              )}
+              {yearRange && <span className="ml-2 text-lg sm:text-2xl font-normal text-gray-400">({yearRange})</span>}
             </h1>
 
             <div className="flex flex-wrap items-center gap-3 mb-4">
               {series.rating !== undefined && Number(series.rating) > 0 && (
                 <span className="flex items-center gap-1 text-brand-gold font-bold">
-                  <span>&#9733;</span>
-                  <span>{Number(series.rating).toFixed(1)}</span>
+                  ★ {Number(series.rating).toFixed(1)}
                 </span>
               )}
               {seasonsData.length > 0 && (
@@ -259,13 +563,11 @@ export default function SeriesDetail() {
                 </span>
               )}
               {statusLabel && (
-                <span
-                  className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${
-                    statusLabel === "En emisión"
-                      ? "bg-green-900/30 text-green-400 border-green-800/50"
-                      : "bg-gray-800 text-gray-400 border-gray-700"
-                  }`}
-                >
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${
+                  statusLabel === "En emisión"
+                    ? "bg-green-900/30 text-green-400 border-green-800/50"
+                    : "bg-gray-800 text-gray-400 border-gray-700"
+                }`}>
                   {statusLabel}
                 </span>
               )}
@@ -273,10 +575,8 @@ export default function SeriesDetail() {
 
             {series.genres && series.genres.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-5">
-                {series.genres.map((g) => (
-                  <span key={g} className="text-xs bg-brand-surface border border-brand-border rounded-full px-3 py-1 text-gray-300">
-                    {g}
-                  </span>
+                {series.genres.map(g => (
+                  <span key={g} className="text-xs bg-brand-surface border border-brand-border rounded-full px-3 py-1 text-gray-300">{g}</span>
                 ))}
               </div>
             )}
@@ -288,18 +588,9 @@ export default function SeriesDetail() {
             )}
 
             {series.creators && series.creators.length > 0 && (
-              <p className="text-gray-400 text-sm mb-2">
+              <p className="text-gray-400 text-sm mb-5">
                 <span className="text-gray-500">Creadores: </span>
                 {series.creators.join(", ")}
-              </p>
-            )}
-            {series.cast_list && series.cast_list.length > 0 && (
-              <p className="text-gray-400 text-sm mb-5">
-                <span className="text-gray-500">Elenco: </span>
-                {series.cast_list.slice(0, 6).join(", ")}
-                {series.cast_list.length > 6 && (
-                  <span className="text-gray-600"> y {series.cast_list.length - 6} más</span>
-                )}
               </p>
             )}
 
@@ -313,6 +604,9 @@ export default function SeriesDetail() {
             )}
           </div>
         </div>
+
+        {/* ── Reparto ───────────────────────────────────── */}
+        <CastSection cast={castFull} />
 
         {/* ── Season selector + Episodes ─────────────────── */}
         {seasonsData.length > 0 && (
@@ -338,7 +632,7 @@ export default function SeriesDetail() {
               <p className="text-gray-500 text-sm">Sin episodios disponibles.</p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                {episodes.map((epNum) => (
+                {episodes.map(epNum => (
                   <button
                     key={epNum}
                     onClick={() => {
@@ -348,15 +642,9 @@ export default function SeriesDetail() {
                     }}
                     className="flex items-center gap-3 bg-brand-surface border border-brand-border rounded-lg px-4 py-3 hover:border-brand-red hover:bg-brand-surface/80 transition-all group text-left"
                   >
-                    <span className="text-brand-red font-black text-sm w-7 text-center flex-shrink-0">
-                      {epNum}
-                    </span>
-                    <span className="text-gray-300 text-sm group-hover:text-white transition-colors truncate">
-                      Episodio {epNum}
-                    </span>
-                    <span className="ml-auto flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <PlayIcon />
-                    </span>
+                    <span className="text-brand-red font-black text-sm w-7 text-center flex-shrink-0">{epNum}</span>
+                    <span className="text-gray-300 text-sm group-hover:text-white transition-colors truncate">Episodio {epNum}</span>
+                    <span className="ml-auto flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"><PlayIcon /></span>
                   </button>
                 ))}
               </div>
@@ -378,58 +666,17 @@ export default function SeriesDetail() {
           </div>
         )}
 
-        {/* ── Tráiler principal ─────────────────────────── */}
-        {(trailerKey || trailerVideos.length > 0) && (
-          <div className="mt-12">
-            <h2 className="text-xl font-bold text-white mb-4">Tráiler</h2>
-            <div className="relative aspect-video w-full max-w-3xl rounded-xl overflow-hidden bg-brand-surface shadow-2xl">
-              {trailerKey ? (
-                <iframe
-                  src={`https://www.youtube.com/embed/${trailerKey}`}
-                  title={`Tráiler de ${series.title}`}
-                  className="absolute inset-0 w-full h-full"
-                  allowFullScreen
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                />
-              ) : trailerVideos[0] ? (
-                <iframe
-                  src={`https://www.youtube.com/embed/${trailerVideos[0].key}`}
-                  title={trailerVideos[0].name}
-                  className="absolute inset-0 w-full h-full"
-                  allowFullScreen
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                />
-              ) : null}
-            </div>
-          </div>
-        )}
-
-        {/* ── Vídeos adicionales ───────────────────────── */}
-        {extraVideos.length > 0 && (
-          <div className="mt-12">
-            <h2 className="text-xl font-bold text-white mb-4">
-              Vídeos
-              <span className="ml-2 text-sm font-normal text-gray-500">{extraVideos.length}</span>
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {extraVideos.map((v) => (
-                <VideoCard key={v.key} video={v} />
-              ))}
-            </div>
-          </div>
-        )}
+        {/* ── Media ordenada con tabs ───────────────────── */}
+        <MediaSection videos={allVideos} mainTrailerKey={series.yt_trailer_code} />
 
         {/* ── Reseñas ───────────────────────────────────── */}
         {reviews.length > 0 && (
           <div className="mt-12">
             <h2 className="text-xl font-bold text-white mb-4">
-              Reseñas
-              <span className="ml-2 text-sm font-normal text-gray-500">{reviews.length}</span>
+              Reseñas <span className="ml-2 text-sm font-normal text-gray-500">{reviews.length}</span>
             </h2>
             <div className="flex flex-col gap-4">
-              {reviews.map((r, i) => (
-                <ReviewCard key={i} review={r} />
-              ))}
+              {reviews.map((r, i) => <ReviewCard key={i} review={r} />)}
             </div>
           </div>
         )}
@@ -440,8 +687,6 @@ export default function SeriesDetail() {
 
 function PlayIcon() {
   return (
-    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M8 5v14l11-7z" />
-    </svg>
+    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
   );
 }
