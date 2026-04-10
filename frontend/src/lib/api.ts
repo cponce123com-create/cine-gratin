@@ -189,6 +189,16 @@ export interface CleanupResponse {
   summary: { movies: number; series: number; total: number };
 }
 
+export interface UpdateCollectionItem {
+  id: string;
+  type: "movie" | "series";
+  collection_id: number | null;
+  collection_name: string | null;
+}
+
+export const updateCollection = (items: UpdateCollectionItem[]): Promise<{ ok: boolean; updated: number }> =>
+  adminPost("/api/admin/update-collection", { items });
+
 export const cleanupMissingImages = (type: "movie" | "series" | "all" = "all"): Promise<CleanupResponse> =>
   adminPost("/api/admin/cleanup-missing-images", { type });
 

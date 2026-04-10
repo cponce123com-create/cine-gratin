@@ -221,19 +221,25 @@ export default function Home() {
         ...sec,
         items: buildMixed(
           allMovies, allSeries,
-	          (m) => {
-	            // Match by collection_id (most accurate)
-	            if (sec.collection_id && m.collection_id === sec.collection_id) return true;
-	            // Always allow keyword fallback for movies not yet assigned to this collection
-	            return matchesTitle(m.title, sec.keywords);
-	          },
+          (m) => {
+            if (m.collection_id === -1) return false; // explicitly excluded
+            if (sec.collection_id) {
+              if (m.collection_id === sec.collection_id) return true;
+              if (m.collection_id != null) return false; // belongs to a different collection
+            }
+            // keyword fallback only for items with no collection_id yet
+            return matchesTitle(m.title, sec.keywords);
+          },
           (s) => {
-            // Match by collection_id
-            if (sec.collection_id && s.collection_id === sec.collection_id) return true;
+            if (s.collection_id === -1) return false; // explicitly excluded
+            if (sec.collection_id) {
+              if (s.collection_id === sec.collection_id) return true;
+              if (s.collection_id != null) return false;
+            }
             return matchesTitle(s.title, sec.keywords);
           }
         ),
-      })).filter((s) => s.items.length >= 1), // Sagas can show even with 1 item
+      })).filter((s) => s.items.length >= 1),
     [allMovies, allSeries]
   );
 

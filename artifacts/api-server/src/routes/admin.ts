@@ -476,6 +476,28 @@ router.post("/admin/import-by-tmdb-ids", async (req, res) => {
   res.json({ ok: true, summary: { imported, existed_or_error: existed, total: Math.min(tmdb_ids.length, 2000) } });
 });
 
+// POST /api/admin/update-collection — bulk update collection_id / collection_name
+router.post("/admin/update-collection", async (req, res) => {
+  const { items } = req.body as {
+    items: { id: string; type: "movie" | "series"; collection_id: number | null; collection_name: string | null }[];
+  };
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: "Se requiere un array items" });
+  }
+  try {
+    for (const item of items) {
+      const table = item.type === "series" ? "cv_series" : "movies";
+      await pool.query(
+        `UPDATE ${table} SET collection_id = $1, collection_name = $2 WHERE id = $3`,
+        [item.collection_id ?? null, item.collection_name ?? null, item.id]
+      );
+    }
+    res.json({ ok: true, updated: items.length });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
 // POST /api/admin/cleanup-no-vidsrc — delete movies/series where vidsrc_status = 'inactive'
 router.post("/admin/cleanup-no-vidsrc", async (_req, res) => {
   try {
