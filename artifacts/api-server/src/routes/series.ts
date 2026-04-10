@@ -49,7 +49,11 @@ router.get("/series", seriesLimit, async (req, res) => {
 
   try {
     const { rows } = await pool.query(
-      "SELECT * FROM cv_series ORDER BY year DESC, date_added DESC LIMIT $1 OFFSET $2",
+      `SELECT id, imdb_id, tmdb_id, title, year, end_year, rating, genres, language, synopsis,
+              creators, cast_list, networks, poster_url, background_url, yt_trailer_code,
+              status, total_seasons, video_sources, featured, views, date_added,
+              vidsrc_status, auto_imported, '[]'::jsonb AS videos, '[]'::jsonb AS reviews, '[]'::jsonb AS seasons_data
+       FROM cv_series ORDER BY year DESC, date_added DESC LIMIT $1 OFFSET $2`,
       [limit, offset]
     );
     
@@ -83,6 +87,7 @@ router.get("/series/search", seriesLimit, async (req, res) => {
       `SELECT * FROM cv_series WHERE title ILIKE $1 OR synopsis ILIKE $1 ORDER BY views DESC, date_added DESC LIMIT $2`,
       [`%${q}%`, limit]
     );
+    res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
     res.json(rows.map(toSeries));
   } catch (e) {
     res.status(500).json({ error: String(e) });

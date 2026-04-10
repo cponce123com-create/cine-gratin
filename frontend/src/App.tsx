@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -15,13 +16,23 @@ import MoviePlayer from "@/pages/player/MoviePlayer";
 import SeriesPlayer from "@/pages/player/SeriesPlayer";
 import NotFound from "@/pages/NotFound";
 import AdminLogin from "@/pages/admin/Login";
-import AdminDashboard from "@/pages/admin/Dashboard";
-import AdminImport from "@/pages/admin/Import";
-import ManageMovies from "@/pages/admin/ManageMovies";
-import ManageSeries from "@/pages/admin/ManageSeries";
-import SportChannels from "@/pages/admin/SportChannels";
-import EventChannels from "@/pages/admin/EventChannels";
-import TmdbScraper from "@/pages/admin/TmdbScraper";
+
+// Lazy-load heavy admin pages so they don't bloat the initial bundle
+const AdminDashboard = lazy(() => import("@/pages/admin/Dashboard"));
+const AdminImport = lazy(() => import("@/pages/admin/Import"));
+const ManageMovies = lazy(() => import("@/pages/admin/ManageMovies"));
+const ManageSeries = lazy(() => import("@/pages/admin/ManageSeries"));
+const SportChannels = lazy(() => import("@/pages/admin/SportChannels"));
+const EventChannels = lazy(() => import("@/pages/admin/EventChannels"));
+const TmdbScraper = lazy(() => import("@/pages/admin/TmdbScraper"));
+
+function AdminFallback() {
+  return (
+    <div className="min-h-screen bg-brand-dark flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-brand-red border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
 
 function PublicLayout() {
   return (
@@ -46,7 +57,9 @@ export default function App() {
           path="/admin"
           element={
             <ProtectedRoute>
-              <AdminDashboard />
+              <Suspense fallback={<AdminFallback />}>
+                <AdminDashboard />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -54,7 +67,9 @@ export default function App() {
           path="/admin/import"
           element={
             <ProtectedRoute>
-              <AdminImport />
+              <Suspense fallback={<AdminFallback />}>
+                <AdminImport />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -62,7 +77,9 @@ export default function App() {
           path="/admin/movies"
           element={
             <ProtectedRoute>
-              <ManageMovies />
+              <Suspense fallback={<AdminFallback />}>
+                <ManageMovies />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -70,7 +87,9 @@ export default function App() {
           path="/admin/series"
           element={
             <ProtectedRoute>
-              <ManageSeries />
+              <Suspense fallback={<AdminFallback />}>
+                <ManageSeries />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -78,7 +97,9 @@ export default function App() {
           path="/admin/tmdb"
           element={
             <ProtectedRoute>
-              <TmdbScraper />
+              <Suspense fallback={<AdminFallback />}>
+                <TmdbScraper />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -86,7 +107,9 @@ export default function App() {
           path="/admin/sport-channels"
           element={
             <ProtectedRoute>
-              <SportChannels />
+              <Suspense fallback={<AdminFallback />}>
+                <SportChannels />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -94,7 +117,9 @@ export default function App() {
           path="/admin/event-channels"
           element={
             <ProtectedRoute>
-              <EventChannels />
+              <Suspense fallback={<AdminFallback />}>
+                <EventChannels />
+              </Suspense>
             </ProtectedRoute>
           }
         />

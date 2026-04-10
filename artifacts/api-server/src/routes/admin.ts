@@ -144,8 +144,8 @@ router.post("/admin/verify-vidsrc", async (req, res) => {
   for (const imdbId of imdb_ids.slice(0, 50)) {
     try {
       const url = type === "series"
-        ? `https://vidsrc.pro/embed/tv/${imdbId}`
-        : `https://vidsrc.pro/embed/movie/${imdbId}`;
+        ? `https://vidsrc.net/embed/tv/${imdbId}/1-1/`
+        : `https://vidsrc.net/embed/movie/${imdbId}/`;
 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 6000);

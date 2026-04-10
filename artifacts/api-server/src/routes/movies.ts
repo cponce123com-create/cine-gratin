@@ -48,7 +48,11 @@ router.get("/movies", movieLimit, async (req, res) => {
 
   try {
     const { rows } = await pool.query(
-      "SELECT * FROM movies ORDER BY year DESC, date_added DESC LIMIT $1 OFFSET $2",
+      `SELECT id, imdb_id, title, year, rating, runtime, genres, language, synopsis,
+              director, cast_list, networks, poster_url, background_url, yt_trailer_code,
+              mpa_rating, slug, featured, video_sources, torrents, views, date_added,
+              vidsrc_status, auto_imported, '[]'::jsonb AS videos, '[]'::jsonb AS reviews
+       FROM movies ORDER BY year DESC, date_added DESC LIMIT $1 OFFSET $2`,
       [limit, offset]
     );
     
@@ -93,6 +97,7 @@ router.get("/movies/search", movieLimit, async (req, res) => {
       `SELECT * FROM movies WHERE title ILIKE $1 OR synopsis ILIKE $1 ORDER BY views DESC, date_added DESC LIMIT $2`,
       [`%${q}%`, limit]
     );
+    res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
     res.json(rows.map(toMovie));
   } catch (e) {
     res.status(500).json({ error: String(e) });

@@ -1,6 +1,12 @@
 import { Pool } from "pg";
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 20,
+  min: 2,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
+});
 
 export async function initDb() {
   await pool.query(`
@@ -100,6 +106,21 @@ export async function initDb() {
 
     INSERT INTO cv_settings (key, value) VALUES ('auto_import_enabled', 'true')
       ON CONFLICT (key) DO NOTHING;
+  `);
+
+  // Performance indexes
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_movies_year_date ON movies (year DESC, date_added DESC);
+    CREATE INDEX IF NOT EXISTS idx_movies_views ON movies (views DESC);
+    CREATE INDEX IF NOT EXISTS idx_movies_featured ON movies (featured) WHERE featured = TRUE;
+    CREATE INDEX IF NOT EXISTS idx_movies_imdb_id ON movies (imdb_id);
+    CREATE INDEX IF NOT EXISTS idx_movies_slug ON movies (slug);
+    CREATE INDEX IF NOT EXISTS idx_movies_vidsrc ON movies (vidsrc_status);
+    CREATE INDEX IF NOT EXISTS idx_series_year_date ON cv_series (year DESC, date_added DESC);
+    CREATE INDEX IF NOT EXISTS idx_series_views ON cv_series (views DESC);
+    CREATE INDEX IF NOT EXISTS idx_series_featured ON cv_series (featured) WHERE featured = TRUE;
+    CREATE INDEX IF NOT EXISTS idx_series_imdb_id ON cv_series (imdb_id);
+    CREATE INDEX IF NOT EXISTS idx_series_vidsrc ON cv_series (vidsrc_status);
   `);
 }
 
