@@ -78,7 +78,7 @@ export default function Home() {
   // Reducir límites iniciales para mejorar el tiempo de carga
   const { data: movieData, isLoading: loadingMovies, error: errorMovies } = useQuery({
     queryKey: ["movies"],
-    queryFn: () => getMovies({ limit: 5000 }), // Aumentado a 5000 para mostrar todas las películas en sagas
+    queryFn: () => getMovies({ limit: 10000 }), // Aumentado a 10000 para mostrar todas las películas en sagas
     staleTime: 5 * 60 * 1000,
   });
   const { data: seriesData, isLoading: loadingSeries, error: errorSeries } = useQuery({
