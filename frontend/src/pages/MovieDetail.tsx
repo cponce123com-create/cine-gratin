@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Helmet } from "react-helmet-async";
@@ -79,471 +79,9 @@ const FALLBACK_POSTER =
 const FALLBACK_PERSON =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='150' viewBox='0 0 100 150'%3E%3Crect width='100' height='150' fill='%231e1e1e'/%3E%3Ccircle cx='50' cy='55' r='22' fill='%23333'/%3E%3Cellipse cx='50' cy='130' rx='35' ry='30' fill='%23333'/%3E%3C/svg%3E";
 
-// ── GallerySection ────────────────────────────────────────────────────────────
+// ── MediaSection (videos + images unified) ───────────────────────────────────
 
-function GallerySection({ imdbId, type }: { imdbId: string; type: "movie" | "series" }) {
-  const [activeTab, setActiveTab] = useState<"backdrops" | "posters">("posters");
-  const [lightbox, setLightbox] = useState<string | null>(null);
-
-  const { data: images, isLoading } = useQuery({
-    queryKey: ["tmdb-images", imdbId, type],
-    queryFn: () => fetchImages(imdbId, type),
-    staleTime: 60 * 60 * 1000,
-  });
-
-  const items = activeTab === "backdrops" ? (images?.backdrops ?? []) : (images?.posters ?? []);
-
-  if (!isLoading && !images?.backdrops?.length && !images?.posters?.length) return null;
-
-  return (
-    <div className="mt-12">
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-        <h2 className="text-xl font-bold text-white">Imágenes</h2>
-        <div className="flex gap-1">
-          {(["posters", "backdrops"] as const).map(tab => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-3 py-1 rounded-full text-xs font-bold transition-all border ${
-                activeTab === tab
-                  ? "bg-brand-red border-red-700 text-white"
-                  : "bg-brand-surface border-brand-border text-gray-400 hover:text-white"
-              }`}
-            >
-              {tab === "posters" ? "Carteles" : "Imágenes de fondo"}
-              {images && (
-                <span className="ml-1 text-[10px] opacity-60">
-                  {tab === "posters" ? images.posters.length : images.backdrops.length}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {isLoading ? (
-        <div className="flex gap-3 overflow-hidden">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div
-              key={i}
-              className={`flex-shrink-0 bg-brand-surface rounded-xl animate-pulse ${
-                activeTab === "posters" ? "w-32 h-48" : "w-56 h-32"
-              }`}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className={`grid gap-2 ${
-          activeTab === "posters"
-            ? "grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8"
-            : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4"
-        }`}>
-          {items.map((img, i) => (
-            <button
-              key={i}
-              onClick={() => setLightbox(img.url_original)}
-              className="group overflow-hidden rounded-lg border border-brand-border hover:border-brand-red/60 transition-colors"
-            >
-              <img
-                src={img.thumb}
-                alt=""
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                loading="lazy"
-              />
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Lightbox */}
-      {lightbox && (
-        <div
-          className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4"
-          onClick={() => setLightbox(null)}
-        >
-          <button
-            onClick={() => setLightbox(null)}
-            className="absolute top-4 right-4 text-white/70 hover:text-white text-3xl font-bold"
-          >✕</button>
-          <img
-            src={lightbox}
-            alt=""
-            className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl"
-            onClick={e => e.stopPropagation()}
-          />
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── RecommendationsSection ────────────────────────────────────────────────────
-
-function RecommendationsSection({
-  imdbId, type, title,
-}: {
-  imdbId: string;
-  type: "movie" | "series";
-  title: string;
-}) {
-  const { data: recs = [], isLoading } = useQuery({
-    queryKey: ["tmdb-recs", imdbId, type],
-    queryFn: () => fetchRecommendations(imdbId, type),
-    staleTime: 60 * 60 * 1000,
-  });
-
-  if (!isLoading && recs.length === 0) return null;
-
-  return (
-    <div className="mt-12">
-      <h2 className="text-xl font-bold text-white mb-4">
-        Si te gustó <span className="text-brand-red italic">{title}</span>, también te puede gustar…
-      </h2>
-
-      {isLoading ? (
-        <div className="flex gap-3 overflow-hidden">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="flex-shrink-0 w-32 h-48 bg-brand-surface rounded-xl animate-pulse" />
-          ))}
-        </div>
-      ) : (
-        <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
-          {recs.map(rec => (
-            <div key={rec.tmdb_id} className="flex-shrink-0 w-32 group">
-              <div className="aspect-[2/3] rounded-xl overflow-hidden bg-brand-surface border border-brand-border">
-                {rec.poster_url ? (
-                  <img
-                    src={rec.poster_url}
-                    alt={rec.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    loading="lazy"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-600 text-[10px] text-center px-2">
-                    {rec.title}
-                  </div>
-                )}
-                {rec.rating > 0 && (
-                  <div className="absolute top-1.5 right-1.5 bg-black/70 backdrop-blur-sm rounded-full px-1.5 py-0.5 text-[10px] font-bold text-brand-gold">
-                    ★ {rec.rating}
-                  </div>
-                )}
-              </div>
-              <p className="mt-1.5 text-xs font-semibold text-gray-200 truncate group-hover:text-white transition-colors">
-                {rec.title}
-              </p>
-              {rec.year && <p className="text-[10px] text-gray-500">{rec.year}</p>}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-const VIDEO_ORDER = ["Trailer", "Teaser", "Clip", "Featurette", "Behind the Scenes", "Bloopers"];
-
-function sortVideos(videos: TmdbVideo[]): TmdbVideo[] {
-  return [...videos].sort((a, b) => {
-    const ia = VIDEO_ORDER.indexOf(a.type);
-    const ib = VIDEO_ORDER.indexOf(b.type);
-    const orderA = ia === -1 ? 99 : ia;
-    const orderB = ib === -1 ? 99 : ib;
-    if (orderA !== orderB) return orderA - orderB;
-    if (a.official && !b.official) return -1;
-    if (!a.official && b.official) return 1;
-    return 0;
-  });
-}
-
-// ── VideoCard ─────────────────────────────────────────────────────────────────
-
-const VIDEO_TYPE_COLORS: Record<string, string> = {
-  Trailer: "bg-red-600", Teaser: "bg-orange-500", Clip: "bg-blue-500",
-  Featurette: "bg-purple-500", "Behind the Scenes": "bg-green-600", Bloopers: "bg-yellow-500",
-};
-
-function VideoTypeLabel({ type }: { type: string }) {
-  return (
-    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${VIDEO_TYPE_COLORS[type] ?? "bg-gray-600"} text-white`}>
-      {type}
-    </span>
-  );
-}
-
-function VideoCard({ video }: { video: TmdbVideo }) {
-  const [playing, setPlaying] = useState(false);
-  const thumb = `https://img.youtube.com/vi/${video.key}/hqdefault.jpg`;
-  if (playing) {
-    return (
-      <div className="relative aspect-video w-full rounded-xl overflow-hidden bg-black shadow-xl">
-        <iframe
-          src={`https://www.youtube.com/embed/${video.key}?autoplay=1`}
-          className="absolute inset-0 w-full h-full"
-          allowFullScreen
-          allow="autoplay; encrypted-media; picture-in-picture"
-          title={video.name}
-        />
-      </div>
-    );
-  }
-  return (
-    <button
-      onClick={() => setPlaying(true)}
-      className="group relative aspect-video w-full rounded-xl overflow-hidden bg-brand-surface shadow-xl border border-brand-border hover:border-red-500/50 transition-all"
-    >
-      <img src={thumb} alt={video.name} className="w-full h-full object-cover" />
-      <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors" />
-      <div className="absolute inset-0 flex items-center justify-center">
-        <div className="w-12 h-12 rounded-full bg-brand-red/90 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-          <svg className="w-5 h-5 text-white ml-0.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
-        </div>
-      </div>
-      <div className="absolute bottom-0 inset-x-0 p-2 bg-gradient-to-t from-black/90 to-transparent">
-        <div className="flex items-start gap-1.5">
-          <VideoTypeLabel type={video.type} />
-          <p className="text-white text-xs font-medium leading-tight line-clamp-2 flex-1 text-left">{video.name}</p>
-        </div>
-      </div>
-    </button>
-  );
-}
-
-// ── ReviewCard ────────────────────────────────────────────────────────────────
-
-function ReviewCard({ review }: { review: TmdbReview }) {
-  const [expanded, setExpanded] = useState(false);
-  const isLong = review.content.length > 280;
-  const text = expanded || !isLong ? review.content : review.content.slice(0, 280) + "…";
-  const dateStr = review.created_at
-    ? new Date(review.created_at).toLocaleDateString("es-MX", { year: "numeric", month: "long" })
-    : null;
-  return (
-    <div className="bg-brand-surface border border-brand-border rounded-xl p-5">
-      <div className="flex items-start justify-between gap-3 mb-3">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-brand-red/20 border border-brand-red/30 flex items-center justify-center text-sm font-bold text-brand-red">
-            {review.author[0]?.toUpperCase() ?? "?"}
-          </div>
-          <div>
-            <p className="text-white font-semibold text-sm">{review.author}</p>
-            {dateStr && <p className="text-gray-500 text-xs">{dateStr}</p>}
-          </div>
-        </div>
-        {review.rating !== null && review.rating !== undefined && (
-          <span className="flex items-center gap-1 text-brand-gold font-bold text-sm flex-shrink-0">
-            ★ {Number(review.rating).toFixed(1)}
-          </span>
-        )}
-      </div>
-      <p className="text-gray-300 text-sm leading-relaxed">{text}</p>
-      {isLong && (
-        <button onClick={() => setExpanded(v => !v)} className="mt-2 text-brand-red hover:text-red-400 text-xs font-medium transition-colors">
-          {expanded ? "Leer menos" : "Leer más"}
-        </button>
-      )}
-    </div>
-  );
-}
-
-// ── ActorModal ────────────────────────────────────────────────────────────────
-
-function ActorModal({ personId, onClose }: { personId: number; onClose: () => void }) {
-  const overlayRef = useRef<HTMLDivElement>(null);
-  const [showAllCredits, setShowAllCredits] = useState(false);
-
-  const { data: person, isLoading, error } = useQuery({
-    queryKey: ["person", personId],
-    queryFn: () => fetchPerson(personId),
-    staleTime: 60 * 60 * 1000,
-  });
-
-  const age = person?.birthday && !person.deathday
-    ? Math.floor((Date.now() - new Date(person.birthday).getTime()) / (365.25 * 24 * 3600 * 1000))
-    : null;
-
-  const creditsToShow = person
-    ? showAllCredits ? person.all_credits : person.all_credits.slice(0, 10)
-    : [];
-
-  return (
-    <div
-      ref={overlayRef}
-      className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 overflow-y-auto"
-      onClick={e => { if (e.target === overlayRef.current) onClose(); }}
-    >
-      <div className="relative w-full max-w-3xl bg-brand-card border border-brand-border rounded-2xl overflow-hidden shadow-2xl my-8">
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full bg-black/60 hover:bg-black/80 flex items-center justify-center text-white text-lg transition-colors"
-        >✕</button>
-
-        {isLoading && (
-          <div className="flex items-center justify-center h-64">
-            <div className="w-8 h-8 rounded-full border-2 border-brand-red border-t-transparent animate-spin" />
-          </div>
-        )}
-        {error && <div className="p-8 text-center text-red-400">No se pudo cargar el perfil del actor.</div>}
-
-        {person && (
-          <div className="flex flex-col sm:flex-row">
-            {/* Left: photo + personal info */}
-            <div className="sm:w-56 flex-shrink-0 bg-brand-surface">
-              <img
-                src={person.profile_url || FALLBACK_PERSON}
-                alt={person.name}
-                className="w-full aspect-[2/3] object-cover object-top"
-                onError={e => { (e.currentTarget as HTMLImageElement).src = FALLBACK_PERSON; }}
-              />
-              <div className="p-4 space-y-3">
-                {person.known_for_department && (
-                  <div>
-                    <p className="text-gray-500 text-[11px] uppercase tracking-wider">Conocido por</p>
-                    <p className="text-white text-sm font-semibold">{person.known_for_department}</p>
-                  </div>
-                )}
-                {person.birthday && (
-                  <div>
-                    <p className="text-gray-500 text-[11px] uppercase tracking-wider">Nacimiento</p>
-                    <p className="text-white text-sm">
-                      {new Date(person.birthday).toLocaleDateString("es-MX", { year: "numeric", month: "long", day: "numeric" })}
-                      {age && <span className="text-gray-400"> ({age} años)</span>}
-                    </p>
-                  </div>
-                )}
-                {person.deathday && (
-                  <div>
-                    <p className="text-gray-500 text-[11px] uppercase tracking-wider">Fallecimiento</p>
-                    <p className="text-white text-sm">
-                      {new Date(person.deathday).toLocaleDateString("es-MX", { year: "numeric", month: "long", day: "numeric" })}
-                    </p>
-                  </div>
-                )}
-                {person.place_of_birth && (
-                  <div>
-                    <p className="text-gray-500 text-[11px] uppercase tracking-wider">Lugar de nacimiento</p>
-                    <p className="text-white text-sm">{person.place_of_birth}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Right: bio + credits */}
-            <div className="flex-1 p-5 overflow-y-auto max-h-[80vh] sm:max-h-[600px]">
-              <h2 className="text-2xl font-black text-white mb-4">{person.name}</h2>
-
-              {person.biography && (
-                <div className="mb-5">
-                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Biografía</h3>
-                  <p className="text-gray-300 text-sm leading-relaxed line-clamp-6 hover:line-clamp-none transition-all cursor-pointer">
-                    {person.biography}
-                  </p>
-                </div>
-              )}
-
-              {person.known_for.length > 0 && (
-                <div className="mb-5">
-                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Conocido por</h3>
-                  <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-                    {person.known_for.map(work => (
-                      <div key={`${work.media_type}-${work.id}`} className="flex-shrink-0 w-20">
-                        <div className="aspect-[2/3] rounded-lg overflow-hidden bg-brand-surface mb-1">
-                          {work.poster_url
-                            ? <img src={work.poster_url} alt={work.title} className="w-full h-full object-cover" loading="lazy" />
-                            : <div className="w-full h-full flex items-center justify-center text-gray-600 text-[10px] text-center px-1">{work.title}</div>
-                          }
-                        </div>
-                        <p className="text-[10px] text-gray-300 truncate leading-tight">{work.title}</p>
-                        {work.year && <p className="text-[10px] text-gray-600">{work.year}</p>}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {person.all_credits.length > 0 && (
-                <div>
-                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-                    Interpretación <span className="font-normal text-gray-600">({person.all_credits.length})</span>
-                  </h3>
-                  <div className="space-y-1">
-                    {creditsToShow.map((c, i) => (
-                      <div key={i} className="flex items-center gap-3 py-1.5 border-b border-brand-border/30 last:border-0">
-                        <span className="text-gray-600 text-xs w-10 shrink-0 text-right">{c.year || "—"}</span>
-                        <p className="text-sm text-white font-medium flex-1 truncate">{c.title}</p>
-                        {c.character && <p className="text-xs text-gray-500 shrink-0 truncate max-w-[120px]">como {c.character}</p>}
-                        <span className="text-[10px] text-gray-600 shrink-0 uppercase">{c.media_type === "tv" ? "Serie" : "Película"}</span>
-                      </div>
-                    ))}
-                  </div>
-                  {person.all_credits.length > 10 && (
-                    <button
-                      onClick={() => setShowAllCredits(v => !v)}
-                      className="mt-3 text-brand-red hover:text-red-400 text-xs font-bold transition-colors"
-                    >
-                      {showAllCredits ? "Ver menos" : `Ver todos (${person.all_credits.length})`}
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── CastSection ───────────────────────────────────────────────────────────────
-
-function CastSection({ cast }: { cast: CastMember[] }) {
-  const [selectedPersonId, setSelectedPersonId] = useState<number | null>(null);
-  if (!cast || cast.length === 0) return null;
-
-  return (
-    <>
-      <div className="mt-12">
-        <h2 className="text-xl font-bold text-white mb-4">
-          Reparto principal
-          <span className="ml-2 text-sm font-normal text-gray-500">{cast.length}</span>
-        </h2>
-        <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
-          {cast.map(member => (
-            <button
-              key={member.id}
-              onClick={() => setSelectedPersonId(member.id)}
-              className="flex-shrink-0 w-28 text-left group"
-            >
-              <div className="aspect-[2/3] rounded-xl overflow-hidden bg-brand-surface border border-brand-border group-hover:border-brand-red/60 transition-colors">
-                <img
-                  src={member.profile_url || FALLBACK_PERSON}
-                  alt={member.name}
-                  className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-300"
-                  loading="lazy"
-                  onError={e => { (e.currentTarget as HTMLImageElement).src = FALLBACK_PERSON; }}
-                />
-              </div>
-              <p className="mt-1.5 text-xs font-bold text-white truncate group-hover:text-brand-red transition-colors">
-                {member.name}
-              </p>
-              {member.character && (
-                <p className="text-[10px] text-gray-500 truncate">{member.character}</p>
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {selectedPersonId !== null && (
-        <ActorModal personId={selectedPersonId} onClose={() => setSelectedPersonId(null)} />
-      )}
-    </>
-  );
-}
-
-// ── MediaSection ──────────────────────────────────────────────────────────────
-
-const MEDIA_TABS = [
+const VIDEO_TABS = [
   { id: "popular",  label: "Más popular" },
   { id: "trailers", label: "Tráileres" },
   { id: "teasers",  label: "Teasers" },
@@ -552,12 +90,27 @@ const MEDIA_TABS = [
   { id: "all",      label: "Todo" },
 ];
 
-function MediaSection({ videos, mainTrailerKey }: { videos: TmdbVideo[]; mainTrailerKey?: string }) {
+function MediaSection({
+  videos, mainTrailerKey, imdbId, mediaType,
+}: {
+  videos: TmdbVideo[];
+  mainTrailerKey?: string;
+  imdbId?: string;
+  mediaType: "movie" | "series";
+}) {
   const [activeTab, setActiveTab] = useState("popular");
+  const [lightbox, setLightbox] = useState<string | null>(null);
   const sorted = sortVideos(videos);
 
+  const { data: images } = useQuery({
+    queryKey: ["tmdb-images", imdbId, mediaType],
+    queryFn: () => fetchImages(imdbId!, mediaType),
+    enabled: !!imdbId,
+    staleTime: 60 * 60 * 1000,
+  });
+
   const filterMap: Record<string, TmdbVideo[]> = {
-    popular: sorted.slice(0, 9),
+    popular:  sorted.slice(0, 9),
     trailers: sorted.filter(v => v.type === "Trailer"),
     teasers:  sorted.filter(v => v.type === "Teaser"),
     clips:    sorted.filter(v => v.type === "Clip"),
@@ -565,10 +118,20 @@ function MediaSection({ videos, mainTrailerKey }: { videos: TmdbVideo[]; mainTra
     all:      sorted,
   };
 
-  const visibleTabs = MEDIA_TABS.filter(tab => (filterMap[tab.id]?.length ?? 0) > 0);
-  const currentVideos = filterMap[activeTab] ?? [];
+  const hasPosters   = (images?.posters?.length ?? 0) > 0;
+  const hasBackdrops = (images?.backdrops?.length ?? 0) > 0;
 
-  if (videos.length === 0 && !mainTrailerKey) return null;
+  const allTabs = [
+    ...VIDEO_TABS.filter(t => (filterMap[t.id]?.length ?? 0) > 0),
+    ...(hasPosters   ? [{ id: "posters",   label: "Carteles" }]          : []),
+    ...(hasBackdrops ? [{ id: "backdrops", label: "Imágenes de fondo" }] : []),
+  ];
+
+  const hasContent = videos.length > 0 || mainTrailerKey || hasPosters || hasBackdrops;
+  if (!hasContent) return null;
+
+  const isImageTab  = activeTab === "posters" || activeTab === "backdrops";
+  const imageItems  = activeTab === "posters" ? (images?.posters ?? []) : (images?.backdrops ?? []);
 
   return (
     <div className="mt-12">
@@ -577,9 +140,9 @@ function MediaSection({ videos, mainTrailerKey }: { videos: TmdbVideo[]; mainTra
           Media
           {videos.length > 0 && <span className="ml-2 text-sm font-normal text-gray-500">{videos.length} vídeos</span>}
         </h2>
-        {visibleTabs.length > 1 && (
+        {allTabs.length > 1 && (
           <div className="flex gap-1 flex-wrap">
-            {visibleTabs.map(tab => (
+            {allTabs.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
@@ -590,7 +153,9 @@ function MediaSection({ videos, mainTrailerKey }: { videos: TmdbVideo[]; mainTra
                 }`}
               >
                 {tab.label}
-                {tab.id !== "popular" && tab.id !== "all" && (
+                {tab.id === "posters"   && <span className="ml-1 text-[10px] opacity-60">{images?.posters?.length ?? 0}</span>}
+                {tab.id === "backdrops" && <span className="ml-1 text-[10px] opacity-60">{images?.backdrops?.length ?? 0}</span>}
+                {!["popular","all","posters","backdrops"].includes(tab.id) && (
                   <span className="ml-1 text-[10px] opacity-60">{filterMap[tab.id]?.length ?? 0}</span>
                 )}
               </button>
@@ -599,21 +164,119 @@ function MediaSection({ videos, mainTrailerKey }: { videos: TmdbVideo[]; mainTra
         )}
       </div>
 
-      {currentVideos.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {currentVideos.map(v => <VideoCard key={v.key} video={v} />)}
-        </div>
-      ) : mainTrailerKey ? (
-        <div className="relative aspect-video w-full max-w-3xl rounded-xl overflow-hidden bg-brand-surface shadow-2xl">
-          <iframe
-            src={`https://www.youtube.com/embed/${mainTrailerKey}`}
-            title="Tráiler"
-            className="absolute inset-0 w-full h-full"
-            allowFullScreen
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          />
-        </div>
-      ) : null}
+      {isImageTab ? (
+        <>
+          <div className={`grid gap-2 ${
+            activeTab === "posters"
+              ? "grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8"
+              : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4"
+          }`}>
+            {imageItems.map((img, i) => (
+              <button
+                key={i}
+                onClick={() => setLightbox(img.url_original)}
+                className="group overflow-hidden rounded-lg border border-brand-border hover:border-brand-red/60 transition-colors"
+              >
+                <div className={activeTab === "posters" ? "aspect-[2/3]" : "aspect-video"}>
+                  <img src={img.thumb} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
+                </div>
+              </button>
+            ))}
+          </div>
+          {lightbox && (
+            <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4" onClick={() => setLightbox(null)}>
+              <button onClick={() => setLightbox(null)} className="absolute top-4 right-4 text-white/70 hover:text-white text-3xl font-bold transition-colors">✕</button>
+              <img src={lightbox} alt="" className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl" onClick={e => e.stopPropagation()} />
+              <a href={lightbox} target="_blank" rel="noreferrer" className="absolute bottom-4 right-4 text-xs text-gray-400 hover:text-white transition-colors">Ver original ↗</a>
+            </div>
+          )}
+        </>
+      ) : (
+        (() => {
+          const currentVideos = filterMap[activeTab] ?? [];
+          return currentVideos.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {currentVideos.map(v => <VideoCard key={v.key} video={v} />)}
+            </div>
+          ) : mainTrailerKey ? (
+            <div className="relative aspect-video w-full max-w-3xl rounded-xl overflow-hidden bg-brand-surface shadow-2xl">
+              <iframe src={`https://www.youtube.com/embed/${mainTrailerKey}`} title="Tráiler" className="absolute inset-0 w-full h-full" allowFullScreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" />
+            </div>
+          ) : null;
+        })()
+      )}
+    </div>
+  );
+}
+
+// ── RecommendationsSection (from own DB) ──────────────────────────────────────
+
+function RecommendationsSection({
+  currentId, genres, mediaType, title,
+}: {
+  currentId: string | number;
+  genres: string[];
+  mediaType: "movie" | "series";
+  title: string;
+}) {
+  const { data: allMovies = [] } = useQuery({
+    queryKey: ["movies"],
+    queryFn: () => import("@/lib/api").then(m => m.getMovies({ limit: 5000 })),
+    staleTime: 5 * 60 * 1000,
+    enabled: mediaType === "movie",
+  });
+
+  const { data: allSeries = [] } = useQuery({
+    queryKey: ["series"],
+    queryFn: () => import("@/lib/api").then(m => m.getSeries({ limit: 5000 })),
+    staleTime: 5 * 60 * 1000,
+    enabled: mediaType === "series",
+  });
+
+  const recommendations = useMemo(() => {
+    const pool = mediaType === "movie" ? allMovies : allSeries;
+    if (!pool.length || !genres.length) return [];
+    return pool
+      .filter(item => String(item.id) !== String(currentId))
+      .map(item => {
+        const itemGenres: string[] = (item.genres as string[]) ?? [];
+        const matches = genres.filter(g =>
+          itemGenres.some(ig => ig.toLowerCase().includes(g.toLowerCase()) || g.toLowerCase().includes(ig.toLowerCase()))
+        ).length;
+        return { item, matches };
+      })
+      .filter(s => s.matches > 0)
+      .sort((a, b) => b.matches !== a.matches ? b.matches - a.matches : (Number(b.item.views) || 0) - (Number(a.item.views) || 0))
+      .slice(0, 18)
+      .map(s => s.item);
+  }, [allMovies, allSeries, currentId, genres, mediaType]);
+
+  if (recommendations.length === 0) return null;
+
+  return (
+    <div className="mt-12">
+      <h2 className="text-xl font-bold text-white mb-4">
+        Si te gustó <span className="text-brand-red italic">{title}</span>, también te puede gustar…
+      </h2>
+      <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+        {recommendations.map(item => (
+          <a key={item.id} href={`/${mediaType === "movie" ? "pelicula" : "serie"}/${item.id}`} className="flex-shrink-0 w-32 group">
+            <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-brand-surface border border-brand-border group-hover:border-brand-red/60 transition-colors">
+              {item.poster_url
+                ? <img src={item.poster_url} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
+                : <div className="w-full h-full flex items-center justify-center text-gray-600 text-xs text-center px-2">{item.title}</div>
+              }
+              {(item.rating ?? 0) > 0 && (
+                <div className="absolute top-1.5 right-1.5 bg-black/70 backdrop-blur-sm rounded-full px-1.5 py-0.5 text-[10px] font-bold text-brand-gold">
+                  ★ {Number(item.rating).toFixed(1)}
+                </div>
+              )}
+            </div>
+            <p className="mt-1.5 text-xs font-semibold text-gray-200 truncate group-hover:text-white transition-colors">{item.title}</p>
+            {item.year && <p className="text-[10px] text-gray-500">{item.year}</p>}
+          </a>
+        ))}
+      </div>
     </div>
   );
 }
@@ -767,8 +430,13 @@ export default function MovieDetail() {
         {/* ── Reparto ───────────────────────────────── */}
         <CastSection cast={castFull} />
 
-        {/* ── Media ordenada con tabs ───────────────── */}
-        <MediaSection videos={allVideos} mainTrailerKey={movie.yt_trailer_code} />
+        {/* ── Media + Imágenes (tabs unificados) ──────── */}
+        <MediaSection
+          videos={allVideos}
+          mainTrailerKey={movie.yt_trailer_code}
+          imdbId={movie.imdb_id}
+          mediaType="movie"
+        />
 
         {/* ── Reseñas ───────────────────────────────── */}
         {reviews.length > 0 && (
@@ -782,15 +450,13 @@ export default function MovieDetail() {
           </div>
         )}
 
-        {/* ── Galería de imágenes ───────────────────── */}
-        {movie.imdb_id && (
-          <GallerySection imdbId={movie.imdb_id} type="movie" />
-        )}
-
-        {/* ── Recomendaciones ──────────────────────── */}
-        {movie.imdb_id && (
-          <RecommendationsSection imdbId={movie.imdb_id} type="movie" title={movie.title} />
-        )}
+        {/* ── Recomendaciones desde la BD propia ───────── */}
+        <RecommendationsSection
+          currentId={movie.id}
+          genres={movie.genres ?? []}
+          mediaType="movie"
+          title={movie.title}
+        />
       </div>
     </div>
   );
