@@ -38,6 +38,27 @@ function extractImdbIds(text: string): string[] {
   return [...new Set(matches.map((id) => id.toLowerCase()))];
 }
 
+function extractTmdbCollectionIds(text: string): number[] {
+  const ids: number[] = [];
+  
+  // 1. Buscar URLs de TMDB con patrón /collection/(\d+)
+  const urlMatches = text.matchAll(/\/collection\/(\d+)/g);
+  for (const match of urlMatches) {
+    ids.push(parseInt(match[1], 10));
+  }
+  
+  // 2. Buscar números de 2 a 7 dígitos que no sean parte de una URL ya capturada
+  // Eliminamos las URLs del texto para evitar capturar sus números
+  const cleanText = text.replace(/https?:\/\/[^\s]+/g, " ");
+  const numMatches = cleanText.match(/\b\d{2,7}\b/g) ?? [];
+  for (const num of numMatches) {
+    ids.push(parseInt(num, 10));
+  }
+  
+  // 3. Deduplicar
+  return [...new Set(ids)];
+}
+
 // ─── Phase progress bar ──────────────────────────────────────────────────────
 
 const PHASE_LABELS: Record<Phase, string> = {
@@ -360,16 +381,17 @@ function RangeImportSection({ tab }: { tab: Tab }) {
 const COLLECTIONS = SAGA_SECTIONS.filter(s => s.collection_id).map(s => ({ id: s.collection_id!, label: s.label }));
 
 function CollectionImportSection() {
-  const [customId, setCustomId] = useState("");
+  const [customInput, setCustomInput] = useState("");
   const [loading, setLoading] = useState<number | null>(null);
   const [reseting, setReseting] = useState<number | null>(null);
   const [results, setResults] = useState<Record<number, { collection: string; imported: number; existed: number; total: number; deleted?: number }>>({});
   const [error, setError] = useState("");
   const [scanning, setScanning] = useState(false);
   const [scanDone, setScanDone] = useState(false);
-  const [forceRescan, setForceRescan] = useState(false);
   const [scanProgress, setScanProgress] = useState({ current: 0, total: 0, updated: 0, no_collection: 0, error: 0, title: "" });
   const scanEsRef = useRef<EventSource | null>(null);
+
+  const detectedIds = useMemo(() => extractTmdbCollectionIds(customInput), [customInput]);
 
   const handleScanCollections = () => {
     if (scanEsRef.current) scanEsRef.current.close();
@@ -412,7 +434,7 @@ function CollectionImportSection() {
       const res = await importCollection(id);
       setResults(prev => ({ ...prev, [id]: { ...prev[id], collection: res.collection, imported: res.imported, existed: res.existed, total: res.total } }));
     } catch (e: any) {
-      setError(e.message || "Error al importar la colección.");
+      setError(e.message || `Error al importar la colección ${id}.`);
     } finally {
       setLoading(null);
     }
@@ -432,10 +454,17 @@ function CollectionImportSection() {
     }
   };
 
-  const handleCustomImport = () => {
-    const id = parseInt(customId.trim(), 10);
-    if (!id || isNaN(id)) { setError("Ingresa un ID de colección válido."); return; }
-    handleImport(id);
+  const handleCustomImport = async () => {
+    if (detectedIds.length === 0) {
+      setError("No se detectaron IDs de colección válidos en el texto.");
+      return;
+    }
+    
+    // Importamos uno por uno
+    for (const id of detectedIds) {
+      await handleImport(id);
+    }
+    setCustomInput(""); // Limpiar al terminar
   };
 
   return (
@@ -443,7 +472,7 @@ function CollectionImportSection() {
       <div>
         <h2 className="text-white font-bold text-base mb-1">Importar por Colección TMDB</h2>
         <p className="text-gray-500 text-sm">
-          Importa todas las películas de una saga completa usando el ID de colección de TMDB.
+          Importa todas las películas de una saga completa usando el ID de colección de TMDB. Puedes pegar URLs, listas o texto libre.
         </p>
       </div>
 
@@ -492,22 +521,41 @@ function CollectionImportSection() {
         )}
       </div>
 
-      {/* Custom collection ID input */}
-      <div className="flex gap-2">
-        <input
-          type="number"
-          value={customId}
-          onChange={e => setCustomId(e.target.value)}
-          placeholder="ID de colección TMDB (ej: 1241)"
-          className="flex-1 bg-brand-surface border border-brand-border rounded-lg px-3 py-2 text-gray-200 text-sm focus:outline-none focus:border-gray-500 transition-colors"
-        />
-        <button
-          onClick={handleCustomImport}
-          disabled={loading !== null}
-          className="flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
-        >
-          Importar
-        </button>
+      {/* Custom collection ID input - MEJORADO */}
+      <div className="space-y-3">
+        <div className="relative">
+          <textarea
+            value={customInput}
+            onChange={e => setCustomInput(e.target.value)}
+            placeholder="Pega URLs de TMDB, IDs sueltos, o texto mezclado (ej: Harry Potter 1241, Jurassic 328...)"
+            className="w-full bg-brand-surface border border-brand-border rounded-xl px-4 py-3 text-gray-200 text-sm focus:outline-none focus:border-gray-500 transition-colors min-h-[120px] resize-y"
+          />
+          <button
+            onClick={handleCustomImport}
+            disabled={loading !== null || detectedIds.length === 0}
+            className="absolute bottom-3 right-3 flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
+          >
+            {loading !== null ? (
+              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M12 5v14m7-7H5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            )}
+            Importar {detectedIds.length > 0 ? `(${detectedIds.length})` : ""}
+          </button>
+        </div>
+        
+        {detectedIds.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 px-1">
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">IDs detectados:</span>
+            {detectedIds.map(id => (
+              <span key={id} className="inline-flex items-center bg-brand-surface border border-brand-border px-2 py-0.5 rounded text-xs font-mono text-brand-red">
+                {id}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Known collections grid */}
