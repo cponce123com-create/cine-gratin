@@ -68,6 +68,14 @@ export interface TmdbVideo {
   official: boolean;
 }
 
+/** TMDB cast member with photo */
+export interface CastMember {
+  id: number;
+  name: string;
+  character: string;
+  profile_url: string | null;
+}
+
 /** TMDB user review */
 export interface TmdbReview {
   author: string;
@@ -99,12 +107,7 @@ export interface Movie {
   duration_min?: number;
   director?: string;
   cast_list?: string[];
-  networks?: string[];
-  language?: string;
-  mpa_rating?: string;
-  poster_url?: string;
-  background_url?: string;
-  /** YouTube video key (e.g. "dQw4w9WgXcQ") — use with youtube.com/embed/{key} */
+  cast_full?: CastMember[];
   yt_trailer_code?: string;
   /** Legacy full URL — may not be populated */
   trailer_url?: string;
@@ -132,7 +135,7 @@ export interface Series {
   rating?: number;
   creators?: string[];
   cast_list?: string[];
-  networks?: string[];
+  cast_full?: CastMember[];
   language?: string;
   poster_url?: string;
   background_url?: string;
