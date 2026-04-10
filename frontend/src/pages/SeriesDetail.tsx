@@ -584,6 +584,28 @@ function RecommendationsSection({
   );
 }
 
+export default function SeriesDetail() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+
+  const { data: series, isLoading: loading, error } = useQuery({
+    queryKey: ["series", id],
+    queryFn: () => getSeriesById(id!),
+    enabled: !!id,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const [selectedSeasonIdx, setSelectedSeasonIdx] = useState(0);
+
+  const seasonsData: SeasonData[] = useMemo(
+    () => parseSeasons(series?.seasons_data),
+    [series?.seasons_data]
+  );
+
+  const currentSeason = seasonsData[selectedSeasonIdx] ?? null;
+  const episodeCount = currentSeason?.episodes ?? 0;
+
+  const episodes = useMemo(
     () => Array.from({ length: episodeCount }, (_, i) => i + 1),
     [episodeCount]
   );
