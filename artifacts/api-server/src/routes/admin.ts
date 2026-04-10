@@ -34,9 +34,9 @@ router.get("/admin/stats", async (_req, res) => {
 
     res.json({
       global: {
-        movies: parseInt(moviesCount.rows[0].count),
-        series: parseInt(seriesCount.rows[0].count),
-        totalViews: parseInt(totalViews.rows[0].total),
+        movies: Number(moviesCount.rows[0]?.count ?? 0),
+        series: Number(seriesCount.rows[0]?.count ?? 0),
+        totalViews: Number(totalViews.rows[0]?.total ?? 0),
       },
       top10: {
         movies: topMovies.rows,
@@ -44,7 +44,7 @@ router.get("/admin/stats", async (_req, res) => {
       },
       trends: recentTrends.rows.map(r => ({
         date: r.day,
-        count: parseInt(r.count)
+        count: Number(r.count ?? 0),
       })),
     });
   } catch (e) {

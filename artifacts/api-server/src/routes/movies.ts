@@ -1,6 +1,20 @@
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 import { pool } from "../lib/db";
 import { rateLimit } from "express-rate-limit";
+
+/** Inline auth check for routes that are NOT under /admin/* but still need protection. */
+function requireAuth(req: Request, res: Response): boolean {
+  const secret = process.env["ADMIN_SECRET"];
+  if (!secret) return true; // dev mode: no ADMIN_SECRET set
+  const authHeader = req.headers["authorization"];
+  const queryToken = req.query["token"] as string | undefined;
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : queryToken;
+  if (!token || token !== secret) {
+    res.status(401).json({ error: "No autorizado" });
+    return false;
+  }
+  return true;
+}
 
 const router = Router();
 
@@ -208,6 +222,7 @@ router.get("/settings", async (req, res) => {
 
 // POST /api/settings
 router.post("/settings", async (req, res) => {
+  if (!requireAuth(req, res)) return;
   const settings: Record<string, string> = req.body;
   try {
     for (const [key, value] of Object.entries(settings)) {
@@ -235,6 +250,7 @@ router.get("/servers", async (req, res) => {
 
 // POST /api/servers
 router.post("/servers", async (req, res) => {
+  if (!requireAuth(req, res)) return;
   const servers: Array<{ id: string; name: string; base_url: string; active: boolean; sort_order: number }> = req.body;
   try {
     await pool.query("DELETE FROM cv_servers");
@@ -269,6 +285,7 @@ router.post("/auth/login", async (req, res) => {
 
 // POST /api/auth/change-password
 router.post("/auth/change-password", async (req, res) => {
+  if (!requireAuth(req, res)) return;
   const { password } = req.body;
   try {
     await pool.query("UPDATE cv_auth SET password = $1 WHERE id = 'admin'", [password]);
