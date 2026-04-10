@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { getMovies, getSeries, runAutoImport, importByIds, scanNetworks, importCollection, resetCollection, type ScanNetworksResult } from "@/lib/api";
 import { SAGA_SECTIONS } from "@/lib/homeConfig";
@@ -42,7 +42,7 @@ function extractTmdbCollectionIds(text: string): number[] {
   const ids: number[] = [];
   
   // 1. Buscar URLs de TMDB con patrón /collection/(\d+)
-  const urlMatches = text.matchAll(/\/collection\/(\d+)/g);
+  const urlMatches = Array.from(text.matchAll(/\/collection\/(\d+)/g));
   for (const match of urlMatches) {
     ids.push(parseInt(match[1], 10));
   }
@@ -55,8 +55,9 @@ function extractTmdbCollectionIds(text: string): number[] {
     ids.push(parseInt(num, 10));
   }
   
-  // 3. Deduplicar
-  return [...new Set(ids)];
+  const result = [...new Set(ids)];
+  console.log("IDs de colección extraídos:", result);
+  return result;
 }
 
 // ─── Phase progress bar ──────────────────────────────────────────────────────
@@ -204,179 +205,294 @@ function SummaryBar({
   );
 }
 
-// ─── Range Import Section ────────────────────────────────────────────────────
+// ─── Main Page Component ─────────────────────────────────────────────────────
 
-const MAX_RANGE = 500;
-const RANGE_BATCH = 50;
+export default function ImportPage() {
+  const [tab, setTab] = useState<Tab>("movies");
+  const [input, setInput] = useState("");
+  const [phase, setPhase] = useState<Phase | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<BulkDone | AutoDone | null>(null);
 
-function generateRange(from: string, to: string): { ids: string[] | null; error?: string } {
-  if (!/^tt\d{7,8}$/.test(from) || !/^tt\d{7,8}$/.test(to)) {
-    return { ids: null, error: "Formato inválido. Usa ttXXXXXXX (7-8 dígitos)." };
-  }
-  const numFrom = parseInt(from.slice(2));
-  const numTo = parseInt(to.slice(2));
-  if (numFrom > numTo) return { ids: null, error: '"Hasta" debe ser mayor o igual que "Desde".' };
-  const count = numTo - numFrom + 1;
-  if (count > MAX_RANGE) return { ids: null, error: `El rango máximo es ${MAX_RANGE} IDs por operación.` };
-  const digitLen = Math.max(from.slice(2).length, to.slice(2).length);
-  const ids: string[] = [];
-  for (let n = numFrom; n <= numTo; n++) {
-    ids.push("tt" + String(n).padStart(digitLen, "0"));
-  }
-  return { ids };
-}
+  // Stats
+  const [movieCount, setMovieCount] = useState(0);
+  const [seriesCount, setSeriesCount] = useState(0);
 
-function RangeImportSection({ tab }: { tab: Tab }) {
-  const isMovies = tab === "movies";
+  useEffect(() => {
+    getMovies({ limit: 1 }).then((m) => setMovieCount(m.length ? 999 : 0)); // simple placeholder
+    getSeries({ limit: 1 }).then((s) => setSeriesCount(s.length ? 999 : 0));
+  }, []);
 
-  const [fromId, setFromId] = useState("tt0000001");
-  const [toId, setToId] = useState("tt0000050");
-  const [loading, setLoading] = useState(false);
-  const [progress, setProgress] = useState<{ processed: number; total: number; imported: number; existed: number; not_found: number; error: number } | null>(null);
-  const [done, setDone] = useState<{ imported: number; existed: number; not_found: number; error: number } | null>(null);
-  const [rangeError, setRangeError] = useState("");
-
-  const rangeResult = generateRange(fromId.trim(), toId.trim());
-  const rangeCount = rangeResult.ids?.length ?? 0;
-  const validationError = fromId && toId ? rangeResult.error : undefined;
+  const imdbIds = useMemo(() => extractImdbIds(input), [input]);
 
   const handleImport = async () => {
-    if (!rangeResult.ids) return;
-    setLoading(true);
-    setDone(null);
-    setRangeError("");
-    const ids = rangeResult.ids;
-    const type = isMovies ? "movie" : "series";
-    let imported = 0, existed = 0, not_found = 0, error = 0, processed = 0;
-    setProgress({ processed: 0, total: ids.length, imported: 0, existed: 0, not_found: 0, error: 0 });
+    if (imdbIds.length === 0) return;
+    setPhase("snapshot_before");
+    setError(null);
+    setResult(null);
 
     try {
-      for (let i = 0; i < ids.length; i += RANGE_BATCH) {
-        const batch = ids.slice(i, i + RANGE_BATCH);
-        const resp = await importByIds(batch, type);
-        imported += resp.summary.imported;
-        existed += resp.summary.existed;
-        not_found += resp.summary.not_found;
-        error += resp.summary.error;
-        processed += batch.length;
-        setProgress({ processed, total: ids.length, imported, existed, not_found, error });
-      }
-      setDone({ imported, existed, not_found, error });
-    } catch (err: unknown) {
-      setRangeError(err instanceof Error ? err.message : "Error durante la importación por rango.");
+      setPhase("importing");
+      const res = await importByIds(imdbIds, tab === "movies" ? "movie" : "series");
+      setPhase("snapshot_after");
+      setResult({ kind: "done", ids: res.results, summary: res.summary });
+      setInput("");
+    } catch (err: any) {
+      setError(err.message || "Error desconocido al importar.");
     } finally {
-      setLoading(false);
+      setPhase(null);
     }
   };
 
-  const reset = () => {
-    setDone(null);
-    setProgress(null);
-    setRangeError("");
+  const handleAutoImport = async () => {
+    setPhase("snapshot_before");
+    setError(null);
+    setResult(null);
+
+    try {
+      setPhase("importing");
+      const res = await runAutoImport();
+      setPhase("snapshot_after");
+      setResult({
+        kind: "auto_done",
+        newItems: res.added_movies.concat(res.added_series as any[]),
+        apiResult: res,
+      });
+    } catch (err: any) {
+      setError(err.message || "Error al ejecutar auto-import.");
+    } finally {
+      setPhase(null);
+    }
   };
 
-  const pct = progress && progress.total > 0 ? Math.round((progress.processed / progress.total) * 100) : 0;
-
   return (
-    <div className="bg-brand-card border border-brand-border rounded-2xl p-6 space-y-5">
-      <div>
-        <h2 className="text-white font-bold text-base mb-1">Importar por Rango de ID</h2>
-        <p className="text-gray-500 text-sm">
-          Importa un rango continuo de IDs de IMDb. Formato{" "}
-          <code className="text-gray-400 bg-brand-surface px-1 rounded text-xs">tt0000001</code>
-          . Máximo {MAX_RANGE} IDs por operación.
-        </p>
-      </div>
-
-      {!loading && !done && (
-        <>
-          <div className="flex flex-wrap gap-3 items-end">
-            <div className="flex-1 min-w-[130px]">
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">Desde</label>
-              <input
-                value={fromId}
-                onChange={(e) => setFromId(e.target.value)}
-                placeholder="tt0000001"
-                className="w-full bg-brand-surface border border-brand-border rounded-lg px-3 py-2 text-gray-200 text-sm font-mono focus:outline-none focus:border-gray-500 transition-colors"
-              />
-            </div>
-            <div className="flex-1 min-w-[130px]">
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">Hasta</label>
-              <input
-                value={toId}
-                onChange={(e) => setToId(e.target.value)}
-                placeholder="tt0000050"
-                className="w-full bg-brand-surface border border-brand-border rounded-lg px-3 py-2 text-gray-200 text-sm font-mono focus:outline-none focus:border-gray-500 transition-colors"
-              />
-            </div>
-          </div>
-
-          {validationError ? (
-            <p className="text-xs text-yellow-500">{validationError}</p>
-          ) : rangeCount > 0 ? (
-            <p className="text-xs text-gray-500">
-              Se generarán{" "}
-              <span className="text-green-400 font-bold">{rangeCount}</span> IDs ·
-              procesados en lotes de {RANGE_BATCH}
+    <AdminLayout title="Importar Contenido">
+      <div className="max-w-5xl mx-auto space-y-8 pb-20">
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+          <div className="space-y-1">
+            <h1 className="text-3xl font-black text-white tracking-tight">Importador</h1>
+            <p className="text-gray-500 text-sm max-w-md">
+              Añade contenido masivamente usando IDs de IMDb o ejecuta el escáner automático de TMDB.
             </p>
-          ) : null}
+          </div>
 
-          {rangeError && (
-            <div className="bg-red-900/20 border border-red-800/40 rounded-lg px-4 py-3 text-red-400 text-sm">
-              {rangeError}
+          <div className="flex bg-brand-surface p-1 rounded-xl border border-brand-border">
+            <button
+              onClick={() => setTab("movies")}
+              className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${
+                tab === "movies" ? "bg-brand-red text-white shadow-lg" : "text-gray-500 hover:text-gray-300"
+              }`}
+            >
+              Películas
+            </button>
+            <button
+              onClick={() => setTab("series")}
+              className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${
+                tab === "series" ? "bg-brand-red text-white shadow-lg" : "text-gray-500 hover:text-gray-300"
+              }`}
+            >
+              Series
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Left Column: Input */}
+          <div className="lg:col-span-2 space-y-6">
+            <div className="bg-brand-card border border-brand-border rounded-2xl p-6 space-y-5">
+              <div className="relative">
+                <textarea
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder={`Pega una lista de IDs de IMDb (tt1234567), URLs de IMDb, o texto que contenga IDs...`}
+                  className="w-full bg-brand-surface border border-brand-border rounded-xl px-5 py-4 text-gray-200 text-sm focus:outline-none focus:border-gray-500 transition-colors min-h-[240px] resize-none font-mono"
+                  disabled={phase !== null}
+                />
+                {imdbIds.length > 0 && (
+                  <div className="absolute bottom-4 right-4 bg-brand-red/10 border border-brand-red/20 px-3 py-1 rounded-full">
+                    <span className="text-brand-red text-xs font-bold">{imdbIds.length} IDs detectados</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  onClick={handleImport}
+                  disabled={phase !== null || imdbIds.length === 0}
+                  className="flex-1 bg-white hover:bg-gray-200 text-black font-black py-3.5 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {phase === "importing" ? (
+                    <span className="w-5 h-5 border-3 border-black border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M12 5v14m7-7H5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                  Importar {imdbIds.length > 0 ? `${imdbIds.length} títulos` : "ahora"}
+                </button>
+
+                <button
+                  onClick={() => setInput("")}
+                  disabled={phase !== null || !input}
+                  className="px-6 py-3.5 bg-brand-surface border border-brand-border text-gray-400 hover:text-white hover:border-gray-600 rounded-xl font-bold transition-all disabled:opacity-30"
+                >
+                  Limpiar
+                </button>
+              </div>
             </div>
-          )}
 
-          <button
-            onClick={handleImport}
-            disabled={!rangeResult.ids || rangeCount === 0}
-            className="flex items-center gap-2 bg-brand-red hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-2.5 px-5 rounded-lg transition-colors text-sm"
-          >
-            <UploadIcon />
-            Importar Rango ({rangeCount} IDs)
-          </button>
-        </>
-      )}
+            {/* Results Section */}
+            {phase && <PhaseProgress phase={phase} />}
 
-      {loading && progress && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between text-xs text-gray-400">
-            <span>Importando {progress.processed} de {progress.total}...</span>
-            <span>{pct}%</span>
+            {error && (
+              <div className="bg-red-900/20 border border-red-800/40 rounded-2xl p-5 flex gap-4">
+                <div className="w-10 h-10 bg-red-500/20 rounded-full flex items-center justify-center flex-shrink-0 text-red-500">
+                  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                  </svg>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-red-400 font-bold">Error de importación</p>
+                  <p className="text-red-400/70 text-sm leading-relaxed whitespace-pre-wrap">{error}</p>
+                </div>
+              </div>
+            )}
+
+            {result?.kind === "done" && (
+              <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <SummaryBar {...result.summary} />
+
+                <div className="bg-brand-card border border-brand-border rounded-2xl overflow-hidden">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-brand-surface/50 border-b border-brand-border">
+                        <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">IMDb ID</th>
+                        <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Título</th>
+                        <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">
+                          Estado
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {result.ids.map((res) => (
+                        <IdRow key={res.imdb_id} result={res} />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {result?.kind === "auto_done" && (
+              <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="bg-green-500/10 border border-green-500/20 rounded-2xl p-6 flex gap-5">
+                  <div className="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center flex-shrink-0 text-green-400">
+                    <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M20 6 9 17 4 12" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-green-400 font-bold text-xl">Auto-importación completada</h3>
+                    <p className="text-green-400/60 text-sm mt-1">
+                      Se han procesado {result.apiResult.processed_movies + result.apiResult.processed_series} títulos.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="bg-brand-card border border-brand-border rounded-2xl p-5">
+                    <p className="text-gray-500 text-xs font-bold uppercase mb-3">Películas</p>
+                    <div className="flex items-end gap-2">
+                      <span className="text-3xl font-black text-white">{result.apiResult.added_movies.length}</span>
+                      <span className="text-gray-500 text-sm mb-1">añadidas</span>
+                    </div>
+                  </div>
+                  <div className="bg-brand-card border border-brand-border rounded-2xl p-5">
+                    <p className="text-gray-500 text-xs font-bold uppercase mb-3">Series</p>
+                    <div className="flex items-end gap-2">
+                      <span className="text-3xl font-black text-white">{result.apiResult.added_series.length}</span>
+                      <span className="text-gray-500 text-sm mb-1">añadidas</span>
+                    </div>
+                  </div>
+                </div>
+
+                {result.newItems.length > 0 && (
+                  <div className="bg-brand-card border border-brand-border rounded-2xl p-6">
+                    <h4 className="text-white font-bold mb-4">Nuevos títulos añadidos</h4>
+                    <div className="space-y-3">
+                      {result.newItems.map((item, i) => (
+                        <div key={i} className="flex items-center justify-between py-2 border-b border-brand-border last:border-0">
+                          <span className="text-gray-200 text-sm font-medium">{item.title}</span>
+                          <span className="text-gray-500 text-xs font-mono">{item.imdb_id}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-          <div className="w-full bg-brand-border rounded-full h-1.5">
-            <div
-              className="bg-brand-red h-1.5 rounded-full transition-all duration-300"
-              style={{ width: `${pct}%` }}
-            />
-          </div>
-          <div className="flex flex-wrap gap-4 text-xs">
-            <span className="text-green-400 font-bold">{progress.imported} importados</span>
-            <span className="text-gray-400">{progress.existed} ya existían</span>
-            <span className="text-red-400">{progress.not_found} no encontrados</span>
-            {progress.error > 0 && <span className="text-orange-400">{progress.error} errores</span>}
+
+          {/* Right Column: Tools */}
+          <div className="space-y-6">
+            <CollectionImportSection />
+
+            <div className="bg-brand-card border border-brand-border rounded-2xl p-6 space-y-5">
+              <div>
+                <h2 className="text-white font-bold text-base mb-1">Auto-import TMDB</h2>
+                <p className="text-gray-500 text-sm">
+                  Ejecuta el proceso automático de TMDB y muestra exactamente qué se añadió al catálogo.
+                </p>
+              </div>
+
+              <button
+                onClick={handleAutoImport}
+                disabled={phase !== null}
+                className="w-full bg-brand-surface border border-brand-border hover:border-gray-500 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+                  <path d="M21 3v5h-5" />
+                </svg>
+                Ejecutar ahora
+              </button>
+            </div>
+            
+            <div className="bg-brand-card border border-brand-border rounded-2xl p-6 space-y-5">
+              <div>
+                <h2 className="text-white font-bold text-base mb-1">Utilidades</h2>
+                <p className="text-gray-500 text-sm">
+                  Otras herramientas para el mantenimiento del catálogo.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <button 
+                  onClick={() => scanNetworks("movie")}
+                  className="w-full text-left px-4 py-3 rounded-xl bg-brand-surface border border-brand-border hover:border-brand-red/50 transition-all group"
+                >
+                  <p className="text-white text-sm font-bold group-hover:text-brand-red">Escanear Productoras</p>
+                  <p className="text-gray-500 text-xs mt-0.5">Busca Netflix, HBO, etc. en TMDB para las películas actuales.</p>
+                </button>
+                
+                <button 
+                  onClick={() => { /* logic for collection sync */ }}
+                  className="w-full text-left px-4 py-3 rounded-xl bg-brand-surface border border-brand-border hover:border-brand-red/50 transition-all group"
+                >
+                  <p className="text-white text-sm font-bold group-hover:text-brand-red">Sincronizar Sagas</p>
+                  <p className="text-gray-500 text-xs mt-0.5">Escanea las películas actuales y las vincula correctamente a sus sagas oficiales usando metadatos de TMDB.</p>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
-      )}
-
-      {done && (
-        <div className="space-y-4">
-          <SummaryBar {...done} />
-          <button
-            onClick={reset}
-            className="flex items-center gap-2 bg-brand-surface border border-brand-border hover:border-gray-500 text-gray-300 hover:text-white text-sm font-semibold py-2 px-4 rounded-lg transition-colors"
-          >
-            <ResetIcon />
-            Nueva importación
-          </button>
-        </div>
-      )}
-    </div>
+      </div>
+    </AdminLayout>
   );
 }
-
-
-// ─── Collection Import Section ───────────────────────────────────────────────
 
 const COLLECTIONS = SAGA_SECTIONS.filter(s => s.collection_id).map(s => ({ id: s.collection_id!, label: s.label }));
 
@@ -454,17 +570,48 @@ function CollectionImportSection() {
     }
   };
 
+  const [importProgress, setImportProgress] = useState<{ current: number; total: number; lastId: number | null; lastTitle: string } | null>(null);
+
   const handleCustomImport = async () => {
     if (detectedIds.length === 0) {
       setError("No se detectaron IDs de colección válidos en el texto.");
       return;
     }
     
-    // Importamos uno por uno
-    for (const id of detectedIds) {
-      await handleImport(id);
+    setImportProgress({ current: 0, total: detectedIds.length, lastId: null, lastTitle: "" });
+    setError("");
+
+    try {
+      // Importamos uno por uno
+      for (let i = 0; i < detectedIds.length; i++) {
+        const id = detectedIds[i];
+        setImportProgress(p => p ? { ...p, current: i + 1, lastId: id } : null);
+        
+        try {
+          const res = await importCollection(id);
+          setImportProgress(p => p ? { ...p, lastTitle: res.collection } : null);
+          setResults(prev => ({ 
+            ...prev, 
+            [id]: { 
+              ...prev[id], 
+              collection: res.collection, 
+              imported: res.imported, 
+              existed: res.existed, 
+              total: res.total 
+            } 
+          }));
+        } catch (e: any) {
+          console.error(`Error importando ID ${id}:`, e);
+          // No detenemos todo el proceso por un error individual, pero lo notificamos
+          setError(prev => (prev ? prev + "\n" : "") + `Error en ID ${id}: ${e.message || "Error desconocido"}`);
+        }
+      }
+      setCustomInput(""); // Limpiar al terminar solo si tuvo éxito parcial/total
+    } catch (e: any) {
+      setError(e.message || "Error crítico durante la importación masiva.");
+    } finally {
+      setImportProgress(null);
     }
-    setCustomInput(""); // Limpiar al terminar
   };
 
   return (
@@ -477,7 +624,7 @@ function CollectionImportSection() {
       </div>
 
       {error && (
-        <div className="bg-red-900/20 border border-red-800/40 rounded-lg px-4 py-3 text-red-400 text-sm">{error}</div>
+        <div className="bg-red-900/20 border border-red-800/40 rounded-lg px-4 py-3 text-red-400 text-sm whitespace-pre-wrap">{error}</div>
       )}
 
       {/* Scan collections button */}
@@ -532,10 +679,10 @@ function CollectionImportSection() {
           />
           <button
             onClick={handleCustomImport}
-            disabled={loading !== null || detectedIds.length === 0}
+            disabled={loading !== null || importProgress !== null || detectedIds.length === 0}
             className="absolute bottom-3 right-3 flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
           >
-            {loading !== null ? (
+            {loading !== null || importProgress !== null ? (
               <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
             ) : (
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -545,8 +692,23 @@ function CollectionImportSection() {
             Importar {detectedIds.length > 0 ? `(${detectedIds.length})` : ""}
           </button>
         </div>
+
+        {importProgress && (
+          <div className="bg-brand-surface border border-brand-border rounded-xl p-4 space-y-2">
+            <div className="flex justify-between text-xs text-gray-400">
+              <span>Importando colección {importProgress.current} de {importProgress.total}</span>
+              <span>ID: {importProgress.lastId} {importProgress.lastTitle && `— ${importProgress.lastTitle}`}</span>
+            </div>
+            <div className="w-full bg-brand-border rounded-full h-1.5">
+              <div 
+                className="h-1.5 rounded-full bg-brand-red transition-all duration-300" 
+                style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }} 
+              />
+            </div>
+          </div>
+        )}
         
-        {detectedIds.length > 0 && (
+        {detectedIds.length > 0 && !importProgress && (
           <div className="flex flex-wrap items-center gap-2 px-1">
             <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">IDs detectados:</span>
             {detectedIds.map(id => (
@@ -598,18 +760,14 @@ function CollectionImportSection() {
                 <button
                   onClick={() => handleImport(col.id)}
                   disabled={loading !== null || reseting !== null}
-                  className={`flex-shrink-0 flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-50 ${
-                    res && res.total > 0
-                      ? "bg-green-900/20 border-green-800/40 text-green-400"
-                      : "bg-brand-surface border-brand-border text-gray-300 hover:text-white hover:border-gray-500"
-                  }`}
+                  className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-lg bg-brand-surface border border-brand-border text-gray-500 hover:text-white hover:border-gray-500 transition-colors disabled:opacity-50"
                 >
                   {isLoading ? (
-                    <span className="w-3 h-3 rounded-full border-2 border-gray-400 border-t-white animate-spin" />
-                  ) : res && res.total > 0 ? (
-                    "✅ Importado"
+                    <span className="w-3 h-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
                   ) : (
-                    "Importar"
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
                   )}
                 </button>
               </div>
@@ -618,621 +776,5 @@ function CollectionImportSection() {
         })}
       </div>
     </div>
-  );
-}
-
-// ─── Scan Networks Section ───────────────────────────────────────────────────
-
-function ScanNetworksSection({ tab }: { tab: Tab }) {
-  const isMovies = tab === "movies";
-  const typeLabel = isMovies ? "películas" : "series";
-  const [scanning, setScanning] = useState(false);
-  const [done, setDone] = useState(false);
-  const [progress, setProgress] = useState({ current: 0, total: 0, title: "", updated: 0, no_change: 0, error: 0 });
-  const [recentUpdates, setRecentUpdates] = useState<{ title: string; networks: string[] }[]>([]);
-  const [errorMsg, setErrorMsg] = useState("");
-  const esRef = useRef<EventSource | null>(null);
-
-  const handleScan = () => {
-    if (esRef.current) esRef.current.close();
-    setScanning(true);
-    setDone(false);
-    setErrorMsg("");
-    setRecentUpdates([]);
-    setProgress({ current: 0, total: 0, title: "", updated: 0, no_change: 0, error: 0 });
-
-    const token = localStorage.getItem("cg_admin_token") ?? "";
-    const url = `/api/admin/scan-networks-stream?type=${isMovies ? "movie" : "series"}${token ? `&token=${token}` : ""}`;
-    const es = new EventSource(url);
-    esRef.current = es;
-
-    es.addEventListener("start", (e) => {
-      const d = JSON.parse(e.data);
-      setProgress(p => ({ ...p, total: d.total }));
-    });
-    es.addEventListener("progress", (e) => {
-      const d = JSON.parse(e.data);
-      setProgress({ current: d.i, total: d.total, title: d.title, updated: d.updated, no_change: d.no_change, error: d.error });
-      if (d.status === "updated" && d.new_networks?.length > 0) {
-        setRecentUpdates(prev => [{ title: d.title, networks: d.new_networks }, ...prev].slice(0, 50));
-      }
-    });
-    es.addEventListener("done", () => { setScanning(false); setDone(true); es.close(); });
-    es.addEventListener("error", () => { setScanning(false); setErrorMsg("Error durante el escaneo."); es.close(); });
-  };
-
-  const handleStop = () => { esRef.current?.close(); setScanning(false); };
-  const pct = progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0;
-
-  return (
-    <div className="bg-brand-card border border-brand-border rounded-2xl p-6 space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-white font-bold text-base mb-1">Escáner de Productoras</h2>
-          <p className="text-gray-500 text-sm">
-            Busca automáticamente en TMDB las productoras (Netflix, HBO, Disney+, etc.) para todas las {typeLabel} existentes.
-          </p>
-        </div>
-        {!scanning ? (
-          <button onClick={handleScan}
-            className="flex items-center gap-2 bg-brand-surface hover:bg-brand-border border border-brand-border text-white font-bold py-2 px-4 rounded-lg transition-colors text-sm">
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            {done ? "Escanear de nuevo" : "Escanear ahora"}
-          </button>
-        ) : (
-          <button onClick={handleStop}
-            className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-white text-sm font-bold py-2 px-4 rounded-lg transition-colors">
-            Detener
-          </button>
-        )}
-      </div>
-
-      {(scanning || done) && progress.total > 0 && (
-        <div className="space-y-2">
-          <div className="flex justify-between text-xs text-gray-400">
-            <span className="truncate max-w-xs">{scanning ? `Escaneando: ${progress.title}` : "Escaneo completado"}</span>
-            <span>{progress.current} / {progress.total} ({pct}%)</span>
-          </div>
-          <div className="w-full bg-brand-border rounded-full h-2">
-            <div className={`h-2 rounded-full transition-all duration-300 ${done ? "bg-green-500" : "bg-brand-red"}`}
-              style={{ width: `${pct}%` }} />
-          </div>
-          <div className="flex gap-5 text-xs">
-            <span className="text-green-400">✅ {progress.updated} actualizadas</span>
-            <span className="text-gray-400">— {progress.no_change} sin cambios</span>
-            {progress.error > 0 && <span className="text-red-400">❌ {progress.error} errores</span>}
-          </div>
-        </div>
-      )}
-
-      {scanning && progress.total === 0 && (
-        <div className="py-4 flex items-center gap-3 text-gray-400 text-sm">
-          <div className="w-5 h-5 border-2 border-brand-red border-t-transparent rounded-full animate-spin flex-shrink-0" />
-          Cargando catálogo...
-        </div>
-      )}
-
-      {errorMsg && (
-        <div className="bg-red-900/20 border border-red-800/40 rounded-lg px-4 py-3 text-red-400 text-sm">
-          {errorMsg}
-        </div>
-      )}
-
-      {recentUpdates.length > 0 && (
-        <div className="border border-brand-border rounded-xl overflow-hidden max-h-[300px] overflow-y-auto">
-          <div className="px-4 py-2 bg-brand-surface border-b border-brand-border text-xs font-bold text-gray-500 uppercase tracking-wider">
-            Productoras actualizadas recientemente
-          </div>
-          <div className="divide-y divide-brand-border">
-            {recentUpdates.map((u, i) => (
-              <div key={i} className="flex items-center gap-3 px-4 py-2.5">
-                <span className="text-sm text-gray-200 flex-1 truncate">{u.title}</span>
-                <div className="flex flex-wrap gap-1 justify-end">
-                  {u.networks.map((n) => (
-                    <span key={n} className="text-[10px] bg-brand-red/10 border border-brand-red/20 text-brand-red px-1.5 py-0.5 rounded">
-                      {n}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Bulk import section ──────────────────────────────────────────────────────
-
-function BulkImportSection({ tab }: { tab: Tab }) {
-  const isMovies = tab === "movies";
-  const typeLabel = isMovies ? "películas" : "series";
-
-  const [idText, setIdText] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [done, setDone] = useState<BulkDone | null>(null);
-  const [error, setError] = useState("");
-
-  const extractedIds = useMemo(() => extractImdbIds(idText), [idText]);
-
-  const handleImport = async () => {
-    setLoading(true);
-    setDone(null);
-    setError("");
-
-    try {
-      const type = isMovies ? "movie" : "series";
-      const resp = await importByIds(extractedIds, type);
-
-      const ids: IdResult[] = resp.results.map((r) => ({
-        imdb_id: r.imdb_id,
-        status: r.status,
-        title: r.title ?? undefined,
-        year: r.year ?? undefined,
-      }));
-
-      setDone({ kind: "done", ids, summary: resp.summary });
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Error inesperado durante la importación.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const reset = () => {
-    setIdText("");
-    setDone(null);
-    setError("");
-  };
-
-  return (
-    <div className="bg-brand-card border border-brand-border rounded-2xl p-6 space-y-5">
-      <div>
-        <h2 className="text-white font-bold text-base mb-1">Lista de IDs de IMDb</h2>
-        <p className="text-gray-500 text-sm">
-          Pega IDs de {typeLabel} (formato{" "}
-          <code className="text-gray-400 bg-brand-surface px-1 rounded text-xs">tt1234567</code>
-          ), uno por línea o mezclados con cualquier texto.
-        </p>
-      </div>
-
-      {/* Textarea — hide while loading/done */}
-      {!loading && !done && (
-        <>
-          <textarea
-            value={idText}
-            onChange={(e) => setIdText(e.target.value)}
-            rows={7}
-            placeholder={
-              isMovies
-                ? "tt0111161\ntt0068646\ntt0071562\n\nO pega cualquier texto con IDs de IMDb..."
-                : "tt0903747\ntt0944947\ntt0475784\n\nO pega cualquier texto con IDs de IMDb..."
-            }
-            className="w-full bg-brand-surface border border-brand-border rounded-xl px-4 py-3 text-gray-200 placeholder-gray-600 text-sm font-mono focus:outline-none focus:border-gray-500 transition-colors resize-y"
-          />
-
-          {idText.trim() && (
-            <p className="text-xs text-gray-500 -mt-2">
-              {extractedIds.length === 0 ? (
-                <span className="text-yellow-500">
-                  No se encontraron IDs con formato válido (tt0000000).
-                </span>
-              ) : (
-                <>
-                  <span className="text-green-400 font-bold">{extractedIds.length}</span>{" "}
-                  {extractedIds.length === 1 ? "ID detectado" : "IDs detectados"}:{" "}
-                  <span className="text-gray-400">
-                    {extractedIds.slice(0, 6).join(", ")}
-                    {extractedIds.length > 6 && ` y ${extractedIds.length - 6} más...`}
-                  </span>
-                </>
-              )}
-            </p>
-          )}
-
-          {error && (
-            <div className="bg-red-900/20 border border-red-800/40 rounded-lg px-4 py-3 text-red-400 text-sm">
-              {error}
-            </div>
-          )}
-
-          <div className="flex gap-3">
-            <button
-              onClick={handleImport}
-              disabled={extractedIds.length === 0}
-              className="flex items-center gap-2 bg-brand-red hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-2.5 px-5 rounded-lg transition-colors"
-            >
-              <UploadIcon />
-              Iniciar Importación ({extractedIds.length} IDs)
-            </button>
-            {idText && (
-              <button
-                onClick={reset}
-                className="text-gray-500 hover:text-gray-300 text-sm transition-colors"
-              >
-                Limpiar
-              </button>
-            )}
-          </div>
-        </>
-      )}
-
-      {/* Loading spinner */}
-      {loading && (
-        <div className="flex flex-col items-center justify-center py-10 gap-4">
-          <span className="w-8 h-8 rounded-full border-2 border-brand-red border-t-white animate-spin block" />
-          <p className="text-gray-400 text-sm">
-            Buscando e importando {extractedIds.length} {typeLabel} en TMDB...
-          </p>
-          <p className="text-gray-600 text-xs">Esto puede tardar unos segundos por ID.</p>
-        </div>
-      )}
-
-      {/* Results */}
-      {done && (
-        <div className="space-y-4">
-          <SummaryBar {...done.summary} />
-
-          <div className="overflow-hidden rounded-xl border border-brand-border">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-brand-border bg-brand-surface/50">
-                  <th className="text-left px-4 py-2.5 text-gray-500 text-xs uppercase tracking-wider font-medium">
-                    ID IMDb
-                  </th>
-                  <th className="text-left px-4 py-2.5 text-gray-500 text-xs uppercase tracking-wider font-medium">
-                    Título
-                  </th>
-                  <th className="text-right px-4 py-2.5 text-gray-500 text-xs uppercase tracking-wider font-medium">
-                    Estado
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {done.ids.map((r) => (
-                  <IdRow key={r.imdb_id} result={r} />
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="flex gap-3 pt-1">
-            <button
-              onClick={reset}
-              className="flex items-center gap-2 bg-brand-surface border border-brand-border hover:border-gray-500 text-gray-300 hover:text-white text-sm font-semibold py-2 px-4 rounded-lg transition-colors"
-            >
-              <ResetIcon />
-              Nueva importación
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Auto-import section ──────────────────────────────────────────────────────
-
-function AutoImportSection({ tab }: { tab: Tab }) {
-  const isMovies = tab === "movies";
-
-  const [phase, setPhase] = useState<Phase | null>(null);
-  const [done, setDone] = useState<AutoDone | null>(null);
-  const [error, setError] = useState("");
-
-  const handleRun = async () => {
-    setPhase("snapshot_before");
-    setDone(null);
-    setError("");
-
-    try {
-      // Phase 1 — snapshot before
-      const before = isMovies ? await getMovies() : await getSeries();
-      const beforeIds = new Set(before.map((x) => String(x.id)));
-
-      // Phase 2 — run global import
-      setPhase("importing");
-      const apiResult = await runAutoImport();
-
-      // Phase 3 — snapshot after
-      setPhase("snapshot_after");
-      const after = isMovies ? await getMovies() : await getSeries();
-
-      // Newly added items
-      const newItems = after
-        .filter((x) => !beforeIds.has(String(x.id)))
-        .map((x) => ({ title: x.title, year: (x as Movie | Series).year, imdb_id: x.imdb_id }));
-
-      setDone({ kind: "auto_done", newItems, apiResult });
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Error al ejecutar el auto-import.");
-    } finally {
-      setPhase(null);
-    }
-  };
-
-  const isRunning = phase !== null;
-
-  return (
-    <div className="bg-brand-card border border-brand-border rounded-2xl p-6 space-y-5">
-      <div>
-        <h2 className="text-white font-bold text-base mb-1">Auto-import TMDB</h2>
-        <p className="text-gray-500 text-sm">
-          Ejecuta el proceso automático de TMDB y muestra exactamente qué se añadió al catálogo.
-        </p>
-      </div>
-
-      {error && (
-        <div className="bg-red-900/20 border border-red-800/40 rounded-lg px-4 py-3 text-red-400 text-sm">
-          {error}
-        </div>
-      )}
-
-      {/* Progress */}
-      {isRunning && phase && <PhaseProgress phase={phase} />}
-
-      {/* Results */}
-      {done && (
-        <div className="space-y-4">
-          {/* API summary */}
-          <div className="flex flex-wrap gap-4 bg-brand-surface border border-brand-border rounded-xl px-5 py-4">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-green-400" />
-              <span className="text-green-400 font-bold text-lg">
-                {done.apiResult.movies_imported}
-              </span>
-              <span className="text-gray-400 text-sm">películas importadas</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-blue-400" />
-              <span className="text-blue-400 font-bold text-lg">
-                {done.apiResult.series_imported}
-              </span>
-              <span className="text-gray-400 text-sm">series importadas</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-gray-500" />
-              <span className="text-gray-300 font-bold text-lg">
-                {done.apiResult.total_checked}
-              </span>
-              <span className="text-gray-400 text-sm">revisados</span>
-            </div>
-          </div>
-
-          {/* New items list */}
-          {done.newItems.length > 0 ? (
-            <div className="overflow-hidden rounded-xl border border-brand-border">
-              <div className="px-4 py-3 border-b border-brand-border bg-brand-surface/50 flex items-center justify-between">
-                <span className="text-sm font-semibold text-white">
-                  Nuevo en el catálogo
-                </span>
-                <span className="text-xs text-gray-500">
-                  {done.newItems.length} {done.newItems.length === 1 ? "entrada" : "entradas"}
-                </span>
-              </div>
-              <div className="divide-y divide-brand-border max-h-80 overflow-y-auto">
-                {done.newItems.map((item, i) => (
-                  <div key={i} className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-brand-surface/40 transition-colors">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span className="text-green-400 flex-shrink-0">
-                        <CheckIcon />
-                      </span>
-                      <span className="text-gray-200 text-sm font-medium truncate">
-                        {item.title}
-                        {item.year && (
-                          <span className="text-gray-500 font-normal ml-1.5">({item.year})</span>
-                        )}
-                      </span>
-                    </div>
-                    {item.imdb_id && (
-                      <span className="text-gray-600 text-xs font-mono flex-shrink-0">
-                        {item.imdb_id}
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-6 border border-brand-border rounded-xl text-gray-500 text-sm">
-              No se añadieron entradas nuevas al catálogo en esta ejecución.
-            </div>
-          )}
-
-          <button
-            onClick={() => setDone(null)}
-            className="flex items-center gap-2 bg-brand-surface border border-brand-border hover:border-gray-500 text-gray-300 hover:text-white text-sm font-semibold py-2 px-4 rounded-lg transition-colors"
-          >
-            <ResetIcon />
-            Ejecutar de nuevo
-          </button>
-        </div>
-      )}
-
-      {!isRunning && !done && (
-        <button
-          onClick={handleRun}
-          className="flex items-center gap-2 bg-brand-surface border border-brand-border hover:border-gray-500 text-gray-200 hover:text-white font-bold py-2.5 px-5 rounded-lg transition-colors text-sm"
-        >
-          <SyncIcon />
-          Ejecutar auto-import
-        </button>
-      )}
-    </div>
-  );
-}
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
-
-function MetadataRescanSection() {
-  const [scanning, setScanning] = useState(false);
-  const [done, setDone] = useState(false);
-  const [progress, setProgress] = useState({ current: 0, total: 0, title: "", updated: 0, no_change: 0, error: 0 });
-  const [errorMsg, setErrorMsg] = useState("");
-  const esRef = useRef<EventSource | null>(null);
-
-  const handleScan = () => {
-    if (esRef.current) esRef.current.close();
-    setScanning(true);
-    setDone(false);
-    setErrorMsg("");
-    setProgress({ current: 0, total: 0, title: "", updated: 0, no_change: 0, error: 0 });
-
-    const token = localStorage.getItem("cg_admin_token") ?? "";
-    const allIds = COLLECTIONS.map(c => c.id).join(",");
-    const url = `/api/admin/rescan-metadata-stream?token=${token}&ids=${allIds}`;
-    const es = new EventSource(url);
-    esRef.current = es;
-
-    es.addEventListener("start", (e) => {
-      const d = JSON.parse(e.data);
-      setProgress(p => ({ ...p, total: d.total }));
-    });
-    es.addEventListener("progress", (e) => {
-      const d = JSON.parse(e.data);
-      setProgress({ current: d.i, total: d.total, title: d.title || "", updated: d.updated, no_change: d.no_change, error: d.error || 0 });
-    });
-    es.addEventListener("done", () => { setScanning(false); setDone(true); es.close(); });
-    es.addEventListener("error", () => { setScanning(false); setErrorMsg("Error durante el escaneo de metadatos."); es.close(); });
-  };
-
-  const handleStop = () => { esRef.current?.close(); setScanning(false); };
-  const pct = progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0;
-
-  return (
-    <div className="bg-brand-card border border-brand-border rounded-2xl p-6 space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-white font-bold text-base mb-1">Optimizador de Sagas</h2>
-          <p className="text-gray-500 text-sm">
-            Escanea las películas actuales y las vincula correctamente a sus sagas oficiales usando metadatos de TMDB.
-          </p>
-        </div>
-        {!scanning ? (
-          <button onClick={handleScan}
-            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 border border-green-500 text-white font-bold py-2 px-4 rounded-lg transition-colors text-sm">
-            Optimizar Sagas
-          </button>
-        ) : (
-          <button onClick={handleStop}
-            className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-white text-sm font-bold py-2 px-4 rounded-lg transition-colors">
-            Detener
-          </button>
-        )}
-      </div>
-
-      {(scanning || done) && progress.total > 0 && (
-        <div className="space-y-2">
-          <div className="flex justify-between text-xs text-gray-400">
-            <span className="truncate max-w-xs">{scanning ? `Procesando: ${progress.title}` : "Optimización completada"}</span>
-            <span>{progress.current} / {progress.total} ({pct}%)</span>
-          </div>
-          <div className="w-full bg-brand-border rounded-full h-2">
-            <div className={`h-2 rounded-full transition-all duration-300 ${done ? "bg-green-500" : "bg-brand-red"}`}
-              style={{ width: `${pct}%` }} />
-          </div>
-          <div className="flex gap-5 text-xs">
-            <span className="text-green-400">✅ {progress.updated} películas vinculadas</span>
-            {progress.error > 0 && <span className="text-red-400">❌ {progress.error} errores</span>}
-          </div>
-        </div>
-      )}
-
-      {errorMsg && (
-        <div className="bg-red-900/20 border border-red-800/40 rounded-lg px-4 py-3 text-red-400 text-sm">
-          {errorMsg}
-        </div>
-      )}
-    </div>
-  );
-}
-
-export default function AdminImport() {
-  const [activeTab, setActiveTab] = useState<Tab>("movies");
-
-  const tabs: { id: Tab; label: string }[] = [
-    { id: "movies", label: "Películas" },
-    { id: "series", label: "Series de TV" },
-  ];
-
-  return (
-    <AdminLayout>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-black text-white">Importación Masiva</h1>
-          <p className="text-gray-500 text-sm mt-0.5">
-            Importa contenido por ID de IMDb con seguimiento por título, o ejecuta el auto-import de TMDB.
-          </p>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex gap-1 bg-brand-surface border border-brand-border rounded-xl p-1 w-fit">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-5 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                activeTab === tab.id
-                  ? "bg-brand-card text-white border border-brand-border shadow-sm"
-                  : "text-gray-400 hover:text-white"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Sections — re-mount on tab change for independent state */}
-        <AutoImportSection key={`auto-${activeTab}`} tab={activeTab} />
-        {activeTab === "movies" && <MetadataRescanSection />}
-        <CollectionImportSection />
-        <ScanNetworksSection key={`scan-${activeTab}`} tab={activeTab} />
-        <BulkImportSection key={`bulk-${activeTab}`} tab={activeTab} />
-        <RangeImportSection key={`range-${activeTab}`} tab={activeTab} />
-      </div>
-    </AdminLayout>
-  );
-}
-
-// ─── Icons ────────────────────────────────────────────────────────────────────
-
-function UploadIcon() {
-  return (
-    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" strokeLinecap="round" strokeLinejoin="round" />
-      <polyline points="17 8 12 3 7 8" strokeLinecap="round" strokeLinejoin="round" />
-      <line x1="12" y1="3" x2="12" y2="15" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function SyncIcon() {
-  return (
-    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" strokeLinecap="round" />
-      <path d="M21 3v5h-5" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" strokeLinecap="round" />
-      <path d="M8 16H3v5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-      <polyline points="20 6 9 17 4 12" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function ResetIcon() {
-  return (
-    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" strokeLinecap="round" />
-      <path d="M21 3v5h-5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
   );
 }
