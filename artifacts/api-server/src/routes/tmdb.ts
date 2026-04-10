@@ -415,7 +415,97 @@ router.get("/tmdb/person/:personId", async (req, res) => {
   }
 });
 
-// ── In-memory cache ────────────────────────────────────────────────────────────
+// GET /api/tmdb/media/:imdbId?type=movie|series
+// Devuelve galería completa de imágenes (backdrops + posters) y recomendaciones desde TMDB.
+// Se llama de forma lazy desde el frontend cuando el usuario llega a esa sección.
+router.get("/tmdb/media/:imdbId", async (req, res) => {
+  const imdbId = req.params["imdbId"] as string;
+  const type = req.query.type === "series" ? "series" : "movie";
+
+  if (!imdbId) { res.status(400).json({ error: "Se requiere imdbId" }); return; }
+
+  try {
+    // Find TMDB id from imdb_id
+    const findRes = await tmdbFetch(`/find/${imdbId}?external_source=imdb_id`);
+    if (!findRes.ok) { res.status(502).json({ error: "Error al consultar TMDB" }); return; }
+
+    const findData = await findRes.json() as {
+      movie_results?: { id: number }[];
+      tv_results?: { id: number }[];
+    };
+
+    const tmdbId = type === "series"
+      ? findData.tv_results?.[0]?.id
+      : findData.movie_results?.[0]?.id;
+
+    if (!tmdbId) { res.status(404).json({ error: "No encontrado en TMDB" }); return; }
+
+    const endpoint = type === "series" ? "tv" : "movie";
+
+    // Fetch images and recommendations in parallel
+    const [imagesRes, recommendationsRes] = await Promise.all([
+      tmdbFetch(`/${endpoint}/${tmdbId}/images?include_image_language=es,en,null`),
+      tmdbFetch(`/${endpoint}/${tmdbId}/recommendations?language=es-MX&page=1`),
+    ]);
+
+    const [imagesData, recsData] = await Promise.all([
+      imagesRes.ok ? imagesRes.json() : Promise.resolve({ backdrops: [], posters: [] }),
+      recommendationsRes.ok ? recommendationsRes.json() : Promise.resolve({ results: [] }),
+    ]) as [
+      { backdrops?: Array<{ file_path: string; vote_average: number; width: number; height: number }>;
+        posters?: Array<{ file_path: string; vote_average: number; iso_639_1: string }> },
+      { results?: Array<{ id: number; title?: string; name?: string; poster_path?: string | null;
+          release_date?: string; first_air_date?: string; vote_average?: number; media_type?: string }> }
+    ];
+
+    // Backdrops: sort by vote_average, return up to 20
+    const backdrops = (imagesData.backdrops ?? [])
+      .sort((a, b) => b.vote_average - a.vote_average)
+      .slice(0, 20)
+      .map(b => ({
+        url: `${TMDB_IMG}/w1280${b.file_path}`,
+        url_original: `${TMDB_IMG}/original${b.file_path}`,
+        thumb: `${TMDB_IMG}/w300${b.file_path}`,
+        vote_average: b.vote_average,
+      }));
+
+    // Posters: show all languages, prioritize rated ones, up to 30
+    const posters = (imagesData.posters ?? [])
+      .sort((a, b) => {
+        // Spanish/English first, then by vote
+        const langA = a.iso_639_1 === "es" ? 2 : a.iso_639_1 === "en" ? 1 : 0;
+        const langB = b.iso_639_1 === "es" ? 2 : b.iso_639_1 === "en" ? 1 : 0;
+        if (langA !== langB) return langB - langA;
+        return b.vote_average - a.vote_average;
+      })
+      .slice(0, 30)
+      .map(p => ({
+        url: `${TMDB_IMG}/w500${p.file_path}`,
+        url_original: `${TMDB_IMG}/original${p.file_path}`,
+        thumb: `${TMDB_IMG}/w185${p.file_path}`,
+        lang: p.iso_639_1,
+      }));
+
+    // Recommendations: top 12
+    const recommendations = (recsData.results ?? [])
+      .slice(0, 12)
+      .map(r => ({
+        tmdb_id: r.id,
+        media_type: r.media_type ?? type,
+        title: r.title || r.name || "",
+        poster_url: r.poster_path ? `${TMDB_IMG}/w342${r.poster_path}` : "",
+        year: (r.release_date || r.first_air_date || "").slice(0, 4),
+        rating: Math.round((r.vote_average || 0) * 10) / 10,
+      }));
+
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    res.json({ backdrops, posters, recommendations });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+
 const cache = new Map<string, { data: unknown; expires: number }>();
 function fromCache<T>(key: string): T | null {
   const entry = cache.get(key);
@@ -425,6 +515,114 @@ function fromCache<T>(key: string): T | null {
 function toCache(key: string, data: unknown, ttlMs = 30 * 60 * 1000) {
   cache.set(key, { data, expires: Date.now() + ttlMs });
 }
+
+// GET /api/tmdb/images/:imdbId?type=movie|series
+router.get("/tmdb/images/:imdbId", async (req, res) => {
+  const { imdbId } = req.params;
+  const type = req.query.type === "series" ? "series" : "movie";
+  const cacheKey = `images_${imdbId}_${type}`;
+
+  const cached = fromCache<unknown>(cacheKey);
+  if (cached) { res.setHeader("Cache-Control", "public, max-age=3600"); res.json(cached); return; }
+
+  try {
+    const findRes = await tmdbFetch(`/find/${imdbId}?external_source=imdb_id`);
+    if (!findRes.ok) { res.status(502).json({ error: "Error TMDB" }); return; }
+    const findData = await findRes.json() as { movie_results?: { id: number }[]; tv_results?: { id: number }[] };
+    const tmdbId = type === "series" ? findData.tv_results?.[0]?.id : findData.movie_results?.[0]?.id;
+    if (!tmdbId) { res.status(404).json({ error: "No encontrado en TMDB" }); return; }
+
+    const endpoint = type === "series" ? "tv" : "movie";
+    const imagesRes = await tmdbFetch(`/${endpoint}/${tmdbId}/images?include_image_language=es,en,null`);
+    if (!imagesRes.ok) { res.status(502).json({ error: "Error al obtener imágenes" }); return; }
+
+    const images = await imagesRes.json() as {
+      backdrops?: Array<{ file_path: string; vote_average: number }>;
+      posters?: Array<{ file_path: string; vote_average: number }>;
+    };
+
+    const backdrops = (images.backdrops ?? [])
+      .sort((a, b) => b.vote_average - a.vote_average)
+      .slice(0, 20)
+      .map(b => ({
+        url: `${TMDB_IMG}/w1280${b.file_path}`,
+        url_original: `${TMDB_IMG}/original${b.file_path}`,
+        thumb: `${TMDB_IMG}/w300${b.file_path}`,
+      }));
+
+    const posters = (images.posters ?? [])
+      .sort((a, b) => b.vote_average - a.vote_average)
+      .slice(0, 20)
+      .map(p => ({
+        url: `${TMDB_IMG}/w500${p.file_path}`,
+        url_original: `${TMDB_IMG}/original${p.file_path}`,
+        thumb: `${TMDB_IMG}/w185${p.file_path}`,
+      }));
+
+    const result = { backdrops, posters };
+    toCache(cacheKey, result, 60 * 60 * 1000);
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// GET /api/tmdb/recommendations/:imdbId?type=movie|series
+router.get("/tmdb/recommendations/:imdbId", async (req, res) => {
+  const { imdbId } = req.params;
+  const type = req.query.type === "series" ? "series" : "movie";
+  const cacheKey = `recs_${imdbId}_${type}`;
+
+  const cached = fromCache<unknown>(cacheKey);
+  if (cached) { res.setHeader("Cache-Control", "public, max-age=3600"); res.json(cached); return; }
+
+  try {
+    const findRes = await tmdbFetch(`/find/${imdbId}?external_source=imdb_id`);
+    if (!findRes.ok) { res.status(502).json({ error: "Error TMDB" }); return; }
+    const findData = await findRes.json() as { movie_results?: { id: number }[]; tv_results?: { id: number }[] };
+    const tmdbId = type === "series" ? findData.tv_results?.[0]?.id : findData.movie_results?.[0]?.id;
+    if (!tmdbId) { res.status(404).json({ error: "No encontrado" }); return; }
+
+    const endpoint = type === "series" ? "tv" : "movie";
+    const [recsRes, simRes] = await Promise.all([
+      tmdbFetch(`/${endpoint}/${tmdbId}/recommendations?language=es-MX`),
+      tmdbFetch(`/${endpoint}/${tmdbId}/similar?language=es-MX`),
+    ]);
+
+    type TmdbItem = {
+      id: number; title?: string; name?: string;
+      poster_path?: string | null; backdrop_path?: string | null;
+      release_date?: string; first_air_date?: string;
+      vote_average?: number; overview?: string;
+    };
+
+    const recsData = recsRes.ok ? await recsRes.json() as { results: TmdbItem[] } : { results: [] };
+    const simData = simRes.ok ? await simRes.json() as { results: TmdbItem[] } : { results: [] };
+
+    const seen = new Set<number>();
+    const merged: TmdbItem[] = [];
+    for (const item of [...(recsData.results ?? []), ...(simData.results ?? [])]) {
+      if (!seen.has(item.id)) { seen.add(item.id); merged.push(item); }
+    }
+
+    const results = merged.slice(0, 18).map(item => ({
+      tmdb_id: item.id,
+      media_type: type === "series" ? "tv" : "movie",
+      title: item.title || item.name || "",
+      poster_url: item.poster_path ? `${TMDB_IMG}/w342${item.poster_path}` : "",
+      year: (item.release_date || item.first_air_date || "").slice(0, 4),
+      rating: Math.round((item.vote_average || 0) * 10) / 10,
+      overview: (item.overview || "").slice(0, 120),
+    }));
+
+    toCache(cacheKey, results, 60 * 60 * 1000);
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    res.json(results);
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
 
 // GET /api/tmdb/trending?window=day|week
 // Devuelve las tendencias del día o de la semana desde TMDB
