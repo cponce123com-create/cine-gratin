@@ -110,7 +110,7 @@ export const SAGA_SECTIONS: SagaSection[] = [
   { id: "jurassic", label: "Jurassic Park", collection_id: 328, keywords: ["jurassic park", "jurassic world", "jurassic"] },
   { id: "transformers", label: "Transformers", collection_id: 8650, keywords: ["transformers", "bumblebee", "transformer"] },
   { id: "x-men", label: "X-Men", collection_id: 748, keywords: ["x-men", "xmen", "wolverine", "deadpool", "logan", "magneto", "professor x"] },
-  { id: "yellowstone", label: "Universo Yellowstone", collection_id: 1733, keywords: ["yellowstone", "1883", "1923"] },
+  { id: "yellowstone", label: "Universo Yellowstone", keywords: ["yellowstone", "1883", "1923", "marshals"] },
   { id: "alien", label: "Alien", collection_id: 8091, keywords: ["alien", "aliens", "prometheus", "covenant", "predator"] },
   { id: "indiana-jones", label: "Indiana Jones", collection_id: 84, keywords: ["indiana jones", "indiana"] },
   { id: "pirates", label: "Piratas del Caribe", collection_id: 295, keywords: ["piratas del caribe", "pirates of the caribbean", "pirates caribbean", "caribe"] },

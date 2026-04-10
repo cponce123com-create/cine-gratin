@@ -431,12 +431,16 @@ export default function Home() {
             if (m.collection_id === -1) return false;
             if (sec.collection_id) return m.collection_id === sec.collection_id;
             if (m.collection_id != null) return false;
+            // Solo usar keywords si NO hay collection_id configurado para esta sección
+            if (sec.collection_id) return false;
             return matchesTitle(m.title, sec.keywords);
           },
           (s) => {
             if (s.collection_id === -1) return false;
             if (sec.collection_id) return s.collection_id === sec.collection_id;
             if (s.collection_id != null) return false;
+            // Solo usar keywords si NO hay collection_id configurado para esta sección
+            if (sec.collection_id) return false;
             return matchesTitle(s.title, sec.keywords);
           }
         ),

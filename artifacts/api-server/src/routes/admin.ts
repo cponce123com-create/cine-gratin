@@ -1067,5 +1067,42 @@ router.post("/admin/active-sagas", async (req, res) => {
   }
 });
 
+// GET /api/admin/saga-members/:collection_id → devuelve todas las películas y series con ese collection_id
+router.get("/admin/saga-members/:collection_id", async (req, res) => {
+  const { collection_id } = req.params;
+  try {
+    const [movies, series] = await Promise.all([
+      pool.query("SELECT id, title, poster_url, year, 'movie' as type FROM movies WHERE collection_id = $1", [collection_id]),
+      pool.query("SELECT id, title, poster_url, year, 'series' as type FROM cv_series WHERE collection_id = $1", [collection_id]),
+    ]);
+    res.json([...movies.rows, ...series.rows]);
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// POST /api/admin/saga-member → body: { id, type, collection_id, collection_name, action: "add"|"remove" }
+router.post("/admin/saga-member", async (req, res) => {
+  const { id, type, collection_id, collection_name, action } = req.body as {
+    id: string | number;
+    type: "movie" | "series";
+    collection_id: number | null;
+    collection_name: string | null;
+    action: "add" | "remove";
+  };
+
+  const table = type === "series" ? "cv_series" : "movies";
+  try {
+    if (action === "remove") {
+      await pool.query(`UPDATE ${table} SET collection_id = NULL, collection_name = NULL WHERE id = $1`, [id]);
+    } else {
+      await pool.query(`UPDATE ${table} SET collection_id = $1, collection_name = $2 WHERE id = $3`, [collection_id, collection_name, id]);
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
 export default router;
 

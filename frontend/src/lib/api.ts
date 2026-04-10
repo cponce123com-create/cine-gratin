@@ -297,3 +297,23 @@ export const getActiveSagas = (): Promise<number[]> =>
 
 export const toggleSagaActive = (collection_id: number, active: boolean): Promise<{ ok: boolean }> =>
   adminPost("/api/admin/active-sagas", { collection_id, active });
+
+export interface SagaMember {
+  id: string | number;
+  title: string;
+  poster_url: string;
+  year: string;
+  type: "movie" | "series";
+}
+
+export const getSagaMembers = (collection_id: number): Promise<SagaMember[]> =>
+  adminFetch(`/api/admin/saga-members/${collection_id}`);
+
+export const manageSagaMember = (body: {
+  id: string | number;
+  type: "movie" | "series";
+  collection_id: number | null;
+  collection_name: string | null;
+  action: "add" | "remove";
+}): Promise<{ ok: boolean }> =>
+  adminPost("/api/admin/saga-member", body);
