@@ -320,4 +320,125 @@ router.get("/tmdb/series/:imdbId", async (req, res) => {
   }
 });
 
+// ── In-memory cache ────────────────────────────────────────────────────────────
+const cache = new Map<string, { data: unknown; expires: number }>();
+function fromCache<T>(key: string): T | null {
+  const entry = cache.get(key);
+  if (entry && entry.expires > Date.now()) return entry.data as T;
+  return null;
+}
+function toCache(key: string, data: unknown, ttlMs = 30 * 60 * 1000) {
+  cache.set(key, { data, expires: Date.now() + ttlMs });
+}
+
+// GET /api/tmdb/trending?window=day|week
+// Devuelve las tendencias del día o de la semana desde TMDB
+router.get("/tmdb/trending", async (req, res) => {
+  const window = req.query.window === "week" ? "week" : "day";
+  const cacheKey = `trending_${window}`;
+
+  const cached = fromCache<unknown[]>(cacheKey);
+  if (cached) { res.json(cached); return; }
+
+  try {
+    const r = await tmdbFetch(`/trending/all/${window}?language=es-MX`);
+    if (!r.ok) { res.status(502).json({ error: "Error al consultar TMDB" }); return; }
+
+    const data = await r.json() as {
+      results: {
+        id: number;
+        media_type: "movie" | "tv";
+        title?: string;
+        name?: string;
+        poster_path?: string | null;
+        backdrop_path?: string | null;
+        release_date?: string;
+        first_air_date?: string;
+        vote_average?: number;
+        overview?: string;
+      }[];
+    };
+
+    const results = (data.results ?? []).slice(0, 20).map(item => ({
+      tmdb_id: item.id,
+      media_type: item.media_type,
+      title: item.title || item.name || "",
+      poster_url: item.poster_path ? `${TMDB_IMG}/w342${item.poster_path}` : "",
+      backdrop_url: item.backdrop_path ? `${TMDB_IMG}/w780${item.backdrop_path}` : "",
+      year: (item.release_date || item.first_air_date || "").slice(0, 4),
+      rating: Math.round((item.vote_average || 0) * 10) / 10,
+      overview: (item.overview || "").slice(0, 180),
+    }));
+
+    toCache(cacheKey, results);
+    res.setHeader("Cache-Control", "public, max-age=1800");
+    res.json(results);
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// GET /api/tmdb/trailers?type=popular|streaming|theatres
+// Devuelve películas/series trending con su tráiler de YouTube
+router.get("/tmdb/trailers", async (req, res) => {
+  const type = (req.query.type as string) || "popular";
+  const cacheKey = `trailers_${type}`;
+
+  const cached = fromCache<unknown[]>(cacheKey);
+  if (cached) { res.json(cached); return; }
+
+  try {
+    // Endpoint según el tipo de filtro
+    let endpoint = "/trending/movie/day?language=es-MX";
+    if (type === "streaming") endpoint = "/discover/movie?language=es-MX&sort_by=popularity.desc&with_watch_monetization_types=flatrate";
+    if (type === "theatres")  endpoint = "/movie/now_playing?language=es-MX&region=MX";
+
+    const listRes = await tmdbFetch(endpoint);
+    if (!listRes.ok) { res.status(502).json({ error: "Error al consultar TMDB" }); return; }
+    const listData = await listRes.json() as { results: { id: number; title?: string; name?: string; backdrop_path?: string | null; poster_path?: string | null; release_date?: string; first_air_date?: string }[] };
+
+    const items = (listData.results ?? []).slice(0, 15);
+
+    // Para cada item buscar tráiler en paralelo (máx 10 simultáneos)
+    const withTrailers = await Promise.all(
+      items.map(async (item) => {
+        try {
+          const vRes = await tmdbFetch(`/movie/${item.id}/videos?language=es-MX&include_video_language=es,en`);
+          if (!vRes.ok) return null;
+          const vData = await vRes.json() as { results: { type: string; site: string; key: string; iso_639_1: string; official?: boolean; name?: string }[] };
+          const videos = vData.results ?? [];
+          const trailer =
+            videos.find(v => v.type === "Trailer" && v.site === "YouTube" && v.iso_639_1 === "es") ||
+            videos.find(v => v.type === "Trailer" && v.site === "YouTube" && v.official) ||
+            videos.find(v => v.type === "Trailer" && v.site === "YouTube") ||
+            videos.find(v => v.site === "YouTube");
+
+          if (!trailer) return null;
+
+          return {
+            tmdb_id: item.id,
+            media_type: "movie" as const,
+            title: item.title || item.name || "",
+            backdrop_url: item.backdrop_path ? `${TMDB_IMG}/w780${item.backdrop_path}` : "",
+            poster_url: item.poster_path ? `${TMDB_IMG}/w342${item.poster_path}` : "",
+            year: (item.release_date || item.first_air_date || "").slice(0, 4),
+            trailer_key: trailer.key,
+            trailer_name: trailer.name || "Tráiler oficial",
+            youtube_url: `https://www.youtube.com/watch?v=${trailer.key}`,
+            thumbnail_url: `https://img.youtube.com/vi/${trailer.key}/mqdefault.jpg`,
+          };
+        } catch { return null; }
+      })
+    );
+
+    const results = withTrailers.filter(Boolean).slice(0, 10);
+    toCache(cacheKey, results, 30 * 60 * 1000);
+    res.setHeader("Cache-Control", "public, max-age=1800");
+    res.json(results);
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
 export default router;
+
