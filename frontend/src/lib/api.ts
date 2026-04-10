@@ -263,6 +263,18 @@ export const resetCollection = (
 ): Promise<{ ok: boolean; deleted_movies: number; deleted_series: number; total_deleted: number }> =>
   adminPost("/api/admin/reset-collection", { collection_id });
 
+/** SSE URL for scan-collections-stream (attach token manually as query param) */
+export const scanCollectionsStreamUrl = (collectionIds: number[]): string => {
+  const base = (import.meta.env["VITE_API_URL"] as string | undefined) || "https://cine-gratin.onrender.com";
+  return `${base}/api/admin/scan-collections-stream?ids=${collectionIds.join(",")}`;
+};
+
+/** SSE URL for sync-all-collections-stream */
+export const syncAllCollectionsStreamUrl = (): string => {
+  const base = (import.meta.env["VITE_API_URL"] as string | undefined) || "https://cine-gratin.onrender.com";
+  return `${base}/api/admin/sync-all-collections-stream`;
+};
+
 export const importByTmdbIds = (
   tmdb_ids: number[],
   type: "movie" | "series"
