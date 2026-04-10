@@ -104,7 +104,7 @@ export const SAGA_SECTIONS: SagaSection[] = [
   { id: "harry-potter", label: "Harry Potter", collection_id: 1241, keywords: ["harry potter", "animales fantásticos", "fantastic beasts", "potter"] },
   { id: "lord-of-the-rings", label: "El Señor de los Anillos", collection_id: 119, keywords: ["señor de los anillos", "lord of the rings", "hobbit", "anillos", "rings"] },
   { id: "star-wars", label: "Star Wars", collection_id: 10, keywords: ["star wars", "mandalorian", "andor", "obi-wan", "obiwan", "boba fett", "ahsoka", "clone wars", "skywalker"] },
-  { id: "fast-furious", label: "Fast & Furious", collection_id: 9735, keywords: ["fast & furious", "fast and furious", "rápido y furioso", "rapido y furioso", "hobbs & shaw", "hobbs and shaw", "fast furious"] },
+  { id: "fast-furious", label: "Fast & Furious", collection_id: 9735, keywords: ["fast & furious", "fast and furious", "2 fast 2 furious", "tokyo drift", "fast five", "furious 6", "furious 7", "furious seven", "fate of the furious", "hobbs & shaw", "hobbs and shaw"] },
   { id: "mission-impossible", label: "Misión: Imposible", collection_id: 87359, keywords: ["mission: impossible", "mission impossible", "misión: imposible", "mision: imposible", "mision imposible"] },
   { id: "john-wick", label: "John Wick", collection_id: 404609, keywords: ["john wick", "continental", "wick"] },
   { id: "jurassic", label: "Jurassic Park", collection_id: 328, keywords: ["jurassic park", "jurassic world", "jurassic"] },

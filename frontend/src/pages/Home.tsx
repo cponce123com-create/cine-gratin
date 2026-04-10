@@ -408,26 +408,26 @@ export default function Home() {
         ...sec,
         items: buildMixed(
           allMovies, allSeries,
-          (m) => {
-            if (m.collection_id === -1) return false; // explicitly excluded
-            if (sec.collection_id) {
-              if (m.collection_id === sec.collection_id) return true;
-              if (m.collection_id != null) return false; // belongs to a different collection
-            } else if (m.collection_id != null) {
-              return false; // saga has no collection_id — skip items assigned to other collections
-            }
-            return matchesTitle(m.title, sec.keywords);
-          },
-          (s) => {
-            if (s.collection_id === -1) return false; // explicitly excluded
-            if (sec.collection_id) {
-              if (s.collection_id === sec.collection_id) return true;
-              if (s.collection_id != null) return false;
-            } else if (s.collection_id != null) {
-              return false; // saga has no collection_id — skip items assigned to other collections
-            }
-            return matchesTitle(s.title, sec.keywords);
-          }
+	          (m) => {
+	            if (m.collection_id === -1) return false; // explicitly excluded
+	            if (sec.collection_id) {
+	              if (m.collection_id === sec.collection_id) return true;
+	              return false; // if saga has collection_id, only include items with that ID
+	            } else if (m.collection_id != null) {
+	              return false; // saga has no collection_id — skip items assigned to other collections
+	            }
+	            return matchesTitle(m.title, sec.keywords);
+	          },
+	          (s) => {
+	            if (s.collection_id === -1) return false; // explicitly excluded
+	            if (sec.collection_id) {
+	              if (s.collection_id === sec.collection_id) return true;
+	              return false; // if saga has collection_id, only include items with that ID
+	            } else if (s.collection_id != null) {
+	              return false; // saga has no collection_id — skip items assigned to other collections
+	            }
+	            return matchesTitle(s.title, sec.keywords);
+	          }
         ),
       })).filter((s) => s.items.length >= 1);
     },
