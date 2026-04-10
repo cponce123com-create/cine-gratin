@@ -79,6 +79,111 @@ const FALLBACK_POSTER =
 const FALLBACK_PERSON =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='150' viewBox='0 0 100 150'%3E%3Crect width='100' height='150' fill='%231e1e1e'/%3E%3Ccircle cx='50' cy='55' r='22' fill='%23333'/%3E%3Cellipse cx='50' cy='130' rx='35' ry='30' fill='%23333'/%3E%3C/svg%3E";
 
+const VIDEO_ORDER = ["Trailer", "Teaser", "Clip", "Featurette", "Behind the Scenes", "Bloopers"];
+
+function sortVideos(videos: TmdbVideo[]): TmdbVideo[] {
+  return [...videos].sort((a, b) => {
+    const ia = VIDEO_ORDER.indexOf(a.type);
+    const ib = VIDEO_ORDER.indexOf(b.type);
+    const orderA = ia === -1 ? 99 : ia;
+    const orderB = ib === -1 ? 99 : ib;
+    if (orderA !== orderB) return orderA - orderB;
+    if (a.official && !b.official) return -1;
+    if (!a.official && b.official) return 1;
+    return 0;
+  });
+}
+
+// ── VideoCard ─────────────────────────────────────────────────────────────────
+
+const VIDEO_TYPE_COLORS: Record<string, string> = {
+  Trailer: "bg-red-600", Teaser: "bg-orange-500", Clip: "bg-blue-500",
+  Featurette: "bg-purple-500", "Behind the Scenes": "bg-green-600", Bloopers: "bg-yellow-500",
+};
+
+function VideoTypeLabel({ type }: { type: string }) {
+  return (
+    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${VIDEO_TYPE_COLORS[type] ?? "bg-gray-600"} text-white`}>
+      {type}
+    </span>
+  );
+}
+
+function VideoCard({ video }: { video: TmdbVideo }) {
+  const [playing, setPlaying] = useState(false);
+  const thumb = `https://img.youtube.com/vi/${video.key}/hqdefault.jpg`;
+  if (playing) {
+    return (
+      <div className="relative aspect-video w-full rounded-xl overflow-hidden bg-black shadow-xl">
+        <iframe
+          src={`https://www.youtube.com/embed/${video.key}?autoplay=1`}
+          className="absolute inset-0 w-full h-full"
+          allowFullScreen
+          allow="autoplay; encrypted-media; picture-in-picture"
+          title={video.name}
+        />
+      </div>
+    );
+  }
+  return (
+    <button
+      onClick={() => setPlaying(true)}
+      className="group relative aspect-video w-full rounded-xl overflow-hidden bg-brand-surface shadow-xl border border-brand-border hover:border-red-500/50 transition-all"
+    >
+      <img src={thumb} alt={video.name} className="w-full h-full object-cover" />
+      <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors" />
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="w-12 h-12 rounded-full bg-brand-red/90 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+          <svg className="w-5 h-5 text-white ml-0.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+        </div>
+      </div>
+      <div className="absolute bottom-0 inset-x-0 p-2 bg-gradient-to-t from-black/90 to-transparent">
+        <div className="flex items-start gap-1.5">
+          <VideoTypeLabel type={video.type} />
+          <p className="text-white text-xs font-medium leading-tight line-clamp-2 flex-1 text-left">{video.name}</p>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+// ── ReviewCard ────────────────────────────────────────────────────────────────
+
+function ReviewCard({ review }: { review: TmdbReview }) {
+  const [expanded, setExpanded] = useState(false);
+  const isLong = review.content.length > 280;
+  const text = expanded || !isLong ? review.content : review.content.slice(0, 280) + "…";
+  const dateStr = review.created_at
+    ? new Date(review.created_at).toLocaleDateString("es-MX", { year: "numeric", month: "long" })
+    : null;
+  return (
+    <div className="bg-brand-surface border border-brand-border rounded-xl p-5">
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-full bg-brand-red/20 border border-brand-red/30 flex items-center justify-center text-sm font-bold text-brand-red">
+            {review.author[0]?.toUpperCase() ?? "?"}
+          </div>
+          <div>
+            <p className="text-white font-semibold text-sm">{review.author}</p>
+            {dateStr && <p className="text-gray-500 text-xs">{dateStr}</p>}
+          </div>
+        </div>
+        {review.rating !== null && review.rating !== undefined && (
+          <span className="flex items-center gap-1 text-brand-gold font-bold text-sm flex-shrink-0">
+            ★ {Number(review.rating).toFixed(1)}
+          </span>
+        )}
+      </div>
+      <p className="text-gray-300 text-sm leading-relaxed">{text}</p>
+      {isLong && (
+        <button onClick={() => setExpanded(v => !v)} className="mt-2 text-brand-red hover:text-red-400 text-xs font-medium transition-colors">
+          {expanded ? "Leer menos" : "Leer más"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ── MediaSection (videos + images unified) ───────────────────────────────────
 
 const VIDEO_TABS = [
