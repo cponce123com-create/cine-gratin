@@ -728,7 +728,16 @@ router.post("/admin/import-collection", async (req, res) => {
   try {
     // Fetch collection details from TMDB
     const r = await tmdbFetch(`/collection/${collection_id}?language=es-MX`);
-    if (!r.ok) return res.status(404).json({ error: "Colección no encontrada en TMDB" });
+    if (!r.ok) {
+      const tmdbStatus = r.status;
+      const body = await r.text().catch(() => "");
+      return res.status(422).json({
+        error: `TMDB devolvió ${tmdbStatus} para la colección ${collection_id}. Verifica que el ID sea correcto.`,
+        tmdb_status: tmdbStatus,
+        hint: "Busca la colección en https://www.themoviedb.org/collection y copia el ID numérico de la URL.",
+        tmdb_body: body.slice(0, 200),
+      });
+    }
 
     const data = await r.json() as {
       id: number;
@@ -736,7 +745,7 @@ router.post("/admin/import-collection", async (req, res) => {
       parts: { id: number; title?: string; name?: string; media_type?: string }[];
     };
 
-    const parts = data.parts ?? [];
+    const parts = (data.parts ?? []).filter(p => !p.media_type || p.media_type === "movie");
     if (parts.length === 0) {
       return res.json({ ok: true, collection: data.name, imported: 0, existed: 0, total: 0, titles: [] });
     }

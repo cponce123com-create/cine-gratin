@@ -40,7 +40,14 @@ async function adminFetch<T>(path: string, options: RequestInit = {}): Promise<T
     ...options,
     headers: { ...authHeaders(), ...options.headers },
   });
-  if (!res.ok) throw new Error(`API error ${res.status}: ${path}`);
+  if (!res.ok) {
+    let msg = `Error ${res.status}`;
+    try {
+      const body = await res.json() as { error?: string; hint?: string };
+      if (body.error) msg = body.hint ? `${body.error}\n\n${body.hint}` : body.error;
+    } catch { /* keep default message */ }
+    throw new Error(msg);
+  }
   return res.json() as Promise<T>;
 }
 

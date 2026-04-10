@@ -100,7 +100,7 @@ export interface SagaSection {
 
 export const SAGA_SECTIONS: SagaSection[] = [
   { id: "marvel", label: "Universo Marvel", collection_id: 420, keywords: ["iron man", "vengadores", "avengers", "capitán américa", "captain america", "thor", "hulk", "black widow", "doctor strange", "spider-man", "spiderman", "guardians of the galaxy", "guardianes de la galaxia", "ant-man", "antman", "black panther", "eternals", "shang-chi", "shangchi", "wakanda", "marvel"] },
-  { id: "dc", label: "DC Universe", collection_id: 3962, keywords: ["batman", "superman", "wonder woman", "aquaman", "the flash", "shazam", "black adam", "joker", "suicide squad", "birds of prey", "green lantern", "dc universe"] },
+  { id: "dc", label: "DC Universe", keywords: ["batman", "superman", "wonder woman", "aquaman", "the flash", "shazam", "black adam", "joker", "suicide squad", "birds of prey", "green lantern", "dc universe"] },
   { id: "harry-potter", label: "Harry Potter", collection_id: 1241, keywords: ["harry potter", "animales fantásticos", "fantastic beasts", "potter"] },
   { id: "lord-of-the-rings", label: "El Señor de los Anillos", collection_id: 119, keywords: ["señor de los anillos", "lord of the rings", "hobbit", "anillos", "rings"] },
   { id: "star-wars", label: "Star Wars", collection_id: 10, keywords: ["star wars", "mandalorian", "andor", "obi-wan", "obiwan", "boba fett", "ahsoka", "clone wars", "skywalker"] },
@@ -113,7 +113,7 @@ export const SAGA_SECTIONS: SagaSection[] = [
   { id: "yellowstone", label: "Universo Yellowstone", collection_id: 1733, keywords: ["yellowstone", "1883", "1923"] },
   { id: "alien", label: "Alien", collection_id: 8091, keywords: ["alien", "aliens", "prometheus", "covenant", "predator"] },
   { id: "indiana-jones", label: "Indiana Jones", collection_id: 84, keywords: ["indiana jones", "indiana"] },
-  { id: "pirates", label: "Piratas del Caribe", collection_id: 58580, keywords: ["piratas del caribe", "pirates of the caribbean", "pirates caribbean", "caribe"] },
+  { id: "pirates", label: "Piratas del Caribe", collection_id: 295, keywords: ["piratas del caribe", "pirates of the caribbean", "pirates caribbean", "caribe"] },
   { id: "terminator", label: "Terminator", collection_id: 528, keywords: ["terminator"] },
   { id: "matrix", label: "Matrix", collection_id: 2344, keywords: ["matrix", "the matrix"] },
   { id: "planet-of-apes", label: "El Planeta de los Simios", collection_id: 173710, keywords: ["planet of the apes", "planeta de los simios", "kingdom of the planet", "apes"] },
