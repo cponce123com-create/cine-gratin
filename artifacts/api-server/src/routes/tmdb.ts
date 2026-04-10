@@ -320,6 +320,101 @@ router.get("/tmdb/series/:imdbId", async (req, res) => {
   }
 });
 
+// GET /api/tmdb/person/:personId — fetch actor/person profile from TMDB
+router.get("/tmdb/person/:personId", async (req, res) => {
+  const personId = parseInt(req.params["personId"] ?? "", 10);
+  if (isNaN(personId)) { res.status(400).json({ error: "ID de persona inválido" }); return; }
+
+  try {
+    const [detailsRes, creditsRes, imagesRes] = await Promise.all([
+      tmdbFetch(`/person/${personId}?language=es-MX`),
+      tmdbFetch(`/person/${personId}/combined_credits?language=es-MX`),
+      tmdbFetch(`/person/${personId}/images`),
+    ]);
+
+    if (!detailsRes.ok) { res.status(404).json({ error: "Persona no encontrada" }); return; }
+
+    const [details, credits, images] = await Promise.all([
+      detailsRes.json(),
+      creditsRes.ok ? creditsRes.json() : Promise.resolve({ cast: [] }),
+      imagesRes.ok ? imagesRes.json() : Promise.resolve({ profiles: [] }),
+    ]) as [Record<string, unknown>, Record<string, unknown>, Record<string, unknown>];
+
+    // Biography fallback to English
+    let biography = (details.biography as string) || "";
+    if (!biography) {
+      const enRes = await tmdbFetch(`/person/${personId}?language=en-US`);
+      if (enRes.ok) {
+        const enData = await enRes.json() as Record<string, unknown>;
+        biography = (enData.biography as string) || "";
+      }
+    }
+
+    // Known for: top 8 most popular works
+    const castCredits = (credits.cast as Array<{
+      id: number; title?: string; name?: string; media_type: string;
+      poster_path?: string | null; release_date?: string; first_air_date?: string;
+      vote_average?: number; character?: string; popularity?: number;
+    }>) || [];
+
+    const knownFor = [...castCredits]
+      .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
+      .slice(0, 12)
+      .map(c => ({
+        id: c.id,
+        media_type: c.media_type,
+        title: c.title || c.name || "",
+        character: c.character || "",
+        poster_url: c.poster_path ? `${TMDB_IMG}/w185${c.poster_path}` : "",
+        year: (c.release_date || c.first_air_date || "").slice(0, 4),
+        rating: Math.round((c.vote_average || 0) * 10) / 10,
+      }));
+
+    // All credits sorted by date desc
+    const allCredits = [...castCredits]
+      .sort((a, b) => {
+        const da = (a.release_date || a.first_air_date || "0000");
+        const db = (b.release_date || b.first_air_date || "0000");
+        return db.localeCompare(da);
+      })
+      .slice(0, 40)
+      .map(c => ({
+        id: c.id,
+        media_type: c.media_type,
+        title: c.title || c.name || "",
+        character: c.character || "",
+        year: (c.release_date || c.first_air_date || "").slice(0, 4),
+        poster_url: c.poster_path ? `${TMDB_IMG}/w92${c.poster_path}` : "",
+      }));
+
+    // Profile photos
+    const profileList = (images.profiles as Array<{ file_path: string; vote_average: number }>) || [];
+    const profilePhotos = profileList
+      .sort((a, b) => b.vote_average - a.vote_average)
+      .slice(0, 6)
+      .map(p => `${TMDB_IMG}/w185${p.file_path}`);
+
+    const profilePath = details.profile_path as string | null;
+
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    res.json({
+      id: personId,
+      name: (details.name as string) || "",
+      biography,
+      birthday: (details.birthday as string) || null,
+      deathday: (details.deathday as string) || null,
+      place_of_birth: (details.place_of_birth as string) || null,
+      known_for_department: (details.known_for_department as string) || "",
+      profile_url: profilePath ? `${TMDB_IMG}/w342${profilePath}` : "",
+      profile_photos: profilePhotos,
+      known_for: knownFor,
+      all_credits: allCredits,
+    });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
 // ── In-memory cache ────────────────────────────────────────────────────────────
 const cache = new Map<string, { data: unknown; expires: number }>();
 function fromCache<T>(key: string): T | null {
