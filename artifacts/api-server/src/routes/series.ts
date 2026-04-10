@@ -54,7 +54,8 @@ router.get("/series", seriesLimit, async (req, res) => {
       `SELECT id, imdb_id, tmdb_id, title, year, end_year, rating, genres, language, synopsis,
               creators, cast_list, networks, poster_url, background_url, yt_trailer_code,
               status, total_seasons, video_sources, featured, views, date_added,
-              vidsrc_status, auto_imported, '[]'::jsonb AS videos, '[]'::jsonb AS reviews, '[]'::jsonb AS seasons_data
+              vidsrc_status, auto_imported, collection_id, collection_name,
+              '[]'::jsonb AS videos, '[]'::jsonb AS reviews, '[]'::jsonb AS seasons_data
        FROM cv_series ORDER BY year DESC, date_added DESC LIMIT $1 OFFSET $2`,
       [limit, offset]
     );

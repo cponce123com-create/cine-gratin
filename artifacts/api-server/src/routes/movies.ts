@@ -53,7 +53,8 @@ router.get("/movies", movieLimit, async (req, res) => {
       `SELECT id, imdb_id, title, year, rating, runtime, genres, language, synopsis,
               director, cast_list, networks, poster_url, background_url, yt_trailer_code,
               mpa_rating, slug, featured, video_sources, torrents, views, date_added,
-              vidsrc_status, auto_imported, '[]'::jsonb AS videos, '[]'::jsonb AS reviews
+              vidsrc_status, auto_imported, collection_id, collection_name,
+              '[]'::jsonb AS videos, '[]'::jsonb AS reviews
        FROM movies ORDER BY year DESC, date_added DESC LIMIT $1 OFFSET $2`,
       [limit, offset]
     );
