@@ -40,6 +40,17 @@ interface TmdbTrailerItem {
   thumbnail_url: string;
 }
 
+interface DynamicSaga {
+  collection_id: number;
+  collection_name: string;
+}
+
+async function fetchDynamicSagas(): Promise<DynamicSaga[]> {
+  const res = await fetch(`${BASE_URL}/api/admin/dynamic-sagas`);
+  if (!res.ok) return [];
+  return res.json();
+}
+
 async function fetchTmdbTrending(window: "day" | "week"): Promise<TmdbTrendingItem[]> {
   const res = await fetch(`${BASE_URL}/api/tmdb/trending?window=${window}`);
   if (!res.ok) return [];
@@ -248,6 +259,12 @@ export default function Home() {
     staleTime: 30 * 60 * 1000,
   });
 
+  const { data: dynamicSagas = [] } = useQuery({
+    queryKey: ["dynamic-sagas"],
+    queryFn: fetchDynamicSagas,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const navigate = useNavigate();
   const [activeGenre, setActiveGenre] = useState<string | null>(null);
   const [activePlatform, setActivePlatform] = useState<string | null>(null);
@@ -404,34 +421,46 @@ export default function Home() {
   const sagaCarousels = useMemo(
     () => {
       if (!sagaVisible) return [];
-      return SAGA_SECTIONS.map((sec) => ({
+      
+      // 1. Static sagas from config
+      const staticSagas = SAGA_SECTIONS.map((sec) => ({
         ...sec,
         items: buildMixed(
           allMovies, allSeries,
-	          (m) => {
-	            if (m.collection_id === -1) return false; // explicitly excluded
-	            if (sec.collection_id) {
-	              if (m.collection_id === sec.collection_id) return true;
-	              return false; // if saga has collection_id, only include items with that ID
-	            } else if (m.collection_id != null) {
-	              return false; // saga has no collection_id — skip items assigned to other collections
-	            }
-	            return matchesTitle(m.title, sec.keywords);
-	          },
-	          (s) => {
-	            if (s.collection_id === -1) return false; // explicitly excluded
-	            if (sec.collection_id) {
-	              if (s.collection_id === sec.collection_id) return true;
-	              return false; // if saga has collection_id, only include items with that ID
-	            } else if (s.collection_id != null) {
-	              return false; // saga has no collection_id — skip items assigned to other collections
-	            }
-	            return matchesTitle(s.title, sec.keywords);
-	          }
+          (m) => {
+            if (m.collection_id === -1) return false;
+            if (sec.collection_id) return m.collection_id === sec.collection_id;
+            if (m.collection_id != null) return false;
+            return matchesTitle(m.title, sec.keywords);
+          },
+          (s) => {
+            if (s.collection_id === -1) return false;
+            if (sec.collection_id) return s.collection_id === sec.collection_id;
+            if (s.collection_id != null) return false;
+            return matchesTitle(s.title, sec.keywords);
+          }
         ),
       })).filter((s) => s.items.length >= 1);
+
+      // 2. Dynamic sagas from DB that are not in static list
+      const staticIds = new Set(SAGA_SECTIONS.map(s => s.collection_id).filter(Boolean));
+      const dynamicSagaCarousels = dynamicSagas
+        .filter(ds => !staticIds.has(ds.collection_id))
+        .map(ds => ({
+          id: `dynamic-${ds.collection_id}`,
+          label: ds.collection_name,
+          collection_id: ds.collection_id,
+          items: buildMixed(
+            allMovies, allSeries,
+            (m) => m.collection_id === ds.collection_id,
+            (s) => s.collection_id === ds.collection_id
+          )
+        }))
+        .filter(s => s.items.length >= 1);
+
+      return [...staticSagas, ...dynamicSagaCarousels];
     },
-    [allMovies, allSeries, sagaVisible]
+    [allMovies, allSeries, sagaVisible, dynamicSagas]
   );
 
   const isLoading = loadingMovies || loadingSeries;

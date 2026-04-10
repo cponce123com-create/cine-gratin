@@ -761,6 +761,19 @@ router.post("/admin/import-collection", async (req, res) => {
         if (ok) {
           imported++;
           titles.push(part.title || part.name || String(part.id));
+          // Bug Fix 1: Update collection_id for newly imported movie
+          try {
+            const extR = await tmdbFetch(`/movie/${part.id}/external_ids`);
+            if (extR.ok) {
+              const ext = await extR.json() as { imdb_id?: string };
+              if (ext.imdb_id) {
+                await pool.query(
+                  `UPDATE movies SET collection_id = $1, collection_name = $2 WHERE imdb_id = $3`,
+                  [data.id, data.name, ext.imdb_id]
+                );
+              }
+            }
+          } catch { /* ignore */ }
         } else {
           // Movie already exists — update its collection_id via external_ids lookup
           existed++;
@@ -1005,6 +1018,21 @@ router.get("/admin/sync-all-collections-stream", async (req, res) => {
   } catch (e) {
     send("error", { message: String(e) });
     res.end();
+  }
+});
+
+// GET /api/admin/dynamic-sagas — returns distinct collections from movies table
+router.get("/admin/dynamic-sagas", async (_req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT DISTINCT collection_id, collection_name 
+       FROM movies 
+       WHERE collection_id IS NOT NULL 
+       ORDER BY collection_name`
+    );
+    res.json(result.rows);
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
   }
 });
 
