@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
-import { trackMovieView, getMovie } from "@/lib/api";
+import { trackMovieView, getMovieByImdbId } from "@/lib/api";
 import { useContinueWatching } from "@/hooks/useContinueWatching";
 
 interface Server {
@@ -10,8 +10,8 @@ interface Server {
 }
 
 const SERVERS: Server[] = [
-  { label: "Servidor 1", url: (id) => `https://vidsrc.to/embed/movie/${id}` },
-  { label: "Servidor 2", url: (id) => `https://vidsrc.xyz/embed/movie?imdb=${id}` },
+  { label: "Servidor 1", url: (id) => `https://vidsrc.xyz/embed/movie?imdb=${id}` },
+  { label: "Servidor 2", url: (id) => `https://vidsrc.to/embed/movie/${id}` },
   { label: "Servidor 3", url: (id) => `https://www.2embed.cc/embed/${id}` },
   { label: "Servidor 4", url: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1` },
 ];
@@ -30,7 +30,7 @@ export default function MoviePlayer() {
       trackMovieView(imdbId).catch(() => {});
       
       // Get full movie data to have the poster and internal ID
-      getMovie(imdbId)
+      getMovieByImdbId(imdbId)
         .then((movie) => {
           saveItem({
             id: movie.id,
@@ -121,7 +121,7 @@ export default function MoviePlayer() {
           className="absolute inset-0 w-full h-full border-0"
           allowFullScreen
           allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
-          referrerPolicy="no-referrer-when-downgrade"
+          referrerPolicy="origin"
           title={title}
         />
       </div>

@@ -76,6 +76,7 @@ export const getMovies = (params?: { page?: number; limit?: number }): Promise<M
   return apiFetch(`/api/movies${queryString ? `?${queryString}` : ""}`);
 };
 export const getMovie = (id: string): Promise<Movie> => apiFetch(`/api/movies/${id}`);
+export const getMovieByImdbId = (imdbId: string): Promise<Movie> => apiFetch(`/api/movies/${imdbId}`);
 export const getSeries = (params?: { page?: number; limit?: number }): Promise<Series[]> => {
   const query = new URLSearchParams();
   if (params?.page) query.append("page", params.page.toString());
