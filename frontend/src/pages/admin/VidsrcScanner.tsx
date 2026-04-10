@@ -48,7 +48,7 @@ export default function VidsrcScanner() {
   // 3 rangos en paralelo, con reintentos en caso de fallo
   const fetchVidsrcMovSet = async (type: "movie" | "series"): Promise<Set<string>> => {
     const token = localStorage.getItem("cg_admin_token") ?? "";
-    const headers = token ? { "Authorization": `Bearer ${token}` } : {};
+    const headers: Record<string, string> = token ? { "Authorization": `Bearer ${token}` } : {};
     const available = new Set<string>();
     const RANGE = 50;   // páginas por llamada (más pequeño = menos timeout)
     const PARALLEL = 3; // rangos simultáneos

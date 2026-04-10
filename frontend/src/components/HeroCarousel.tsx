@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { memo, useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { Movie, Series } from "@/lib/types";
 import { optimizeImageUrl } from "@/lib/utils";
@@ -26,7 +26,7 @@ function InfoIcon() {
   );
 }
 
-export default function HeroCarousel({ items }: HeroCarouselProps) {
+const HeroCarousel = memo(function HeroCarousel({ items }: HeroCarouselProps) {
   const navigate = useNavigate();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
@@ -35,9 +35,9 @@ export default function HeroCarousel({ items }: HeroCarouselProps) {
     setCurrentIndex((prev) => (prev + 1) % items.length);
   }, [items.length]);
 
-  const prevSlide = () => {
+  const prevSlide = useCallback(() => {
     setCurrentIndex((prev) => (prev - 1 + items.length) % items.length);
-  };
+  }, [items.length]);
 
   useEffect(() => {
     if (isPaused) return;
@@ -195,4 +195,6 @@ export default function HeroCarousel({ items }: HeroCarouselProps) {
       </div>
     </div>
   );
-}
+});
+
+export default HeroCarousel;
