@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { memo, useRef, useState } from "react";
 import type { Movie, Series } from "@/lib/types";
 import MediaCard from "./MediaCard";
 
@@ -15,7 +15,7 @@ interface GenreCarouselProps {
 
 const PAGE_SIZE = 20;
 
-export default function GenreCarousel({ id, title, items }: GenreCarouselProps) {
+const GenreCarousel = memo(function GenreCarousel({ id, title, items }: GenreCarouselProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
@@ -85,4 +85,6 @@ export default function GenreCarousel({ id, title, items }: GenreCarouselProps) 
       </div>
     </section>
   );
-}
+});
+
+export default GenreCarousel;

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Helmet } from "react-helmet-async";
@@ -17,7 +17,13 @@ export default function SeriesList() {
   });
 
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [genre, setGenre] = useState("Todos");
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const genres = useMemo(() => {
     const set = new Set<string>();
@@ -27,15 +33,15 @@ export default function SeriesList() {
 
   const filtered = useMemo(() => {
     let list = series ?? [];
-    if (search.trim()) {
-      const q = search.toLowerCase();
+    if (debouncedSearch.trim()) {
+      const q = debouncedSearch.toLowerCase();
       list = list.filter((s) => s.title.toLowerCase().includes(q));
     }
     if (genre !== "Todos") {
       list = list.filter((s) => s.genres?.includes(genre));
     }
     return list;
-  }, [series, search, genre]);
+  }, [series, debouncedSearch, genre]);
 
   return (
     <div className="min-h-screen bg-brand-dark pt-20 pb-16">

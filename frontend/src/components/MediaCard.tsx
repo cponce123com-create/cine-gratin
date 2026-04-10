@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Link } from "react-router-dom";
 import type { Movie, Series } from "@/lib/types";
 import { optimizeImageUrl, tmdbSrcSet } from "@/lib/utils";
@@ -11,7 +12,7 @@ interface MediaCardProps {
 const FALLBACK_POSTER =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='300' viewBox='0 0 200 300'%3E%3Crect width='200' height='300' fill='%231a1a1a'/%3E%3Ctext x='100' y='150' font-family='sans-serif' font-size='14' fill='%23555' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E";
 
-export default function MediaCard({ item, type, size = "md" }: MediaCardProps) {
+const MediaCard = memo(function MediaCard({ item, type, size = "md" }: MediaCardProps) {
   const href = type === "movie" ? `/pelicula/${item.id}` : `/serie/${item.id}`;
 
   const sizeClasses = {
@@ -72,4 +73,6 @@ export default function MediaCard({ item, type, size = "md" }: MediaCardProps) {
       </p>
     </Link>
   );
-}
+});
+
+export default MediaCard;
