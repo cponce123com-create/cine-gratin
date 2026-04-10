@@ -137,7 +137,7 @@ router.post(["/admin/series", "/admin/series/:id"], async (req, res) => {
         JSON.stringify(s.video_sources || []),
         s.featured || false, s.views || 0,
         s.date_added || new Date().toISOString(),
-        s.collection_id || null, s.collection_name || null
+        s.collection_id !== undefined ? s.collection_id : null, s.collection_name ?? null
       ]
     );
     const { rows } = await pool.query("SELECT * FROM cv_series WHERE id = $1", [id]);

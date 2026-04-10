@@ -178,7 +178,7 @@ router.post(["/admin/movies", "/admin/movies/:id"], async (req, res) => {
         m.mpa_rating, m.slug, m.featured,
         JSON.stringify(m.video_sources), JSON.stringify(m.torrents),
         m.views || 0, m.date_added || new Date().toISOString(),
-        m.collection_id || null, m.collection_name || null
+        m.collection_id !== undefined ? m.collection_id : null, m.collection_name ?? null
       ]
     );
     const { rows } = await pool.query("SELECT * FROM movies WHERE id = $1", [id]);

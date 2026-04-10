@@ -17,6 +17,7 @@ const FALLBACK_BG =
 
 const MIN_ITEMS_TO_SHOW = 2;
 const SAGA_PAGE_SIZE = 30; // Mostrar más items en sagas por defecto
+const LOAD_ALL_FOR_SAGAS = true; // Cargar todos los items para filtrado correcto de sagas
 
 function matchesKeywords(genres: string[] | undefined, keywords: string[]): boolean {
   if (!genres || genres.length === 0) return false;
@@ -77,12 +78,12 @@ export default function Home() {
   // Reducir límites iniciales para mejorar el tiempo de carga
   const { data: movieData, isLoading: loadingMovies, error: errorMovies } = useQuery({
     queryKey: ["movies"],
-    queryFn: () => getMovies({ limit: 2000 }), // Reducido de 10000 a 2000 para carga más rápida
+    queryFn: () => getMovies({ limit: 5000 }), // Aumentado a 5000 para mostrar todas las películas en sagas
     staleTime: 5 * 60 * 1000,
   });
   const { data: seriesData, isLoading: loadingSeries, error: errorSeries } = useQuery({
     queryKey: ["series"],
-    queryFn: () => getSeries({ limit: 1000 }), // Reducido de 5000 a 1000 para carga más rápida
+    queryFn: () => getSeries({ limit: 5000 }), // Aumentado a 5000 para mostrar todas las series en sagas
     staleTime: 5 * 60 * 1000,
   });
 
