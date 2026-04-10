@@ -78,7 +78,7 @@ export async function importSeries(tmdbId: number): Promise<boolean> {
         data.poster_url, data.background_url, data.yt_trailer_code,
         JSON.stringify(data.videos ?? []), JSON.stringify(data.reviews ?? []),
         data.status, data.total_seasons,
-        JSON.stringify(data.seasons_data || []), "",
+        JSON.stringify(data.seasons_data || []), "[]",
         false, 0, new Date().toISOString(), true,
         data.collection_id, data.collection_name
       ]
@@ -126,15 +126,15 @@ export async function importByImdbId(
       
       if (type === "movie") {
         await pool.query(
-          `INSERT INTO movies (id, imdb_id, title, year, genres, slug, auto_imported, networks)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (id) DO NOTHING`,
-          [id, imdbId, title, new Date().getFullYear(), ["Fútbol"], slug, true, ["Deportes"]]
+          `INSERT INTO movies (id, imdb_id, title, year, genres, slug, auto_imported, networks, video_sources, torrents, videos, reviews)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) ON CONFLICT (id) DO NOTHING`,
+          [id, imdbId, title, new Date().getFullYear(), ["Fútbol"], slug, true, ["Deportes"], "[]", "[]", "[]", "[]"]
         );
       } else {
         await pool.query(
-          `INSERT INTO cv_series (id, imdb_id, title, year, genres, auto_imported, networks)
-           VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (id) DO NOTHING`,
-          [id, imdbId, title, new Date().getFullYear(), ["Fútbol"], true, ["Deportes"]]
+          `INSERT INTO cv_series (id, imdb_id, title, year, genres, auto_imported, networks, video_sources, seasons_data, videos, reviews)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) ON CONFLICT (id) DO NOTHING`,
+          [id, imdbId, title, new Date().getFullYear(), ["Fútbol"], true, ["Deportes"], "[]", "[]", "[]", "[]"]
         );
       }
       
