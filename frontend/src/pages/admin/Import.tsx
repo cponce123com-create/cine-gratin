@@ -207,12 +207,41 @@ function SummaryBar({
 
 // ─── Main Page Component ─────────────────────────────────────────────────────
 
+const AUTO_IMPORT_SOURCES = [
+  { id: "/trending/movie/day", label: "Películas Tendencia (Hoy)" },
+  { id: "/trending/movie/week", label: "Películas Tendencia (Semana)" },
+  { id: "/trending/tv/day", label: "Series Tendencia (Hoy)" },
+  { id: "/trending/tv/week", label: "Series Tendencia (Semana)" },
+  { id: "/movie/upcoming?language=es-MX&region=MX", label: "Próximos Estrenos (Cine)" },
+  { id: "/movie/top_rated?language=es-MX", label: "Películas Mejor Valoradas" },
+  { id: "/tv/top_rated?language=es-MX", label: "Series Mejor Valoradas" },
+  { id: "/movie/popular?language=es-MX", label: "Películas Populares" },
+  { id: "/tv/popular?language=es-MX", label: "Series Populares" },
+];
+
 export default function ImportPage() {
   const [tab, setTab] = useState<Tab>("movies");
   const [input, setInput] = useState("");
   const [phase, setPhase] = useState<Phase | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<BulkDone | AutoDone | null>(null);
+
+  // Auto-import config
+  const [showAutoConfig, setShowAutoConfig] = useState(false);
+  const [selectedSources, setSelectedSources] = useState<string[]>(() => {
+    const saved = localStorage.getItem("auto_import_sources");
+    return saved ? JSON.parse(saved) : AUTO_IMPORT_SOURCES.map(s => s.id);
+  });
+
+  useEffect(() => {
+    localStorage.setItem("auto_import_sources", JSON.stringify(selectedSources));
+  }, [selectedSources]);
+
+  const toggleSource = (id: string) => {
+    setSelectedSources(prev => 
+      prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]
+    );
+  };
 
   // Stats
   const [movieCount, setMovieCount] = useState(0);
@@ -251,12 +280,25 @@ export default function ImportPage() {
 
     try {
       setPhase("importing");
-      const res = await runAutoImport();
+      const res = await runAutoImport(selectedSources);
       setPhase("snapshot_after");
+      
+      // Map backend response to AutoDone structure
+      // Note: Backend returns movies_imported, series_imported, total_checked
+      // Import.tsx expects added_movies, added_series, processed_movies, processed_series
+      // We'll adapt the result to match what the UI expects
+      const adaptedResult: RunImportResult = {
+        ...res,
+        added_movies: (res as any).added_movies || [],
+        added_series: (res as any).added_series || [],
+        processed_movies: res.movies_imported || 0,
+        processed_series: res.series_imported || 0,
+      };
+
       setResult({
         kind: "auto_done",
-        newItems: res.added_movies.concat(res.added_series as any[]),
-        apiResult: res,
+        newItems: adaptedResult.added_movies.concat(adaptedResult.added_series as any[]),
+        apiResult: adaptedResult,
       });
     } catch (err: any) {
       setError(err.message || "Error al ejecutar auto-import.");
@@ -312,6 +354,47 @@ export default function ImportPage() {
                 {imdbIds.length > 0 && (
                   <div className="absolute bottom-4 right-4 bg-brand-red/10 border border-brand-red/20 px-3 py-1 rounded-full">
                     <span className="text-brand-red text-xs font-bold">{imdbIds.length} IDs detectados</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Auto-import config panel */}
+              <div className="border border-brand-border rounded-xl overflow-hidden">
+                <button
+                  onClick={() => setShowAutoConfig(!showAutoConfig)}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-brand-surface/50 hover:bg-brand-surface transition-colors"
+                >
+                  <span className="text-sm font-bold text-gray-300 flex items-center gap-2">
+                    ⚙️ Configuración del escáner automático
+                  </span>
+                  <svg 
+                    className={`w-4 h-4 text-gray-500 transition-transform ${showAutoConfig ? "rotate-180" : ""}`} 
+                    viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                  >
+                    <path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </button>
+                
+                {showAutoConfig && (
+                  <div className="p-4 bg-brand-card border-t border-brand-border grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {AUTO_IMPORT_SOURCES.map(source => (
+                      <label key={source.id} className="flex items-center gap-3 group cursor-pointer">
+                        <div className="relative flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={selectedSources.includes(source.id)}
+                            onChange={() => toggleSource(source.id)}
+                            className="peer appearance-none w-5 h-5 border border-brand-border rounded bg-brand-surface checked:bg-brand-red checked:border-brand-red transition-all"
+                          />
+                          <svg className="absolute w-3.5 h-3.5 text-white left-0.5 opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4">
+                            <polyline points="20 6 9 17 4 12" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </div>
+                        <span className="text-xs text-gray-400 group-hover:text-gray-200 transition-colors">
+                          {source.label}
+                        </span>
+                      </label>
+                    ))}
                   </div>
                 )}
               </div>

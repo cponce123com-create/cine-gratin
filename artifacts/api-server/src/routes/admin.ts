@@ -93,9 +93,10 @@ router.post("/admin/auto-import/toggle", async (req, res) => {
 });
 
 // POST /api/admin/auto-import/run
-router.post("/admin/auto-import/run", async (_req, res) => {
+router.post("/admin/auto-import/run", async (req, res) => {
+  const { sources } = req.body as { sources?: string[] };
   try {
-    const result = await runAutoImport();
+    const result = await runAutoImport(sources);
     res.json({
       ok: true,
       movies_imported: result.moviesImported,

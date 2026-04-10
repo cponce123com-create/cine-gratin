@@ -192,40 +192,51 @@ export async function importByImdbId(
   }
 }
 
-export async function runAutoImport(): Promise<{ moviesImported: number; seriesImported: number; totalChecked: number }> {
+export async function runAutoImport(sources?: string[]): Promise<{ moviesImported: number; seriesImported: number; totalChecked: number }> {
   const apiKey = process.env["TMDB_API_KEY"];
   if (!apiKey) {
     logger.warn("TMDB_API_KEY not set, skipping auto-import");
     return { moviesImported: 0, seriesImported: 0, totalChecked: 0 };
   }
 
-  logger.info("Auto-import: starting");
+  logger.info({ sources }, "Auto-import: starting");
   let moviesImported = 0;
   let seriesImported = 0;
   let totalChecked = 0;
 
-  try {
-    const [trendingMoviesRes, upcomingRes, trendingTvRes] = await Promise.all([
-      tmdbFetch("/trending/movie/day"),
-      tmdbFetch("/movie/upcoming?language=es-MX&region=MX"),
-      tmdbFetch("/trending/tv/week"),
-    ]);
+  const ALL_SOURCES = [
+    "/trending/movie/day",
+    "/trending/movie/week",
+    "/trending/tv/day",
+    "/trending/tv/week",
+    "/movie/upcoming?language=es-MX&region=MX",
+    "/movie/top_rated?language=es-MX",
+    "/tv/top_rated?language=es-MX",
+    "/movie/popular?language=es-MX",
+    "/tv/popular?language=es-MX"
+  ];
 
-    const [trendingMovies, upcoming, trendingTv] = await Promise.all([
-      trendingMoviesRes.ok ? trendingMoviesRes.json() : { results: [] },
-      upcomingRes.ok ? upcomingRes.json() : { results: [] },
-      trendingTvRes.ok ? trendingTvRes.json() : { results: [] },
-    ]) as [{ results: TmdbListItem[] }, { results: TmdbListItem[] }, { results: TmdbListItem[] }];
+  const activeSources = sources && sources.length > 0 ? sources : ALL_SOURCES;
+
+  try {
+    const responses = await Promise.all(activeSources.map(s => tmdbFetch(s)));
+    const data = await Promise.all(responses.map(r => r.ok ? r.json() : { results: [] })) as { results: TmdbListItem[] }[];
 
     const movieIds = new Set<number>();
-    for (const m of [...(trendingMovies.results || []), ...(upcoming.results || [])]) {
-      movieIds.add(m.id);
-    }
-
     const seriesIds = new Set<number>();
-    for (const s of trendingTv.results || []) {
-      seriesIds.add(s.id);
-    }
+
+    activeSources.forEach((source, index) => {
+      const results = data[index].results || [];
+      const isTv = source.includes("/tv/");
+      
+      results.forEach(item => {
+        if (isTv) {
+          seriesIds.add(item.id);
+        } else {
+          movieIds.add(item.id);
+        }
+      });
+    });
 
     totalChecked = movieIds.size + seriesIds.size;
 

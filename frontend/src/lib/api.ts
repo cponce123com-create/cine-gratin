@@ -102,8 +102,8 @@ export const getAutoImportStatus = (): Promise<AutoImportStatus> =>
   adminFetch("/api/admin/auto-import/status");
 export const toggleAutoImport = (enabled: boolean): Promise<{ enabled: boolean }> =>
   adminPost("/api/admin/auto-import/toggle", { enabled });
-export const runAutoImport = (): Promise<RunImportResult> =>
-  adminPost("/api/admin/auto-import/run", {});
+export const runAutoImport = (sources?: string[]): Promise<RunImportResult> =>
+  adminPost("/api/admin/auto-import/run", { sources });
 
 export interface IdImportResult {
   imdb_id: string;
