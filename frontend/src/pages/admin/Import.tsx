@@ -284,20 +284,16 @@ export default function ImportPage() {
       setPhase("snapshot_after");
       
       // Map backend response to AutoDone structure
-      // Note: Backend returns movies_imported, series_imported, total_checked
-      // Import.tsx expects added_movies, added_series, processed_movies, processed_series
-      // We'll adapt the result to match what the UI expects
       const adaptedResult: RunImportResult = {
-        ...res,
-        added_movies: (res as any).added_movies || [],
-        added_series: (res as any).added_series || [],
-        processed_movies: res.movies_imported || 0,
-        processed_series: res.series_imported || 0,
+        added_movies: res.movies_imported || [],
+        added_series: res.series_imported || [],
+        processed_movies: res.total_checked || 0,
+        processed_series: 0,
       };
 
       setResult({
         kind: "auto_done",
-        newItems: adaptedResult.added_movies.concat(adaptedResult.added_series as any[]),
+        newItems: [...adaptedResult.added_movies, ...adaptedResult.added_series],
         apiResult: adaptedResult,
       });
     } catch (err: any) {
@@ -521,8 +517,6 @@ export default function ImportPage() {
 
           {/* Right Column: Tools */}
           <div className="space-y-6">
-            <CollectionImportSection />
-
             <div className="bg-brand-card border border-brand-border rounded-2xl p-6 space-y-5">
               <div>
                 <h2 className="text-white font-bold text-base mb-1">Auto-import TMDB</h2>
@@ -571,6 +565,11 @@ export default function ImportPage() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Full Width Section: Collection Import */}
+        <div className="w-full">
+          <CollectionImportSection />
         </div>
       </div>
     </AdminLayout>
@@ -751,112 +750,122 @@ function CollectionImportSection() {
         )}
       </div>
 
-      {/* Custom collection ID input - MEJORADO */}
-      <div className="space-y-3">
-        <div className="relative">
-          <textarea
-            value={customInput}
-            onChange={e => setCustomInput(e.target.value)}
-            placeholder="Pega URLs de TMDB, IDs sueltos, o texto mezclado (ej: Harry Potter 1241, Jurassic 328...)"
-            className="w-full bg-brand-surface border border-brand-border rounded-xl px-4 py-3 text-gray-200 text-sm focus:outline-none focus:border-gray-500 transition-colors min-h-[120px] resize-y"
-          />
-          <button
-            onClick={handleCustomImport}
-            disabled={loading !== null || importProgress !== null || detectedIds.length === 0}
-            className="absolute bottom-3 right-3 flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
-          >
-            {loading !== null || importProgress !== null ? (
-              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path d="M12 5v14m7-7H5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            )}
-            Importar {detectedIds.length > 0 ? `(${detectedIds.length})` : ""}
-          </button>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Left: Predefined Collections */}
+        <div className="space-y-3">
+          <p className="text-gray-400 text-xs font-bold uppercase">Sagas Configuradas</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+            {COLLECTIONS.map(c => {
+              const res = results[c.id];
+              const isReseting = reseting === c.id;
+              const isLoading = loading === c.id;
+
+              return (
+                <div key={c.id} className="bg-brand-surface border border-brand-border rounded-xl p-3 flex flex-col justify-between gap-3">
+                  <div>
+                    <p className="text-white text-sm font-bold leading-tight">{c.label}</p>
+                    <p className="text-gray-500 text-[10px] font-mono mt-1">TMDB ID: {c.id}</p>
+                  </div>
+                  
+                  {res ? (
+                    <div className="bg-brand-card/50 rounded-lg p-2 space-y-1">
+                      {res.deleted !== undefined ? (
+                        <p className="text-orange-400 text-[10px] font-bold">Reseteado: {res.deleted} items</p>
+                      ) : (
+                        <>
+                          <p className="text-green-400 text-[10px] font-bold">Importados: {res.imported}</p>
+                          <p className="text-gray-400 text-[10px]">Total: {res.total}</p>
+                        </>
+                      )}
+                    </div>
+                  ) : null}
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleImport(c.id)}
+                      disabled={loading !== null || reseting !== null}
+                      className="flex-1 bg-brand-border hover:bg-gray-700 text-white text-[10px] font-bold py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      {isLoading ? "..." : "Importar"}
+                    </button>
+                    <button
+                      onClick={() => handleReset(c.id)}
+                      disabled={loading !== null || reseting !== null}
+                      className="px-2 bg-red-900/20 hover:bg-red-900/40 text-red-500 text-[10px] font-bold py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                      title="Resetear saga"
+                    >
+                      {isReseting ? "..." : "Reset"}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
-        {importProgress && (
-          <div className="bg-brand-surface border border-brand-border rounded-xl p-4 space-y-2">
-            <div className="flex justify-between text-xs text-gray-400">
-              <span>Importando colección {importProgress.current} de {importProgress.total}</span>
-              <span>ID: {importProgress.lastId} {importProgress.lastTitle && `— ${importProgress.lastTitle}`}</span>
-            </div>
-            <div className="w-full bg-brand-border rounded-full h-1.5">
-              <div 
-                className="h-1.5 rounded-full bg-brand-red transition-all duration-300" 
-                style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }} 
+        {/* Right: Custom Collection Input */}
+        <div className="space-y-3">
+          <p className="text-gray-400 text-xs font-bold uppercase">Importación Libre</p>
+          <div className="bg-brand-surface border border-brand-border rounded-xl p-4 space-y-4">
+            <div className="relative">
+              <textarea
+                value={customInput}
+                onChange={(e) => setCustomInput(e.target.value)}
+                placeholder="Pega IDs de colección, URLs de TMDB o texto..."
+                className="w-full bg-brand-card border border-brand-border rounded-lg px-4 py-3 text-gray-200 text-xs focus:outline-none focus:border-gray-500 transition-colors min-h-[120px] resize-none font-mono"
               />
+              {detectedIds.length > 0 && (
+                <div className="absolute bottom-3 right-3 bg-brand-red/10 border border-brand-red/20 px-2 py-0.5 rounded-full">
+                  <span className="text-brand-red text-[10px] font-bold">{detectedIds.length} colecciones</span>
+                </div>
+              )}
             </div>
-          </div>
-        )}
-        
-        {detectedIds.length > 0 && !importProgress && (
-          <div className="flex flex-wrap items-center gap-2 px-1">
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">IDs detectados:</span>
-            {detectedIds.map(id => (
-              <span key={id} className="inline-flex items-center bg-brand-surface border border-brand-border px-2 py-0.5 rounded text-xs font-mono text-brand-red">
-                {id}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
 
-      {/* Known collections grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {COLLECTIONS.map(col => {
-          const res = results[col.id];
-          const isLoading = loading === col.id;
-          return (
-            <div key={col.id} className="flex items-center justify-between gap-3 bg-brand-surface border border-brand-border rounded-xl px-4 py-3">
-              <div className="flex-1 min-w-0">
-                <p className="text-gray-200 text-sm font-medium truncate">{col.label}</p>
-                <p className="text-gray-600 text-xs font-mono">ID: {col.id}</p>
-                {res && (
-                  <p className="text-xs mt-0.5">
-                    {res.deleted !== undefined && res.deleted > 0 && (
-                      <span className="text-red-400 mr-2">-{res.deleted} eliminadas</span>
-                    )}
-                    {res.imported > 0 && (
-                      <span className="text-green-400">+{res.imported} importadas</span>
-                    )}
-                    {res.existed > 0 && <span className="text-gray-500"> · {res.existed} ya existían</span>}
-                  </p>
-                )}
+            {importProgress && (
+              <div className="space-y-2">
+                <div className="flex justify-between text-[10px] text-gray-400">
+                  <span>{importProgress.lastTitle || `Procesando ID ${importProgress.lastId}...`}</span>
+                  <span>{importProgress.current}/{importProgress.total}</span>
+                </div>
+                <div className="w-full bg-brand-border rounded-full h-1">
+                  <div 
+                    className="bg-brand-red h-1 rounded-full transition-all duration-300" 
+                    style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
+                  />
+                </div>
               </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleReset(col.id)}
-                  disabled={loading !== null || reseting !== null}
-                  title="Resetear saga (eliminar para re-importar)"
-                  className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-lg border border-brand-border bg-brand-surface text-gray-500 hover:text-red-400 hover:border-red-900/50 transition-colors disabled:opacity-50"
-                >
-                  {reseting === col.id ? (
-                    <span className="w-3 h-3 rounded-full border-2 border-red-400 border-t-transparent animate-spin" />
-                  ) : (
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  )}
-                </button>
-                <button
-                  onClick={() => handleImport(col.id)}
-                  disabled={loading !== null || reseting !== null}
-                  className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-lg bg-brand-surface border border-brand-border text-gray-500 hover:text-white hover:border-gray-500 transition-colors disabled:opacity-50"
-                >
-                  {isLoading ? (
-                    <span className="w-3 h-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                  ) : (
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  )}
-                </button>
-              </div>
-            </div>
-          );
-        })}
+            )}
+
+            <button
+              onClick={handleCustomImport}
+              disabled={detectedIds.length === 0 || importProgress !== null}
+              className="w-full bg-white hover:bg-gray-200 text-black font-bold py-2.5 rounded-lg text-xs transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                <path d="M12 5v14m7-7H5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Importar {detectedIds.length > 0 ? `${detectedIds.length} colecciones` : "ahora"}
+            </button>
+          </div>
+
+          {/* Results of custom import if any */}
+          <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1 custom-scrollbar">
+            {Object.entries(results)
+              .filter(([id]) => !COLLECTIONS.some(c => c.id === parseInt(id)))
+              .map(([id, res]) => (
+                <div key={id} className="flex items-center justify-between p-2 bg-brand-surface/50 border border-brand-border rounded-lg text-[10px]">
+                  <div className="flex flex-col">
+                    <span className="text-white font-bold">{res.collection}</span>
+                    <span className="text-gray-500">ID: {id}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-green-400 font-bold">+{res.imported}</span>
+                    <span className="text-gray-500 ml-1">/ {res.total}</span>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
       </div>
     </div>
   );
