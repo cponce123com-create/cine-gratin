@@ -87,20 +87,36 @@ function openSSE(
   const token = getToken();
   const fullUrl = token ? `${url}${url.includes("?") ? "&" : "?"}token=${token}` : url;
   const es = new EventSource(`${BASE_URL}${fullUrl}`);
+
+  // Flag para saber si ya recibimos "done" correctamente.
+  // EventSource dispara onerror al cerrar la conexión aunque sea limpiamente,
+  // así que ignoramos errores post-done.
+  let completed = false;
+
   es.addEventListener("progress", (e) => {
     try { onProgress(JSON.parse((e as MessageEvent).data)); } catch { /* ignore */ }
   });
   es.addEventListener("done", (e) => {
+    completed = true;
     es.close();
     try { onDone(JSON.parse((e as MessageEvent).data)); } catch { onDone({}); }
   });
+  // Evento "error" enviado explícitamente por el servidor (distinto al onerror de conexión)
   es.addEventListener("error", (e) => {
+    if (completed) return;
+    const data = (e as MessageEvent & { data?: string }).data;
+    if (!data) return; // sin datos = error de conexión, lo maneja onerror
     es.close();
-    try { onError(JSON.parse((e as MessageEvent & { data?: string }).data ?? "{}").message ?? "Error desconocido"); }
+    try { onError((JSON.parse(data) as { message?: string }).message ?? "Error desconocido"); }
     catch { onError("Error en stream"); }
   });
-  es.onerror = () => { es.close(); onError("Conexión SSE perdida"); };
-  return () => es.close();
+  // Error de conexión nativo del EventSource
+  es.onerror = () => {
+    if (completed) return; // conexión cerró limpiamente tras "done", ignorar
+    es.close();
+    onError("Conexión SSE perdida");
+  };
+  return () => { completed = true; es.close(); };
 }
 
 function slugify(s: string): string {
