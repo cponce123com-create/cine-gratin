@@ -202,7 +202,7 @@ export const PLATFORM_SECTIONS: PlatformSection[] = [
 export interface CustomSection {
   id: string;
   label: string;
-  type: "classics" | "old-animation" | "estrenos";
+  type: "classics" | "old-animation" | "estrenos" | "indian";
 }
 
 export const CUSTOM_SECTIONS: CustomSection[] = [
@@ -210,6 +210,11 @@ export const CUSTOM_SECTIONS: CustomSection[] = [
     id: "estrenos",
     label: "🎬 Estrenos",
     type: "estrenos",
+  },
+  {
+    id: "india",
+    label: "🇮🇳 Cine de la India",
+    type: "indian",
   },
   {
     id: "clasicas",
