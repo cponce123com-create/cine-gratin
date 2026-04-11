@@ -6,7 +6,7 @@ import Carousel from "@/components/Carousel";
 import GenreCarousel, { type MixedItem } from "@/components/GenreCarousel";
 import HeroCarousel from "@/components/HeroCarousel";
 import { SkeletonHero } from "@/components/SkeletonCard";
-import { GENRE_SECTIONS, PLATFORM_SECTIONS, SAGA_SECTIONS, CUSTOM_SECTIONS } from "@/lib/homeConfig";
+import { GENRE_SECTIONS, PLATFORM_SECTIONS, CUSTOM_SECTIONS } from "@/lib/homeConfig";
 import type { Movie, Series } from "@/lib/types";
 import { useContinueWatching } from "@/hooks/useContinueWatching";
 import { useIntersectionObserver } from "@/hooks/useIntersectionObserver";
@@ -44,6 +44,21 @@ interface TmdbTrailerItem {
 interface DynamicSaga {
   collection_id: number;
   collection_name: string;
+}
+
+// Sagas configured in DB (replaces hardcoded SAGA_SECTIONS)
+interface SagaConfigRow {
+  id: string;
+  label: string;
+  collection_id: number | null;
+  keywords: string[];
+  active: boolean;
+}
+
+async function fetchSagaConfig(): Promise<SagaConfigRow[]> {
+  const res = await fetch(`${BASE_URL}/api/saga-config`);
+  if (!res.ok) return [];
+  return res.json();
 }
 
 async function fetchDynamicSagas(): Promise<DynamicSaga[]> {
@@ -241,6 +256,12 @@ export default function Home() {
     staleTime: 30 * 60 * 1000,
   });
 
+  const { data: sagaConfig = [] } = useQuery({
+    queryKey: ["saga-config"],
+    queryFn: fetchSagaConfig,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const { data: dynamicSagas = [] } = useQuery({
     queryKey: ["dynamic-sagas"],
     queryFn: fetchDynamicSagas,
@@ -393,7 +414,8 @@ export default function Home() {
   const sagaCards = useMemo(() => {
     if (!sagaVisible) return [];
 
-    const staticCards = SAGA_SECTIONS
+    // Use DB-driven config (replaces hardcoded SAGA_SECTIONS)
+    const staticCards = sagaConfig
       .map((sec) => {
         const items = [
           ...allMovies.filter((m) => {
@@ -418,7 +440,7 @@ export default function Home() {
       })
       .filter((s) => s.count >= 2);
 
-    const staticIds = new Set(SAGA_SECTIONS.map((s) => s.collection_id).filter(Boolean));
+    const staticIds = new Set(sagaConfig.map((s) => s.collection_id).filter(Boolean));
     const dynamicCards = dynamicSagas
       .filter((ds) => !staticIds.has(ds.collection_id))
       .map((ds) => {
@@ -436,7 +458,7 @@ export default function Home() {
       .filter((s) => s.count >= 2);
 
     return [...staticCards, ...dynamicCards];
-  }, [allMovies, allSeries, sagaVisible, dynamicSagas]);
+  }, [allMovies, allSeries, sagaVisible, dynamicSagas, sagaConfig]);
 
   const isLoading = loadingMovies || loadingSeries;
 
