@@ -8,16 +8,19 @@ interface CarouselProps {
   type: "movie" | "series";
 }
 
-const PAGE_SIZE = 20;
+// Reducir el tamaño de página inicial para mejorar el rendimiento
+const PAGE_SIZE = 12;
 
 const Carousel = memo(function Carousel({ title, items, type }: CarouselProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  // Iniciar con menos items para mejorar el tiempo de carga
+  const [visibleCount, setVisibleCount] = useState(Math.min(PAGE_SIZE, 12));
 
   if (items.length === 0) return null;
 
-  const visibleItems = items.slice(0, visibleCount);
-  const hasMore = visibleCount < items.length;
+  // Limitar a 12 items inicialmente para mejorar el rendimiento
+  const visibleItems = items.slice(0, Math.min(visibleCount, 12));
+  const hasMore = Math.min(visibleCount, 12) < items.length;
 
   const scroll = (dir: "left" | "right") => {
     if (!scrollRef.current) return;
@@ -26,7 +29,7 @@ const Carousel = memo(function Carousel({ title, items, type }: CarouselProps) {
   };
 
   const loadMore = () => {
-    setVisibleCount((prev) => prev + PAGE_SIZE);
+    setVisibleCount((prev) => Math.min(prev + PAGE_SIZE, items.length));
     setTimeout(() => {
       if (scrollRef.current) {
         scrollRef.current.scrollTo({ left: scrollRef.current.scrollWidth, behavior: "smooth" });

@@ -320,4 +320,449 @@ router.get("/tmdb/series/:imdbId", async (req, res) => {
   }
 });
 
+// GET /api/tmdb/person/:personId — fetch actor/person profile from TMDB
+router.get("/tmdb/person/:personId", async (req, res) => {
+  const personId = parseInt(req.params["personId"] ?? "", 10);
+  if (isNaN(personId)) { res.status(400).json({ error: "ID de persona inválido" }); return; }
+
+  try {
+    const [detailsRes, creditsRes, imagesRes] = await Promise.all([
+      tmdbFetch(`/person/${personId}?language=es-MX`),
+      tmdbFetch(`/person/${personId}/combined_credits?language=es-MX`),
+      tmdbFetch(`/person/${personId}/images`),
+    ]);
+
+    if (!detailsRes.ok) { res.status(404).json({ error: "Persona no encontrada" }); return; }
+
+    const [details, credits, images] = await Promise.all([
+      detailsRes.json(),
+      creditsRes.ok ? creditsRes.json() : Promise.resolve({ cast: [] }),
+      imagesRes.ok ? imagesRes.json() : Promise.resolve({ profiles: [] }),
+    ]) as [Record<string, unknown>, Record<string, unknown>, Record<string, unknown>];
+
+    // Biography fallback to English
+    let biography = (details.biography as string) || "";
+    if (!biography) {
+      const enRes = await tmdbFetch(`/person/${personId}?language=en-US`);
+      if (enRes.ok) {
+        const enData = await enRes.json() as Record<string, unknown>;
+        biography = (enData.biography as string) || "";
+      }
+    }
+
+    // Known for: top 8 most popular works
+    const castCredits = (credits.cast as Array<{
+      id: number; title?: string; name?: string; media_type: string;
+      poster_path?: string | null; release_date?: string; first_air_date?: string;
+      vote_average?: number; character?: string; popularity?: number;
+    }>) || [];
+
+    const knownFor = [...castCredits]
+      .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
+      .slice(0, 12)
+      .map(c => ({
+        id: c.id,
+        media_type: c.media_type,
+        title: c.title || c.name || "",
+        character: c.character || "",
+        poster_url: c.poster_path ? `${TMDB_IMG}/w185${c.poster_path}` : "",
+        year: (c.release_date || c.first_air_date || "").slice(0, 4),
+        rating: Math.round((c.vote_average || 0) * 10) / 10,
+      }));
+
+    // All credits sorted by date desc
+    const allCredits = [...castCredits]
+      .sort((a, b) => {
+        const da = (a.release_date || a.first_air_date || "0000");
+        const db = (b.release_date || b.first_air_date || "0000");
+        return db.localeCompare(da);
+      })
+      .slice(0, 40)
+      .map(c => ({
+        id: c.id,
+        media_type: c.media_type,
+        title: c.title || c.name || "",
+        character: c.character || "",
+        year: (c.release_date || c.first_air_date || "").slice(0, 4),
+        poster_url: c.poster_path ? `${TMDB_IMG}/w92${c.poster_path}` : "",
+      }));
+
+    // Profile photos
+    const profileList = (images.profiles as Array<{ file_path: string; vote_average: number }>) || [];
+    const profilePhotos = profileList
+      .sort((a, b) => b.vote_average - a.vote_average)
+      .slice(0, 6)
+      .map(p => `${TMDB_IMG}/w185${p.file_path}`);
+
+    const profilePath = details.profile_path as string | null;
+
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    res.json({
+      id: personId,
+      name: (details.name as string) || "",
+      biography,
+      birthday: (details.birthday as string) || null,
+      deathday: (details.deathday as string) || null,
+      place_of_birth: (details.place_of_birth as string) || null,
+      known_for_department: (details.known_for_department as string) || "",
+      profile_url: profilePath ? `${TMDB_IMG}/w342${profilePath}` : "",
+      profile_photos: profilePhotos,
+      known_for: knownFor,
+      all_credits: allCredits,
+    });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// GET /api/tmdb/media/:imdbId?type=movie|series
+// Devuelve galería completa de imágenes (backdrops + posters) y recomendaciones desde TMDB.
+// Se llama de forma lazy desde el frontend cuando el usuario llega a esa sección.
+router.get("/tmdb/media/:imdbId", async (req, res) => {
+  const imdbId = req.params["imdbId"] as string;
+  const type = req.query.type === "series" ? "series" : "movie";
+
+  if (!imdbId) { res.status(400).json({ error: "Se requiere imdbId" }); return; }
+
+  try {
+    // Find TMDB id from imdb_id
+    const findRes = await tmdbFetch(`/find/${imdbId}?external_source=imdb_id`);
+    if (!findRes.ok) { res.status(502).json({ error: "Error al consultar TMDB" }); return; }
+
+    const findData = await findRes.json() as {
+      movie_results?: { id: number }[];
+      tv_results?: { id: number }[];
+    };
+
+    const tmdbId = type === "series"
+      ? findData.tv_results?.[0]?.id
+      : findData.movie_results?.[0]?.id;
+
+    if (!tmdbId) { res.status(404).json({ error: "No encontrado en TMDB" }); return; }
+
+    const endpoint = type === "series" ? "tv" : "movie";
+
+    // Fetch images and recommendations in parallel
+    const [imagesRes, recommendationsRes] = await Promise.all([
+      tmdbFetch(`/${endpoint}/${tmdbId}/images?include_image_language=es,en,null`),
+      tmdbFetch(`/${endpoint}/${tmdbId}/recommendations?language=es-MX&page=1`),
+    ]);
+
+    const [imagesData, recsData] = await Promise.all([
+      imagesRes.ok ? imagesRes.json() : Promise.resolve({ backdrops: [], posters: [] }),
+      recommendationsRes.ok ? recommendationsRes.json() : Promise.resolve({ results: [] }),
+    ]) as [
+      { backdrops?: Array<{ file_path: string; vote_average: number; width: number; height: number }>;
+        posters?: Array<{ file_path: string; vote_average: number; iso_639_1: string }> },
+      { results?: Array<{ id: number; title?: string; name?: string; poster_path?: string | null;
+          release_date?: string; first_air_date?: string; vote_average?: number; media_type?: string }> }
+    ];
+
+    // Backdrops: sort by vote_average, return up to 20
+    const backdrops = (imagesData.backdrops ?? [])
+      .sort((a, b) => b.vote_average - a.vote_average)
+      .slice(0, 20)
+      .map(b => ({
+        url: `${TMDB_IMG}/w1280${b.file_path}`,
+        url_original: `${TMDB_IMG}/original${b.file_path}`,
+        thumb: `${TMDB_IMG}/w300${b.file_path}`,
+        vote_average: b.vote_average,
+      }));
+
+    // Posters: show all languages, prioritize rated ones, up to 30
+    const posters = (imagesData.posters ?? [])
+      .sort((a, b) => {
+        // Spanish/English first, then by vote
+        const langA = a.iso_639_1 === "es" ? 2 : a.iso_639_1 === "en" ? 1 : 0;
+        const langB = b.iso_639_1 === "es" ? 2 : b.iso_639_1 === "en" ? 1 : 0;
+        if (langA !== langB) return langB - langA;
+        return b.vote_average - a.vote_average;
+      })
+      .slice(0, 30)
+      .map(p => ({
+        url: `${TMDB_IMG}/w500${p.file_path}`,
+        url_original: `${TMDB_IMG}/original${p.file_path}`,
+        thumb: `${TMDB_IMG}/w185${p.file_path}`,
+        lang: p.iso_639_1,
+      }));
+
+    // Recommendations: top 12
+    const recommendations = (recsData.results ?? [])
+      .slice(0, 12)
+      .map(r => ({
+        tmdb_id: r.id,
+        media_type: r.media_type ?? type,
+        title: r.title || r.name || "",
+        poster_url: r.poster_path ? `${TMDB_IMG}/w342${r.poster_path}` : "",
+        year: (r.release_date || r.first_air_date || "").slice(0, 4),
+        rating: Math.round((r.vote_average || 0) * 10) / 10,
+      }));
+
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    res.json({ backdrops, posters, recommendations });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+
+const cache = new Map<string, { data: unknown; expires: number }>();
+function fromCache<T>(key: string): T | null {
+  const entry = cache.get(key);
+  if (entry && entry.expires > Date.now()) return entry.data as T;
+  return null;
+}
+function toCache(key: string, data: unknown, ttlMs = 30 * 60 * 1000) {
+  cache.set(key, { data, expires: Date.now() + ttlMs });
+}
+
+// GET /api/tmdb/images/:imdbId?type=movie|series
+router.get("/tmdb/images/:imdbId", async (req, res) => {
+  const { imdbId } = req.params;
+  const type = req.query.type === "series" ? "series" : "movie";
+  const cacheKey = `images_${imdbId}_${type}`;
+
+  const cached = fromCache<unknown>(cacheKey);
+  if (cached) { res.setHeader("Cache-Control", "public, max-age=3600"); res.json(cached); return; }
+
+  try {
+    const findRes = await tmdbFetch(`/find/${imdbId}?external_source=imdb_id`);
+    if (!findRes.ok) { res.status(502).json({ error: "Error TMDB" }); return; }
+    const findData = await findRes.json() as { movie_results?: { id: number }[]; tv_results?: { id: number }[] };
+    const tmdbId = type === "series" ? findData.tv_results?.[0]?.id : findData.movie_results?.[0]?.id;
+    if (!tmdbId) { res.status(404).json({ error: "No encontrado en TMDB" }); return; }
+
+    const endpoint = type === "series" ? "tv" : "movie";
+    const imagesRes = await tmdbFetch(`/${endpoint}/${tmdbId}/images?include_image_language=es,en,null`);
+    if (!imagesRes.ok) { res.status(502).json({ error: "Error al obtener imágenes" }); return; }
+
+    const images = await imagesRes.json() as {
+      backdrops?: Array<{ file_path: string; vote_average: number }>;
+      posters?: Array<{ file_path: string; vote_average: number }>;
+    };
+
+    const backdrops = (images.backdrops ?? [])
+      .sort((a, b) => b.vote_average - a.vote_average)
+      .slice(0, 20)
+      .map(b => ({
+        url: `${TMDB_IMG}/w1280${b.file_path}`,
+        url_original: `${TMDB_IMG}/original${b.file_path}`,
+        thumb: `${TMDB_IMG}/w300${b.file_path}`,
+      }));
+
+    const posters = (images.posters ?? [])
+      .sort((a, b) => b.vote_average - a.vote_average)
+      .slice(0, 20)
+      .map(p => ({
+        url: `${TMDB_IMG}/w500${p.file_path}`,
+        url_original: `${TMDB_IMG}/original${p.file_path}`,
+        thumb: `${TMDB_IMG}/w185${p.file_path}`,
+      }));
+
+    const result = { backdrops, posters };
+    toCache(cacheKey, result, 60 * 60 * 1000);
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// GET /api/tmdb/recommendations/:imdbId?type=movie|series
+router.get("/tmdb/recommendations/:imdbId", async (req, res) => {
+  const { imdbId } = req.params;
+  const type = req.query.type === "series" ? "series" : "movie";
+  const cacheKey = `recs_${imdbId}_${type}`;
+
+  const cached = fromCache<unknown>(cacheKey);
+  if (cached) { res.setHeader("Cache-Control", "public, max-age=3600"); res.json(cached); return; }
+
+  try {
+    const findRes = await tmdbFetch(`/find/${imdbId}?external_source=imdb_id`);
+    if (!findRes.ok) { res.status(502).json({ error: "Error TMDB" }); return; }
+    const findData = await findRes.json() as { movie_results?: { id: number }[]; tv_results?: { id: number }[] };
+    const tmdbId = type === "series" ? findData.tv_results?.[0]?.id : findData.movie_results?.[0]?.id;
+    if (!tmdbId) { res.status(404).json({ error: "No encontrado" }); return; }
+
+    const endpoint = type === "series" ? "tv" : "movie";
+    const [recsRes, simRes] = await Promise.all([
+      tmdbFetch(`/${endpoint}/${tmdbId}/recommendations?language=es-MX`),
+      tmdbFetch(`/${endpoint}/${tmdbId}/similar?language=es-MX`),
+    ]);
+
+    type TmdbItem = {
+      id: number; title?: string; name?: string;
+      poster_path?: string | null; backdrop_path?: string | null;
+      release_date?: string; first_air_date?: string;
+      vote_average?: number; overview?: string;
+    };
+
+    const recsData = recsRes.ok ? await recsRes.json() as { results: TmdbItem[] } : { results: [] };
+    const simData = simRes.ok ? await simRes.json() as { results: TmdbItem[] } : { results: [] };
+
+    const seen = new Set<number>();
+    const merged: TmdbItem[] = [];
+    for (const item of [...(recsData.results ?? []), ...(simData.results ?? [])]) {
+      if (!seen.has(item.id)) { seen.add(item.id); merged.push(item); }
+    }
+
+    const results = merged.slice(0, 18).map(item => ({
+      tmdb_id: item.id,
+      media_type: type === "series" ? "tv" : "movie",
+      title: item.title || item.name || "",
+      poster_url: item.poster_path ? `${TMDB_IMG}/w342${item.poster_path}` : "",
+      year: (item.release_date || item.first_air_date || "").slice(0, 4),
+      rating: Math.round((item.vote_average || 0) * 10) / 10,
+      overview: (item.overview || "").slice(0, 120),
+    }));
+
+    toCache(cacheKey, results, 60 * 60 * 1000);
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    res.json(results);
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// GET /api/tmdb/trending?window=day|week
+// Devuelve las tendencias del día o de la semana desde TMDB
+router.get("/tmdb/trending", async (req, res) => {
+  const window = req.query.window === "week" ? "week" : "day";
+  const cacheKey = `trending_${window}`;
+
+  const cached = fromCache<unknown[]>(cacheKey);
+  if (cached) { res.json(cached); return; }
+
+  try {
+    const r = await tmdbFetch(`/trending/all/${window}?language=es-MX`);
+    if (!r.ok) { res.status(502).json({ error: "Error al consultar TMDB" }); return; }
+
+    const data = await r.json() as {
+      results: {
+        id: number;
+        media_type: "movie" | "tv";
+        title?: string;
+        name?: string;
+        poster_path?: string | null;
+        backdrop_path?: string | null;
+        release_date?: string;
+        first_air_date?: string;
+        vote_average?: number;
+        overview?: string;
+      }[];
+    };
+
+    const results = (data.results ?? []).slice(0, 20).map(item => ({
+      tmdb_id: item.id,
+      media_type: item.media_type,
+      title: item.title || item.name || "",
+      poster_url: item.poster_path ? `${TMDB_IMG}/w342${item.poster_path}` : "",
+      backdrop_url: item.backdrop_path ? `${TMDB_IMG}/w780${item.backdrop_path}` : "",
+      year: (item.release_date || item.first_air_date || "").slice(0, 4),
+      rating: Math.round((item.vote_average || 0) * 10) / 10,
+      overview: (item.overview || "").slice(0, 180),
+    }));
+
+    toCache(cacheKey, results);
+    res.setHeader("Cache-Control", "public, max-age=1800");
+    res.json(results);
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// GET /api/tmdb/trailers?type=popular|streaming|theatres
+// Devuelve películas/series trending con su tráiler de YouTube
+router.get("/tmdb/trailers", async (req, res) => {
+  const type = (req.query.type as string) || "popular";
+  const cacheKey = `trailers_${type}`;
+
+  const cached = fromCache<unknown[]>(cacheKey);
+  if (cached) { res.json(cached); return; }
+
+  try {
+    // Endpoint según el tipo de filtro
+    let endpoint = "/trending/movie/day?language=es-MX";
+    if (type === "streaming") endpoint = "/discover/movie?language=es-MX&sort_by=popularity.desc&with_watch_monetization_types=flatrate";
+    if (type === "theatres")  endpoint = "/movie/now_playing?language=es-MX&region=MX";
+
+    const listRes = await tmdbFetch(endpoint);
+    if (!listRes.ok) { res.status(502).json({ error: "Error al consultar TMDB" }); return; }
+    const listData = await listRes.json() as { results: { id: number; title?: string; name?: string; backdrop_path?: string | null; poster_path?: string | null; release_date?: string; first_air_date?: string }[] };
+
+    const items = (listData.results ?? []).slice(0, 15);
+
+    // Para cada item buscar tráiler en paralelo (máx 10 simultáneos)
+    const withTrailers = await Promise.all(
+      items.map(async (item) => {
+        try {
+          const vRes = await tmdbFetch(`/movie/${item.id}/videos?language=es-MX&include_video_language=es,en`);
+          if (!vRes.ok) return null;
+          const vData = await vRes.json() as { results: { type: string; site: string; key: string; iso_639_1: string; official?: boolean; name?: string }[] };
+          const videos = vData.results ?? [];
+          const trailer =
+            videos.find(v => v.type === "Trailer" && v.site === "YouTube" && v.iso_639_1 === "es") ||
+            videos.find(v => v.type === "Trailer" && v.site === "YouTube" && v.official) ||
+            videos.find(v => v.type === "Trailer" && v.site === "YouTube") ||
+            videos.find(v => v.site === "YouTube");
+
+          if (!trailer) return null;
+
+          return {
+            tmdb_id: item.id,
+            media_type: "movie" as const,
+            title: item.title || item.name || "",
+            backdrop_url: item.backdrop_path ? `${TMDB_IMG}/w780${item.backdrop_path}` : "",
+            poster_url: item.poster_path ? `${TMDB_IMG}/w342${item.poster_path}` : "",
+            year: (item.release_date || item.first_air_date || "").slice(0, 4),
+            trailer_key: trailer.key,
+            trailer_name: trailer.name || "Tráiler oficial",
+            youtube_url: `https://www.youtube.com/watch?v=${trailer.key}`,
+            thumbnail_url: `https://img.youtube.com/vi/${trailer.key}/mqdefault.jpg`,
+          };
+        } catch { return null; }
+      })
+    );
+
+    const results = withTrailers.filter(Boolean).slice(0, 10);
+    toCache(cacheKey, results, 30 * 60 * 1000);
+    res.setHeader("Cache-Control", "public, max-age=1800");
+    res.json(results);
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// GET /api/tmdb/collections/search?query=... — search TMDB collections
+router.get("/tmdb/collections/search", async (req, res) => {
+  const { query } = req.query;
+  if (!query) {
+    res.status(400).json({ error: "Falta el parámetro query" });
+    return;
+  }
+
+  try {
+    const searchRes = await tmdbFetch(`/search/collection?query=${encodeURIComponent(query as string)}&language=es-MX`);
+    if (!searchRes.ok) {
+      const err = await searchRes.json() as { status_message?: string };
+      res.status(502).json({ error: err.status_message || "Error al buscar colecciones en TMDB" });
+      return;
+    }
+
+    const data = await searchRes.json() as { results: any[] };
+    const results = data.results.map(c => ({
+      id: c.id,
+      name: c.name,
+      poster_path: c.poster_path ? `${TMDB_IMG}/w342${c.poster_path}` : null,
+      backdrop_path: c.backdrop_path ? `${TMDB_IMG}/w780${c.backdrop_path}` : null,
+    }));
+
+    res.json(results);
+  } catch (err) {
+    console.error("TMDB collection search error:", err);
+    res.status(500).json({ error: "Error al conectar con TMDB" });
+  }
+});
+
 export default router;
+

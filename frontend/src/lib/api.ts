@@ -76,6 +76,7 @@ export const getMovies = (params?: { page?: number; limit?: number }): Promise<M
   return apiFetch(`/api/movies${queryString ? `?${queryString}` : ""}`);
 };
 export const getMovie = (id: string): Promise<Movie> => apiFetch(`/api/movies/${id}`);
+export const getMovieByImdbId = (imdbId: string): Promise<Movie> => apiFetch(`/api/movies/${imdbId}`);
 export const getSeries = (params?: { page?: number; limit?: number }): Promise<Series[]> => {
   const query = new URLSearchParams();
   if (params?.page) query.append("page", params.page.toString());
@@ -101,8 +102,8 @@ export const getAutoImportStatus = (): Promise<AutoImportStatus> =>
   adminFetch("/api/admin/auto-import/status");
 export const toggleAutoImport = (enabled: boolean): Promise<{ enabled: boolean }> =>
   adminPost("/api/admin/auto-import/toggle", { enabled });
-export const runAutoImport = (): Promise<RunImportResult> =>
-  adminPost("/api/admin/auto-import/run", {});
+export const runAutoImport = (sources?: string[]): Promise<RunImportResult> =>
+  adminPost("/api/admin/auto-import/run", { sources });
 
 export interface IdImportResult {
   imdb_id: string;
@@ -263,8 +264,56 @@ export const resetCollection = (
 ): Promise<{ ok: boolean; deleted_movies: number; deleted_series: number; total_deleted: number }> =>
   adminPost("/api/admin/reset-collection", { collection_id });
 
+/** SSE URL for scan-collections-stream (attach token manually as query param) */
+export const scanCollectionsStreamUrl = (collectionIds: number[]): string => {
+  const base = (import.meta.env["VITE_API_URL"] as string | undefined) || "https://cine-gratin.onrender.com";
+  return `${base}/api/admin/scan-collections-stream?ids=${collectionIds.join(",")}`;
+};
+
+/** SSE URL for sync-all-collections-stream */
+export const syncAllCollectionsStreamUrl = (): string => {
+  const base = (import.meta.env["VITE_API_URL"] as string | undefined) || "https://cine-gratin.onrender.com";
+  return `${base}/api/admin/sync-all-collections-stream`;
+};
+
 export const importByTmdbIds = (
   tmdb_ids: number[],
   type: "movie" | "series"
 ): Promise<{ ok: boolean; summary: { imported: number; existed_or_error: number; total: number } }> =>
   adminPost("/api/admin/import-by-tmdb-ids", { tmdb_ids, type });
+
+export interface TmdbCollectionSearchItem {
+  id: number;
+  name: string;
+  poster_path: string | null;
+  backdrop_path: string | null;
+}
+
+export const searchTmdbCollections = (query: string): Promise<TmdbCollectionSearchItem[]> =>
+  apiFetch(`/api/tmdb/collections/search?query=${encodeURIComponent(query)}`);
+
+export const getActiveSagas = (): Promise<number[]> =>
+  adminFetch("/api/admin/active-sagas");
+
+export const toggleSagaActive = (collection_id: number, active: boolean): Promise<{ ok: boolean }> =>
+  adminPost("/api/admin/active-sagas", { collection_id, active });
+
+export interface SagaMember {
+  id: string | number;
+  title: string;
+  poster_url: string;
+  year: string;
+  type: "movie" | "series";
+}
+
+export const getSagaMembers = (collection_id: number): Promise<SagaMember[]> =>
+  adminFetch(`/api/admin/saga-members/${collection_id}`);
+
+export const manageSagaMember = (body: {
+  id: string | number;
+  type: "movie" | "series";
+  collection_id: number | null;
+  collection_name: string | null;
+  action: "add" | "remove";
+}): Promise<{ ok: boolean }> =>
+  adminPost("/api/admin/saga-member", body);

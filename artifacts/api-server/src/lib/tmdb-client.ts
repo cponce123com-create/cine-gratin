@@ -104,8 +104,14 @@ export async function fetchMovieByTmdbId(tmdbId: number): Promise<Record<string,
 
     const crew = (credits.crew as Array<{ job: string; name: string }>) || [];
     const director = crew.find(c => c.job === "Director")?.name || "";
-    const castRaw = (credits.cast as Array<{ name: string }>) || [];
+    const castRaw = (credits.cast as Array<{ id: number; name: string; character: string; profile_path: string | null; order: number }>) || [];
     const castList = castRaw.slice(0, 12).map(c => c.name);
+    const castFull = castRaw.slice(0, 15).map(c => ({
+      id: c.id,
+      name: c.name,
+      character: c.character || "",
+      profile_url: c.profile_path ? `${TMDB_IMG}/w185${c.profile_path}` : null,
+    }));
 
     const videoList = (videos.results as TmdbVideoRaw[]) || [];
     const allVideos = parseVideos(videoList);
@@ -143,6 +149,7 @@ export async function fetchMovieByTmdbId(tmdbId: number): Promise<Record<string,
       synopsis,
       director,
       cast_list: castList,
+      cast_full: castFull,
       networks,
       poster_url: posterPath ? `${TMDB_IMG}/w500${posterPath}` : "",
       background_url: backdropPath ? `${TMDB_IMG}/w1280${backdropPath}` : "",
@@ -192,7 +199,13 @@ export async function fetchSeriesByTmdbId(tmdbId: number): Promise<Record<string
     }
 
     const crewRaw = (credits.crew as Array<{ job: string; name: string }>) || [];
-    const castRaw = (credits.cast as Array<{ name: string }>) || [];
+    const castRaw = (credits.cast as Array<{ id: number; name: string; character: string; profile_path: string | null; order: number }>) || [];
+    const seriesCastFull = castRaw.slice(0, 15).map(c => ({
+      id: c.id,
+      name: c.name,
+      character: c.character || "",
+      profile_url: c.profile_path ? `${TMDB_IMG}/w185${c.profile_path}` : null,
+    }));
     const creators = (details.created_by as Array<{ name: string }>) || [];
     const creatorNames = creators.map(c => c.name);
     if (!creatorNames.length) {
@@ -246,6 +259,7 @@ export async function fetchSeriesByTmdbId(tmdbId: number): Promise<Record<string
       synopsis,
       creators: creatorNames,
       cast_list: castRaw.slice(0, 12).map(c => c.name),
+      cast_full: seriesCastFull,
       networks,
       poster_url: posterPath ? `${TMDB_IMG}/w500${posterPath}` : "",
       background_url: backdropPath ? `${TMDB_IMG}/w1280${backdropPath}` : "",

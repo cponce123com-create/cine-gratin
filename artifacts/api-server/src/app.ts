@@ -8,6 +8,9 @@ import { logger } from "./lib/logger";
 
 const app: Express = express();
 
+// Trust proxy is required for express-rate-limit to work correctly on Render
+app.set("trust proxy", 1);
+
 app.use(
   pinoHttp({
     logger,

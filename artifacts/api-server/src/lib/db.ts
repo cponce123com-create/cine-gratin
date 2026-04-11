@@ -90,6 +90,7 @@ export async function initDb() {
     ALTER TABLE movies ADD COLUMN IF NOT EXISTS reviews JSONB DEFAULT '[]';
     ALTER TABLE movies ADD COLUMN IF NOT EXISTS collection_id INTEGER;
     ALTER TABLE movies ADD COLUMN IF NOT EXISTS collection_name TEXT;
+    ALTER TABLE movies ADD COLUMN IF NOT EXISTS cast_full JSONB DEFAULT '[]';
     ALTER TABLE cv_series ADD COLUMN IF NOT EXISTS vidsrc_status TEXT DEFAULT 'unknown';
     ALTER TABLE cv_series ADD COLUMN IF NOT EXISTS auto_imported BOOLEAN DEFAULT FALSE;
     ALTER TABLE cv_series ADD COLUMN IF NOT EXISTS networks TEXT[] DEFAULT '{}';
@@ -97,6 +98,7 @@ export async function initDb() {
     ALTER TABLE cv_series ADD COLUMN IF NOT EXISTS reviews JSONB DEFAULT '[]';
     ALTER TABLE cv_series ADD COLUMN IF NOT EXISTS collection_id INTEGER;
     ALTER TABLE cv_series ADD COLUMN IF NOT EXISTS collection_name TEXT;
+    ALTER TABLE cv_series ADD COLUMN IF NOT EXISTS cast_full JSONB DEFAULT '[]';
 
     CREATE TABLE IF NOT EXISTS cv_auto_import_log (
       id SERIAL PRIMARY KEY,
@@ -110,6 +112,24 @@ export async function initDb() {
 
     INSERT INTO cv_settings (key, value) VALUES ('auto_import_enabled', 'true')
       ON CONFLICT (key) DO NOTHING;
+
+    CREATE TABLE IF NOT EXISTS cv_active_sagas (
+      collection_id INTEGER PRIMARY KEY,
+      activated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    -- Seed initial active sagas from static config IDs
+    -- Marvel (420), Harry Potter (1241), LOTR (119), Star Wars (10), Fast (9735), 
+    -- M:I (87359), Wick (404609), Jurassic (328), Transformers (8650), X-Men (748), 
+    -- Yellowstone (1733), Alien (8091), Indiana (84), Pirates (295), Terminator (528), 
+    -- Matrix (2344), Apes (173710), Despicable (86066), Toy Story (10194), Ice Age (8741), 
+    -- Shrek (3733), Hunger Games (131635), Twilight (33514), Bourne (31562), Rocky (1575), Bond (645)
+    INSERT INTO cv_active_sagas (collection_id)
+    VALUES 
+      (420), (1241), (119), (10), (9735), (87359), (404609), (328), (8650), (748), 
+      (1733), (8091), (84), (295), (528), (2344), (173710), (86066), (10194), (8741), 
+      (3733), (131635), (33514), (31562), (1575), (645)
+    ON CONFLICT (collection_id) DO NOTHING;
   `);
 
   // Performance indexes
@@ -127,5 +147,9 @@ export async function initDb() {
     CREATE INDEX IF NOT EXISTS idx_series_vidsrc ON cv_series (vidsrc_status);
   `);
 }
+
+pool.on("error", (err) => {
+  console.error("Unexpected error on idle client", err);
+});
 
 export { pool };

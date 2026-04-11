@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { pool } from "../lib/db";
 import { rateLimit } from "express-rate-limit";
+import { tmdbFetch, fetchMovieByTmdbId } from "../lib/tmdb-client";
 
 /** Inline auth check for routes that are NOT under /admin/* but still need protection. */
 function requireAuth(req: Request, res: Response): boolean {
@@ -39,6 +40,7 @@ const toMovie = (row: Record<string, unknown>) => ({
   synopsis: row.synopsis,
   director: row.director,
   cast_list: row.cast_list,
+  cast_full: row.cast_full ?? [],
   networks: (row.networks as string[]) ?? [],
   poster_url: row.poster_url,
   background_url: row.background_url,
@@ -68,7 +70,7 @@ router.get("/movies", movieLimit, async (req, res) => {
               director, cast_list, networks, poster_url, background_url, yt_trailer_code,
               mpa_rating, slug, featured, video_sources, torrents, views, date_added,
               vidsrc_status, auto_imported, collection_id, collection_name,
-              '[]'::jsonb AS videos, '[]'::jsonb AS reviews
+              '[]'::jsonb AS videos, '[]'::jsonb AS reviews, '[]'::jsonb AS cast_full
        FROM movies ORDER BY year DESC, date_added DESC LIMIT $1 OFFSET $2`,
       [limit, offset]
     );
@@ -178,7 +180,7 @@ router.post(["/admin/movies", "/admin/movies/:id"], async (req, res) => {
         m.mpa_rating, m.slug, m.featured,
         JSON.stringify(m.video_sources), JSON.stringify(m.torrents),
         m.views || 0, m.date_added || new Date().toISOString(),
-        m.collection_id || null, m.collection_name || null
+        m.collection_id !== undefined ? m.collection_id : null, m.collection_name ?? null
       ]
     );
     const { rows } = await pool.query("SELECT * FROM movies WHERE id = $1", [id]);
@@ -292,6 +294,113 @@ router.post("/auth/change-password", async (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: String(e) });
+  }
+});
+
+// GET /api/admin/backfill-cast-stream
+// Recorre todas las películas/series sin cast_full y lo rellena desde TMDB.
+// Usa SSE para mostrar progreso en tiempo real.
+router.get("/admin/backfill-cast-stream", async (req, res) => {
+  const type = req.query.type === "series" ? "series" : "movie";
+  const table = type === "series" ? "cv_series" : "movies";
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  const send = (event: string, data: unknown) => {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  try {
+    // Only process rows with empty cast_full
+    const { rows } = await pool.query(
+      `SELECT id, imdb_id, title FROM ${table}
+       WHERE imdb_id IS NOT NULL AND imdb_id != ''
+         AND (cast_full IS NULL OR cast_full = '[]'::jsonb)
+       ORDER BY date_added DESC`
+    );
+
+    send("start", { total: rows.length });
+
+    let updated = 0, skipped = 0, errorCount = 0;
+
+    for (let i = 0; i < rows.length; i++) {
+      if (req.destroyed) break;
+      const row = rows[i] as { id: string; imdb_id: string; title: string };
+
+      try {
+        // Find TMDB id from imdb_id
+        const findRes = await tmdbFetch(
+          `/find/${row.imdb_id}?external_source=imdb_id`
+        );
+        if (!findRes.ok) { skipped++; continue; }
+
+        const findData = await findRes.json() as {
+          movie_results?: { id: number }[];
+          tv_results?: { id: number }[];
+        };
+
+        const tmdbId = type === "series"
+          ? findData.tv_results?.[0]?.id
+          : findData.movie_results?.[0]?.id;
+
+        if (!tmdbId) { skipped++; continue; }
+
+        // Fetch credits
+        const creditsRes = await tmdbFetch(
+          `/${type === "series" ? "tv" : "movie"}/${tmdbId}/credits?language=es-MX`
+        );
+        if (!creditsRes.ok) { skipped++; continue; }
+
+        const credits = await creditsRes.json() as {
+          cast?: Array<{ id: number; name: string; character: string; profile_path: string | null; order: number }>;
+        };
+
+        const TMDB_IMG = "https://image.tmdb.org/t/p";
+        const castFull = (credits.cast ?? [])
+          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+          .slice(0, 15)
+          .map(c => ({
+            id: c.id,
+            name: c.name,
+            character: c.character || "",
+            profile_url: c.profile_path ? `${TMDB_IMG}/w185${c.profile_path}` : null,
+          }));
+
+        await pool.query(
+          `UPDATE ${table} SET cast_full = $1 WHERE id = $2`,
+          [JSON.stringify(castFull), row.id]
+        );
+
+        updated++;
+        send("progress", {
+          i: i + 1, total: rows.length, title: row.title,
+          status: "updated", cast_count: castFull.length,
+          updated, skipped, error: errorCount,
+        });
+
+        // Respect TMDB rate limit
+        await new Promise(r => setTimeout(r, 120));
+      } catch {
+        errorCount++;
+      }
+
+      // Send heartbeat every 20 items even if no update
+      if (i % 20 === 0 && updated === 0) {
+        send("progress", {
+          i: i + 1, total: rows.length, title: row.title,
+          status: "scanning", updated, skipped, error: errorCount,
+        });
+      }
+    }
+
+    send("done", { total: rows.length, updated, skipped, error: errorCount });
+    res.end();
+  } catch (e) {
+    send("error", { message: String(e) });
+    res.end();
   }
 });
 

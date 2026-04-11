@@ -93,9 +93,10 @@ router.post("/admin/auto-import/toggle", async (req, res) => {
 });
 
 // POST /api/admin/auto-import/run
-router.post("/admin/auto-import/run", async (_req, res) => {
+router.post("/admin/auto-import/run", async (req, res) => {
+  const { sources } = req.body as { sources?: string[] };
   try {
-    const result = await runAutoImport();
+    const result = await runAutoImport(sources);
     res.json({
       ok: true,
       movies_imported: result.moviesImported,
@@ -687,7 +688,8 @@ router.get("/admin/rescan-metadata-stream", async (req, res) => {
 
             const result = await pool.query(
               `UPDATE movies SET collection_id = $1, collection_name = $2
-               WHERE imdb_id = $3 RETURNING id`,
+               WHERE imdb_id = $3 AND collection_id IS DISTINCT FROM $1
+               RETURNING id`,
               [colData.id, colData.name, ext.imdb_id]
             );
             if (result.rowCount && result.rowCount > 0) colUpdated++;
@@ -760,22 +762,30 @@ router.post("/admin/import-collection", async (req, res) => {
           imported++;
           titles.push(part.title || part.name || String(part.id));
         } else {
-          // Movie already exists — update its collection_id via external_ids lookup
           existed++;
-          try {
-            const extR = await tmdbFetch(`/movie/${part.id}/external_ids`);
-            if (extR.ok) {
-              const ext = await extR.json() as { imdb_id?: string };
-              if (ext.imdb_id) {
-                await pool.query(
-                  `UPDATE movies SET collection_id = $1, collection_name = $2 WHERE imdb_id = $3`,
-                  [data.id, data.name, ext.imdb_id]
-                );
-              }
-            }
-          } catch { /* ignore */ }
         }
-      } catch { existed++; }
+
+        // Independientemente de si es nueva o ya existía, actualizamos el collection_id
+        // buscando por imdb_id (vía external_ids de TMDB)
+        try {
+          const extR = await tmdbFetch(`/movie/${part.id}/external_ids`);
+          if (extR.ok) {
+            const ext = await extR.json() as { imdb_id?: string };
+            if (ext.imdb_id) {
+              await pool.query(
+                `UPDATE movies SET collection_id = $1, collection_name = $2 
+                 WHERE imdb_id = $3 AND (collection_id IS NULL OR collection_id != $1)`,
+                [data.id, data.name, ext.imdb_id]
+              );
+            }
+          }
+        } catch (err) {
+          console.error(`Error actualizando collection_id para movie ${part.id}:`, err);
+        }
+      } catch (err) {
+        existed++;
+        console.error(`Error importando/actualizando movie ${part.id} en colección:`, err);
+      }
     }
 
     res.json({ ok: true, collection: data.name, imported, existed, total: parts.length, titles });
@@ -876,9 +886,10 @@ router.get("/admin/scan-collections-stream", async (req, res) => {
             const ext = await extRes.json() as { imdb_id?: string };
             if (!ext.imdb_id) continue;
 
+            // Update always — this corrects movies that were previously misassigned
             const result = await pool.query(
               `UPDATE movies SET collection_id = $1, collection_name = $2
-               WHERE imdb_id = $3 AND (collection_id IS NULL OR collection_id != $1)
+               WHERE imdb_id = $3 AND collection_id IS DISTINCT FROM $1
                RETURNING id`,
               [colData.id, colData.name, ext.imdb_id]
             );
@@ -912,4 +923,181 @@ router.get("/admin/scan-collections-stream", async (req, res) => {
   }
 });
 
+// GET /api/admin/sync-all-collections-stream
+// Recorre TODAS las películas en la BD, consulta TMDB por su imdb_id,
+// y actualiza collection_id / collection_name si TMDB dice que pertenece a una colección.
+// Útil para películas importadas antes de que existiera el campo collection_id.
+router.get("/admin/sync-all-collections-stream", async (req, res) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  const send = (event: string, data: unknown) => {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  try {
+    const { rows: movies } = await pool.query(
+      `SELECT id, imdb_id, title, collection_id FROM movies WHERE imdb_id IS NOT NULL AND imdb_id != '' ORDER BY date_added DESC`
+    );
+
+    send("start", { total: movies.length });
+
+    let updated = 0, skipped = 0, errorCount = 0;
+
+    for (let i = 0; i < movies.length; i++) {
+      if (req.destroyed) break;
+      const movie = movies[i] as { id: string; imdb_id: string; title: string; collection_id: number | null };
+
+      try {
+        // Look up by imdb_id on TMDB
+        const findRes = await tmdbFetch(`/find/${movie.imdb_id}?external_source=imdb_id`);
+        if (!findRes.ok) { errorCount++; continue; }
+        const findData = await findRes.json() as { movie_results?: { id: number }[] };
+        const tmdbId = findData.movie_results?.[0]?.id;
+        if (!tmdbId) { skipped++; continue; }
+
+        // Get movie details to check belongs_to_collection
+        const detailRes = await tmdbFetch(`/movie/${tmdbId}?language=es-MX`);
+        if (!detailRes.ok) { errorCount++; continue; }
+        const detail = await detailRes.json() as {
+          belongs_to_collection?: { id: number; name: string } | null;
+        };
+
+        const col = detail.belongs_to_collection;
+
+        if (col && col.id !== movie.collection_id) {
+          await pool.query(
+            `UPDATE movies SET collection_id = $1, collection_name = $2 WHERE id = $3`,
+            [col.id, col.name, movie.id]
+          );
+          updated++;
+          send("progress", {
+            i: i + 1, total: movies.length, title: movie.title,
+            status: "updated", collection: col.name, collection_id: col.id,
+            updated, skipped, error: errorCount
+          });
+        } else if (!col && movie.collection_id != null && movie.collection_id !== -1) {
+          // TMDB says no collection — clear it (unless manually excluded with -1)
+          await pool.query(
+            `UPDATE movies SET collection_id = NULL, collection_name = NULL WHERE id = $1`,
+            [movie.id]
+          );
+          updated++;
+          send("progress", {
+            i: i + 1, total: movies.length, title: movie.title,
+            status: "cleared", updated, skipped, error: errorCount
+          });
+        } else {
+          skipped++;
+        }
+
+        // Respect TMDB rate limits
+        await new Promise(r => setTimeout(r, 120));
+      } catch {
+        errorCount++;
+      }
+
+      // Send progress every 10 items to avoid flooding
+      if (i % 10 === 0) {
+        send("progress", {
+          i: i + 1, total: movies.length, title: movie.title,
+          status: "scanning", updated, skipped, error: errorCount
+        });
+      }
+    }
+
+    send("done", { total: movies.length, updated, skipped, error: errorCount });
+    res.end();
+  } catch (e) {
+    send("error", { message: String(e) });
+    res.end();
+  }
+});
+
+// GET /api/admin/dynamic-sagas — returns distinct collections from movies table that are ACTIVE
+router.get("/admin/dynamic-sagas", async (_req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT DISTINCT m.collection_id, m.collection_name 
+       FROM movies m
+       INNER JOIN cv_active_sagas a ON a.collection_id = m.collection_id
+       WHERE m.collection_id IS NOT NULL 
+       ORDER BY m.collection_name`
+    );
+    res.json(result.rows);
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// GET /api/admin/active-sagas — returns array of active collection IDs
+router.get("/admin/active-sagas", async (_req, res) => {
+  try {
+    const result = await pool.query("SELECT collection_id FROM cv_active_sagas");
+    res.json(result.rows.map(r => r.collection_id));
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// POST /api/admin/active-sagas — toggle saga active state
+router.post("/admin/active-sagas", async (req, res) => {
+  const { collection_id, active } = req.body as { collection_id: number; active: boolean };
+  if (!collection_id) return res.status(400).json({ error: "collection_id is required" });
+
+  try {
+    if (active) {
+      await pool.query(
+        "INSERT INTO cv_active_sagas (collection_id) VALUES ($1) ON CONFLICT DO NOTHING",
+        [collection_id]
+      );
+    } else {
+      await pool.query("DELETE FROM cv_active_sagas WHERE collection_id = $1", [collection_id]);
+    }
+    res.json({ ok: true, collection_id, active });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// GET /api/admin/saga-members/:collection_id → devuelve todas las películas y series con ese collection_id
+router.get("/admin/saga-members/:collection_id", async (req, res) => {
+  const { collection_id } = req.params;
+  try {
+    const [movies, series] = await Promise.all([
+      pool.query("SELECT id, title, poster_url, year, 'movie' as type FROM movies WHERE collection_id = $1", [collection_id]),
+      pool.query("SELECT id, title, poster_url, year, 'series' as type FROM cv_series WHERE collection_id = $1", [collection_id]),
+    ]);
+    res.json([...movies.rows, ...series.rows]);
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// POST /api/admin/saga-member → body: { id, type, collection_id, collection_name, action: "add"|"remove" }
+router.post("/admin/saga-member", async (req, res) => {
+  const { id, type, collection_id, collection_name, action } = req.body as {
+    id: string | number;
+    type: "movie" | "series";
+    collection_id: number | null;
+    collection_name: string | null;
+    action: "add" | "remove";
+  };
+
+  const table = type === "series" ? "cv_series" : "movies";
+  try {
+    if (action === "remove") {
+      await pool.query(`UPDATE ${table} SET collection_id = NULL, collection_name = NULL WHERE id = $1`, [id]);
+    } else {
+      await pool.query(`UPDATE ${table} SET collection_id = $1, collection_name = $2 WHERE id = $3`, [collection_id, collection_name, id]);
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
 export default router;
+

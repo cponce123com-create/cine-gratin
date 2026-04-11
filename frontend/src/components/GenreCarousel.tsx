@@ -14,10 +14,12 @@ interface GenreCarouselProps {
   pageSize?: number; // Permitir personalizar el tamaño de página
 }
 
-const PAGE_SIZE = 20;
+// Reducir el tamaño de página inicial para mejorar el rendimiento
+const PAGE_SIZE = 12;
 
 const GenreCarousel = memo(function GenreCarousel({ id, title, items, pageSize = PAGE_SIZE }: GenreCarouselProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Iniciar con menos items para mejorar el tiempo de carga
   const [visibleCount, setVisibleCount] = useState(pageSize);
 
   if (items.length === 0) return null;
@@ -32,7 +34,7 @@ const GenreCarousel = memo(function GenreCarousel({ id, title, items, pageSize =
   };
 
   const loadMore = () => {
-    setVisibleCount((prev) => prev + pageSize);
+    setVisibleCount((prev) => Math.min(prev + pageSize, items.length));
     setTimeout(() => {
       if (scrollRef.current) {
         scrollRef.current.scrollTo({ left: scrollRef.current.scrollWidth, behavior: "smooth" });
@@ -80,7 +82,7 @@ const GenreCarousel = memo(function GenreCarousel({ id, title, items, pageSize =
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
             </div>
-            <span className="text-sm font-bold text-gray-400 group-hover:text-white">+{items.length - visibleCount}</span>
+            <span className="text-sm font-bold text-gray-400 group-hover:text-white">+{Math.max(0, items.length - visibleCount)}</span>
           </button>
         )}
       </div>

@@ -26,6 +26,7 @@ const toSeries = (row: Record<string, unknown>) => ({
   synopsis: row.synopsis,
   creators: row.creators,
   cast_list: row.cast_list,
+  cast_full: row.cast_full ?? [],
   networks: (row.networks as string[]) ?? [],
   poster_url: row.poster_url,
   background_url: row.background_url,
@@ -55,7 +56,8 @@ router.get("/series", seriesLimit, async (req, res) => {
               creators, cast_list, networks, poster_url, background_url, yt_trailer_code,
               status, total_seasons, video_sources, featured, views, date_added,
               vidsrc_status, auto_imported, collection_id, collection_name,
-              '[]'::jsonb AS videos, '[]'::jsonb AS reviews, '[]'::jsonb AS seasons_data
+              '[]'::jsonb AS videos, '[]'::jsonb AS reviews, '[]'::jsonb AS seasons_data,
+              '[]'::jsonb AS cast_full
        FROM cv_series ORDER BY year DESC, date_added DESC LIMIT $1 OFFSET $2`,
       [limit, offset]
     );
@@ -137,7 +139,7 @@ router.post(["/admin/series", "/admin/series/:id"], async (req, res) => {
         JSON.stringify(s.video_sources || []),
         s.featured || false, s.views || 0,
         s.date_added || new Date().toISOString(),
-        s.collection_id || null, s.collection_name || null
+        s.collection_id !== undefined ? s.collection_id : null, s.collection_name ?? null
       ]
     );
     const { rows } = await pool.query("SELECT * FROM cv_series WHERE id = $1", [id]);

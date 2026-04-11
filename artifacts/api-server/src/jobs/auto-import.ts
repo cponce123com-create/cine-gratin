@@ -27,16 +27,18 @@ export async function importMovie(tmdbId: number): Promise<boolean> {
 
     await pool.query(
       `INSERT INTO movies (id, imdb_id, title, year, rating, runtime, genres, language, synopsis,
-        director, cast_list, networks, poster_url, background_url, yt_trailer_code, videos, reviews,
+        director, cast_list, cast_full, networks, poster_url, background_url, yt_trailer_code, videos, reviews,
         mpa_rating, slug, featured, video_sources, torrents, views, date_added, auto_imported,
         collection_id, collection_name)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)
        ON CONFLICT (id) DO UPDATE SET
          collection_id = EXCLUDED.collection_id,
-         collection_name = EXCLUDED.collection_name`,
+         collection_name = EXCLUDED.collection_name,
+         cast_full = EXCLUDED.cast_full`,
       [
         id, data.imdb_id, data.title, data.year, data.rating, data.runtime,
         data.genres, data.language, data.synopsis, data.director, data.cast_list,
+        JSON.stringify(data.cast_full ?? []),
         data.networks ?? [],
         data.poster_url, data.background_url, data.yt_trailer_code,
         JSON.stringify(data.videos ?? []), JSON.stringify(data.reviews ?? []),
@@ -63,22 +65,24 @@ export async function importSeries(tmdbId: number): Promise<boolean> {
 
     await pool.query(
       `INSERT INTO cv_series (id, imdb_id, tmdb_id, title, year, end_year, rating, genres, language,
-        synopsis, creators, cast_list, networks, poster_url, background_url, yt_trailer_code,
+        synopsis, creators, cast_list, cast_full, networks, poster_url, background_url, yt_trailer_code,
         videos, reviews, status, total_seasons, seasons_data, video_sources,
         featured, views, date_added, auto_imported, collection_id, collection_name)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29)
        ON CONFLICT (id) DO UPDATE SET
          collection_id = EXCLUDED.collection_id,
-         collection_name = EXCLUDED.collection_name`,
+         collection_name = EXCLUDED.collection_name,
+         cast_full = EXCLUDED.cast_full`,
       [
         id, data.imdb_id, data.tmdb_id, data.title, data.year, data.end_year || null,
         data.rating, data.genres, data.language, data.synopsis,
         data.creators, data.cast_list,
+        JSON.stringify(data.cast_full ?? []),
         data.networks ?? [],
         data.poster_url, data.background_url, data.yt_trailer_code,
         JSON.stringify(data.videos ?? []), JSON.stringify(data.reviews ?? []),
         data.status, data.total_seasons,
-        JSON.stringify(data.seasons_data || []), "",
+        JSON.stringify(data.seasons_data || []), "[]",
         false, 0, new Date().toISOString(), true,
         data.collection_id, data.collection_name
       ]
@@ -126,15 +130,15 @@ export async function importByImdbId(
       
       if (type === "movie") {
         await pool.query(
-          `INSERT INTO movies (id, imdb_id, title, year, genres, slug, auto_imported, networks)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (id) DO NOTHING`,
-          [id, imdbId, title, new Date().getFullYear(), ["Fútbol"], slug, true, ["Deportes"]]
+          `INSERT INTO movies (id, imdb_id, title, year, genres, slug, auto_imported, networks, video_sources, torrents, videos, reviews)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) ON CONFLICT (id) DO NOTHING`,
+          [id, imdbId, title, new Date().getFullYear(), ["Fútbol"], slug, true, ["Deportes"], "[]", "[]", "[]", "[]"]
         );
       } else {
         await pool.query(
-          `INSERT INTO cv_series (id, imdb_id, title, year, genres, auto_imported, networks)
-           VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (id) DO NOTHING`,
-          [id, imdbId, title, new Date().getFullYear(), ["Fútbol"], true, ["Deportes"]]
+          `INSERT INTO cv_series (id, imdb_id, title, year, genres, auto_imported, networks, video_sources, seasons_data, videos, reviews)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) ON CONFLICT (id) DO NOTHING`,
+          [id, imdbId, title, new Date().getFullYear(), ["Fútbol"], true, ["Deportes"], "[]", "[]", "[]", "[]"]
         );
       }
       
@@ -188,40 +192,51 @@ export async function importByImdbId(
   }
 }
 
-export async function runAutoImport(): Promise<{ moviesImported: number; seriesImported: number; totalChecked: number }> {
+export async function runAutoImport(sources?: string[]): Promise<{ moviesImported: number; seriesImported: number; totalChecked: number }> {
   const apiKey = process.env["TMDB_API_KEY"];
   if (!apiKey) {
     logger.warn("TMDB_API_KEY not set, skipping auto-import");
     return { moviesImported: 0, seriesImported: 0, totalChecked: 0 };
   }
 
-  logger.info("Auto-import: starting");
+  logger.info({ sources }, "Auto-import: starting");
   let moviesImported = 0;
   let seriesImported = 0;
   let totalChecked = 0;
 
-  try {
-    const [trendingMoviesRes, upcomingRes, trendingTvRes] = await Promise.all([
-      tmdbFetch("/trending/movie/day"),
-      tmdbFetch("/movie/upcoming?language=es-MX&region=MX"),
-      tmdbFetch("/trending/tv/week"),
-    ]);
+  const ALL_SOURCES = [
+    "/trending/movie/day",
+    "/trending/movie/week",
+    "/trending/tv/day",
+    "/trending/tv/week",
+    "/movie/upcoming?language=es-MX&region=MX",
+    "/movie/top_rated?language=es-MX",
+    "/tv/top_rated?language=es-MX",
+    "/movie/popular?language=es-MX",
+    "/tv/popular?language=es-MX"
+  ];
 
-    const [trendingMovies, upcoming, trendingTv] = await Promise.all([
-      trendingMoviesRes.ok ? trendingMoviesRes.json() : { results: [] },
-      upcomingRes.ok ? upcomingRes.json() : { results: [] },
-      trendingTvRes.ok ? trendingTvRes.json() : { results: [] },
-    ]) as [{ results: TmdbListItem[] }, { results: TmdbListItem[] }, { results: TmdbListItem[] }];
+  const activeSources = sources && sources.length > 0 ? sources : ALL_SOURCES;
+
+  try {
+    const responses = await Promise.all(activeSources.map(s => tmdbFetch(s)));
+    const data = await Promise.all(responses.map(r => r.ok ? r.json() : { results: [] })) as { results: TmdbListItem[] }[];
 
     const movieIds = new Set<number>();
-    for (const m of [...(trendingMovies.results || []), ...(upcoming.results || [])]) {
-      movieIds.add(m.id);
-    }
-
     const seriesIds = new Set<number>();
-    for (const s of trendingTv.results || []) {
-      seriesIds.add(s.id);
-    }
+
+    activeSources.forEach((source, index) => {
+      const results = data[index].results || [];
+      const isTv = source.includes("/tv/");
+      
+      results.forEach(item => {
+        if (isTv) {
+          seriesIds.add(item.id);
+        } else {
+          movieIds.add(item.id);
+        }
+      });
+    });
 
     totalChecked = movieIds.size + seriesIds.size;
 
