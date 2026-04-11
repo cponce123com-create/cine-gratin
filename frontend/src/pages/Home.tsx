@@ -184,6 +184,14 @@ export default function Home() {
           const dateB = b.item.date_added ? new Date(b.item.date_added).getTime() : 0;
           return dateB - dateA;
         });
+      } else if (sec.type === "indian") {
+        // Indian languages: Hindi, Telugu, Tamil, Kannada, Malayalam, Bengali, Marathi, Punjabi
+        const INDIAN_LANGS = new Set(["hi", "te", "ta", "kn", "ml", "bn", "mr", "pa"]);
+        items = buildMixed(
+          allMovies, allSeries,
+          (m) => !!(m.language && INDIAN_LANGS.has(m.language)),
+          (s) => !!(s.language && INDIAN_LANGS.has(s.language))
+        ).sort((a, b) => (Number(b.item.rating) || 0) - (Number(a.item.rating) || 0));
       }
       return { ...sec, items };
     }).filter(s => s.items.length >= MIN_ITEMS_TO_SHOW);
