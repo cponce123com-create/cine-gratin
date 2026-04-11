@@ -1106,5 +1106,147 @@ router.post("/admin/saga-member", async (req, res) => {
   }
 });
 
+// ── Saga Config CRUD ──────────────────────────────────────────────────────────
+// Replaces the hardcoded SAGA_SECTIONS in homeConfig.ts.
+// The frontend reads from here instead of the static array.
+
+// GET /api/admin/saga-config — list all sagas (admin: includes inactive)
+router.get("/admin/saga-config", async (_req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM cv_saga_config ORDER BY sort_order ASC, created_at ASC"
+    );
+    res.json(result.rows);
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// GET /api/saga-config — public endpoint (active only, used by Home.tsx)
+router.get("/saga-config", async (_req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM cv_saga_config WHERE active = TRUE ORDER BY sort_order ASC, created_at ASC"
+    );
+    res.json(result.rows);
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// POST /api/admin/saga-config — create a new saga
+router.post("/admin/saga-config", async (req, res) => {
+  const { id, label, collection_id, keywords, sort_order, active } = req.body as {
+    id: string;
+    label: string;
+    collection_id?: number | null;
+    keywords?: string[];
+    sort_order?: number;
+    active?: boolean;
+  };
+  if (!id || !label) return res.status(400).json({ error: "id y label son requeridos" });
+  try {
+    const result = await pool.query(
+      `INSERT INTO cv_saga_config (id, label, collection_id, keywords, sort_order, active)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [id, label, collection_id ?? null, keywords ?? [], sort_order ?? 0, active ?? true]
+    );
+    res.json(result.rows[0]);
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// PUT /api/admin/saga-config/:id — update a saga
+router.put("/admin/saga-config/:id", async (req, res) => {
+  const { id } = req.params;
+  const { label, collection_id, keywords, sort_order, active } = req.body as {
+    label?: string;
+    collection_id?: number | null;
+    keywords?: string[];
+    sort_order?: number;
+    active?: boolean;
+  };
+  try {
+    const result = await pool.query(
+      `UPDATE cv_saga_config
+       SET label = COALESCE($1, label),
+           collection_id = $2,
+           keywords = COALESCE($3, keywords),
+           sort_order = COALESCE($4, sort_order),
+           active = COALESCE($5, active)
+       WHERE id = $6
+       RETURNING *`,
+      [label ?? null, collection_id ?? null, keywords ?? null, sort_order ?? null, active ?? null, id]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ error: "Saga no encontrada" });
+    res.json(result.rows[0]);
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// DELETE /api/admin/saga-config/:id — delete a saga config entry
+router.delete("/admin/saga-config/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query("DELETE FROM cv_saga_config WHERE id = $1 RETURNING id", [id]);
+    if (result.rowCount === 0) return res.status(404).json({ error: "Saga no encontrada" });
+    res.json({ ok: true, deleted: id });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// POST /api/admin/saga-config/seed — seed initial data from hardcoded list (run once)
+router.post("/admin/saga-config/seed", async (_req, res) => {
+  const INITIAL_SAGAS = [
+    { id: "marvel", label: "Universo Marvel", collection_id: 420, keywords: ["iron man","vengadores","avengers","capitán américa","captain america","thor","hulk","black widow","doctor strange","spider-man","spiderman","guardians of the galaxy","guardianes de la galaxia","ant-man","antman","black panther","eternals","shang-chi","shangchi","wakanda","marvel"] },
+    { id: "dc", label: "DC Universe", collection_id: null, keywords: ["batman","superman","wonder woman","aquaman","the flash","shazam","black adam","joker","suicide squad","birds of prey","green lantern","dc universe"] },
+    { id: "harry-potter", label: "Harry Potter", collection_id: 1241, keywords: ["harry potter","animales fantásticos","fantastic beasts","potter"] },
+    { id: "lord-of-the-rings", label: "El Señor de los Anillos", collection_id: 119, keywords: ["señor de los anillos","lord of the rings","hobbit","anillos","rings"] },
+    { id: "star-wars", label: "Star Wars", collection_id: 10, keywords: ["star wars","mandalorian","andor","obi-wan","obiwan","boba fett","ahsoka","clone wars","skywalker"] },
+    { id: "fast-furious", label: "Fast & Furious", collection_id: 9735, keywords: ["fast & furious","fast and furious","2 fast 2 furious","tokyo drift","fast five","furious 6","furious 7","furious seven","fate of the furious","hobbs & shaw","hobbs and shaw"] },
+    { id: "mission-impossible", label: "Misión: Imposible", collection_id: 87359, keywords: ["mission: impossible","mission impossible","misión: imposible","mision: imposible","mision imposible"] },
+    { id: "john-wick", label: "John Wick", collection_id: 404609, keywords: ["john wick","continental","wick"] },
+    { id: "jurassic", label: "Jurassic Park", collection_id: 328, keywords: ["jurassic park","jurassic world","jurassic"] },
+    { id: "transformers", label: "Transformers", collection_id: 8650, keywords: ["transformers","bumblebee","transformer"] },
+    { id: "x-men", label: "X-Men", collection_id: 748, keywords: ["x-men","xmen","wolverine","deadpool","logan","magneto","professor x"] },
+    { id: "yellowstone", label: "Universo Yellowstone", collection_id: null, keywords: ["yellowstone","1883","1923","marshals"] },
+    { id: "alien", label: "Alien", collection_id: 8091, keywords: ["alien","aliens","prometheus","covenant","predator"] },
+    { id: "indiana-jones", label: "Indiana Jones", collection_id: 84, keywords: ["indiana jones","indiana"] },
+    { id: "pirates", label: "Piratas del Caribe", collection_id: 295, keywords: ["piratas del caribe","pirates of the caribbean","pirates caribbean","caribe"] },
+    { id: "terminator", label: "Terminator", collection_id: 528, keywords: ["terminator"] },
+    { id: "matrix", label: "Matrix", collection_id: 2344, keywords: ["matrix","the matrix"] },
+    { id: "planet-of-apes", label: "El Planeta de los Simios", collection_id: 173710, keywords: ["planet of the apes","planeta de los simios","kingdom of the planet","apes"] },
+    { id: "despicable", label: "Mi Villano Favorito", collection_id: 86066, keywords: ["despicable me","despicable","mi villano favorito","minions","gru"] },
+    { id: "toy-story", label: "Toy Story", collection_id: 10194, keywords: ["toy story","buzz lightyear","woody"] },
+    { id: "ice-age", label: "La Era del Hielo", collection_id: 8741, keywords: ["ice age","era del hielo","scrat"] },
+    { id: "shrek", label: "Shrek", collection_id: 3733, keywords: ["shrek","puss in boots","puss","el gato con botas","gato con botas"] },
+    { id: "hunger-games", label: "Los Juegos del Hambre", collection_id: 131635, keywords: ["hunger games","juegos del hambre","catching fire","mockingjay","ballad of songbirds","katniss"] },
+    { id: "twilight", label: "Crepúsculo", collection_id: 33514, keywords: ["twilight","crepúsculo","crepusculo","new moon","eclipse","breaking dawn"] },
+    { id: "bourne", label: "Jason Bourne", collection_id: 31562, keywords: ["bourne","jason bourne"] },
+    { id: "rocky-creed", label: "Rocky / Creed", collection_id: 1575, keywords: ["rocky","creed"] },
+    { id: "james-bond", label: "James Bond 007", collection_id: 645, keywords: ["james bond","007","skyfall","spectre","casino royale","no time to die","quantum of solace","bond"] },
+  ];
+  try {
+    let inserted = 0;
+    for (let i = 0; i < INITIAL_SAGAS.length; i++) {
+      const s = INITIAL_SAGAS[i];
+      await pool.query(
+        `INSERT INTO cv_saga_config (id, label, collection_id, keywords, sort_order, active)
+         VALUES ($1, $2, $3, $4, $5, TRUE)
+         ON CONFLICT (id) DO NOTHING`,
+        [s.id, s.label, s.collection_id, s.keywords, i]
+      );
+      inserted++;
+    }
+    res.json({ ok: true, inserted });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
 export default router;
 
