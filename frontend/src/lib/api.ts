@@ -317,3 +317,32 @@ export const manageSagaMember = (body: {
   action: "add" | "remove";
 }): Promise<{ ok: boolean }> =>
   adminPost("/api/admin/saga-member", body);
+
+// ── Saga Config CRUD ──────────────────────────────────────────────────────────
+
+export interface SagaConfigRow {
+  id: string;
+  label: string;
+  collection_id: number | null;
+  keywords: string[];
+  sort_order: number;
+  active: boolean;
+}
+
+export const getSagaConfig = (): Promise<SagaConfigRow[]> =>
+  adminFetch("/api/admin/saga-config");
+
+export const createSagaConfig = (data: Omit<SagaConfigRow, "sort_order"> & { sort_order?: number }): Promise<SagaConfigRow> =>
+  adminPost("/api/admin/saga-config", data);
+
+export const updateSagaConfig = (id: string, data: Partial<SagaConfigRow>): Promise<SagaConfigRow> =>
+  adminFetch(`/api/admin/saga-config/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+
+export const deleteSagaConfig = (id: string): Promise<{ ok: boolean; deleted: string }> =>
+  adminFetch(`/api/admin/saga-config/${id}`, { method: "DELETE" });
+
+export const seedSagaConfig = (): Promise<{ ok: boolean; inserted: number }> =>
+  adminPost("/api/admin/saga-config/seed", {});
