@@ -11,6 +11,7 @@ import type { Movie, Series } from "@/lib/types";
 import { useContinueWatching } from "@/hooks/useContinueWatching";
 import { useIntersectionObserver } from "@/hooks/useIntersectionObserver";
 import { useMovies, useSeries } from "@/hooks/useApi";
+import SagaCard from "@/components/SagaCard";
 
 const BASE_URL =
   (import.meta.env["VITE_API_URL"] as string | undefined) ||
@@ -177,11 +178,7 @@ function TmdbTrailersSection() {
   );
 }
 
-const FALLBACK_BG =
-  "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=1400&auto=format&fit=crop";
-
 const MIN_ITEMS_TO_SHOW = 2;
-const SAGA_PAGE_SIZE = 30;
 const LOAD_ALL_FOR_SAGAS = true;
 
 function matchesKeywords(genres: string[] | undefined, keywords: string[]): boolean {
@@ -201,10 +198,10 @@ function matchesNetworks(itemNetworks: string[] | undefined, targets: string[]):
 function normalizeTitle(title: string): string {
   return title
     .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[&]/g, 'and')
-    .replace(/[^a-z0-9\s]/g, '')
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[&]/g, "and")
+    .replace(/[^a-z0-9\s]/g, "")
     .trim();
 }
 
@@ -212,29 +209,11 @@ function matchesTitle(title: string, keywords: string[]): boolean {
   const normalizedTitle = normalizeTitle(title);
   return keywords.some((kw) => {
     const normalizedKw = normalizeTitle(kw);
-    if (normalizedKw.includes(' ')) {
-      // Multi-word phrase: substring match is fine
+    if (normalizedKw.includes(" ")) {
       return normalizedTitle.includes(normalizedKw);
     }
-    // Single word: require word boundary to avoid "wick" matching "wicked",
-    // "rings" matching "springs", "bond" matching "bonding", etc.
     return new RegExp(`(?:^|\\s)${normalizedKw}(?:\\s|$)`).test(normalizedTitle);
   });
-}
-
-// Words that appear in TMDB collection names but add no matching value
-const COLLECTION_STOP = new Set([
-  'la', 'el', 'los', 'las', 'de', 'del', 'the', 'of', 'a', 'an', 'and', 'en',
-  'y', 'e', 'con', 'por', 'para', 'collection', 'coleccion', 'coleccion',
-  'saga', 'series', 'trilogy', 'trilogia', 'part', 'parte', 'universe',
-  'universo', 'film', 'movie', 'pelicula',
-]);
-
-/** Derive keyword tokens from a TMDB collection name for fuzzy fallback matching */
-function collectionKeywords(name: string): string[] {
-  return normalizeTitle(name)
-    .split(/\s+/)
-    .filter((w) => w.length >= 3 && !COLLECTION_STOP.has(w));
 }
 
 function buildMixed(
@@ -246,20 +225,17 @@ function buildMixed(
   const result: MixedItem[] = [];
   for (const m of movies) if (filterFn(m)) result.push({ item: m, type: "movie" });
   for (const s of series) if (filterSeries(s)) result.push({ item: s, type: "series" });
-  
   result.sort((a, b) => {
     const yearA = Number(a.item.year) || 0;
     const yearB = Number(b.item.year) || 0;
     return yearB - yearA;
   });
-
   return result;
 }
 
 type FilterMode = "genre" | "platform" | null;
 
 export default function Home() {
-  // Reducir límites iniciales para mejorar el tiempo de carga considerablemente
   const { data: movieData, isLoading: loadingMovies, error: errorMovies } = useMovies({ limit: 100 });
   const { data: seriesData, isLoading: loadingSeries, error: errorSeries } = useSeries({ limit: 50 });
 
@@ -279,8 +255,7 @@ export default function Home() {
   const [activeGenre, setActiveGenre] = useState<string | null>(null);
   const [activePlatform, setActivePlatform] = useState<string | null>(null);
   const [filterMode, setFilterMode] = useState<FilterMode>(null);
-  
-  // Lazy loading para secciones de géneros, plataformas y sagas
+
   const { ref: genreRef, isVisible: genreVisible } = useIntersectionObserver();
   const { ref: platformRef, isVisible: platformVisible } = useIntersectionObserver();
   const { ref: sagaRef, isVisible: sagaVisible } = useIntersectionObserver();
@@ -306,13 +281,11 @@ export default function Home() {
 
   const continueWatchingItems = useMemo(() => {
     return continueWatching.map((item) => {
-      // Create a partial Movie/Series object that MediaCard can handle
       const base = {
         id: item.id,
         imdb_id: item.imdbId,
         title: item.title,
         poster_url: item.poster_url,
-        // Add extra info for the label if it's a series
         ...(item.type === "series" && item.season && item.episode
           ? { year: `T${item.season} E${item.episode}` as any }
           : {}),
@@ -337,9 +310,7 @@ export default function Home() {
 
   const trending = useMemo(() => {
     if (!tmdbTrending.length) return [];
-
     const result: MixedItem[] = [];
-    
     tmdbTrending.forEach((tmdbItem) => {
       if (tmdbItem.media_type === "movie") {
         const found = allMovies.find(m => m.tmdb_id === tmdbItem.tmdb_id);
@@ -349,7 +320,6 @@ export default function Home() {
         if (found) result.push({ item: found, type: "series" });
       }
     });
-
     return result;
   }, [allMovies, allSeries, tmdbTrending]);
 
@@ -362,7 +332,6 @@ export default function Home() {
     [allSeries]
   );
 
-  // Memoizar solo cuando sea necesario (cuando el usuario hace scroll)
   const customCarousels = useMemo(() => {
     return CUSTOM_SECTIONS.map((sec) => {
       let items: MixedItem[] = [];
@@ -385,7 +354,6 @@ export default function Home() {
           (m) => (Number(m.year) || 0) >= currentYear - 1,
           (s) => (Number(s.year) || 0) >= currentYear - 1
         ).sort((a, b) => {
-          // Sort by date_added first (newest in catalog), then by year
           const dateA = a.item.date_added ? new Date(a.item.date_added).getTime() : 0;
           const dateB = b.item.date_added ? new Date(b.item.date_added).getTime() : 0;
           return dateB - dateA;
@@ -395,7 +363,6 @@ export default function Home() {
     }).filter(s => s.items.length >= MIN_ITEMS_TO_SHOW);
   }, [allMovies, allSeries]);
 
-  // Solo procesar géneros cuando sean visibles en el viewport
   const genreCarousels = useMemo(
     () => {
       if (!genreVisible) return [];
@@ -411,7 +378,6 @@ export default function Home() {
     [allMovies, allSeries, genreVisible]
   );
 
-  // Solo procesar plataformas cuando sean visibles en el viewport
   const platformCarousels = useMemo(
     () => {
       if (!platformVisible) return [];
@@ -427,55 +393,56 @@ export default function Home() {
     [allMovies, allSeries, platformVisible]
   );
 
-  // Solo procesar sagas cuando sean visibles en el viewport
-  const sagaCarousels = useMemo(
-    () => {
-      if (!sagaVisible) return [];
-      
-      // 1. Static sagas from config
-      const staticSagas = SAGA_SECTIONS.map((sec) => ({
-        ...sec,
-        items: buildMixed(
-          allMovies, allSeries,
-          (m) => {
+  // ── SAGAS: una sola fila con tarjetas, una por saga ──────────────────────────
+  const sagaCards = useMemo(() => {
+    if (!sagaVisible) return [];
+
+    // Sagas de la config estática
+    const staticCards = SAGA_SECTIONS
+      .map((sec) => {
+        const items = [
+          ...allMovies.filter((m) => {
             if (m.collection_id === -1) return false;
             if (sec.collection_id) return m.collection_id === sec.collection_id;
             if (m.collection_id != null) return false;
-            // Solo usar keywords si NO hay collection_id configurado para esta sección
-            if (sec.collection_id) return false;
             return matchesTitle(m.title, sec.keywords);
-          },
-          (s) => {
+          }),
+          ...allSeries.filter((s) => {
             if (s.collection_id === -1) return false;
             if (sec.collection_id) return s.collection_id === sec.collection_id;
             if (s.collection_id != null) return false;
-            // Solo usar keywords si NO hay collection_id configurado para esta sección
-            if (sec.collection_id) return false;
             return matchesTitle(s.title, sec.keywords);
-          }
-        ),
-      })).filter((s) => s.items.length >= 1);
+          }),
+        ];
+        return {
+          collection_id: sec.collection_id ?? 0,
+          label: sec.label,
+          covers: items.slice(0, 4).map((i) => i.poster_url).filter(Boolean),
+          count: items.length,
+        };
+      })
+      .filter((s) => s.count >= 2);
 
-      // 2. Dynamic sagas from DB that are not in static list
-      const staticIds = new Set(SAGA_SECTIONS.map(s => s.collection_id).filter(Boolean));
-      const dynamicSagaCarousels = dynamicSagas
-        .filter(ds => !staticIds.has(ds.collection_id))
-        .map(ds => ({
-          id: `dynamic-${ds.collection_id}`,
-          label: ds.collection_name,
+    // Sagas dinámicas del DB no cubiertas por config estática
+    const staticIds = new Set(SAGA_SECTIONS.map((s) => s.collection_id).filter(Boolean));
+    const dynamicCards = dynamicSagas
+      .filter((ds) => !staticIds.has(ds.collection_id))
+      .map((ds) => {
+        const items = [
+          ...allMovies.filter((m) => m.collection_id === ds.collection_id),
+          ...allSeries.filter((s) => s.collection_id === ds.collection_id),
+        ];
+        return {
           collection_id: ds.collection_id,
-          items: buildMixed(
-            allMovies, allSeries,
-            (m) => m.collection_id === ds.collection_id,
-            (s) => s.collection_id === ds.collection_id
-          )
-        }))
-        .filter(s => s.items.length >= 1);
+          label: ds.collection_name,
+          covers: items.slice(0, 4).map((i) => i.poster_url).filter(Boolean),
+          count: items.length,
+        };
+      })
+      .filter((s) => s.count >= 2);
 
-      return [...staticSagas, ...dynamicSagaCarousels];
-    },
-    [allMovies, allSeries, sagaVisible, dynamicSagas]
-  );
+    return [...staticCards, ...dynamicCards];
+  }, [allMovies, allSeries, sagaVisible, dynamicSagas]);
 
   const isLoading = loadingMovies || loadingSeries;
 
@@ -542,10 +509,8 @@ export default function Home() {
           <GenreCarousel title="Seguir viendo" items={continueWatchingItems} />
         )}
 
-        {/* ── TMDB Live sections ────────────────────────────────────── */}
         <TmdbTrailersSection />
 
-        {/* Secciones Mixtas (Películas + Series) */}
         {isLoading ? (
           <>
             <SectionSkeleton title="Añadidas recientemente" />
@@ -557,47 +522,47 @@ export default function Home() {
             {recentlyAdded.length > 0 && (
               <GenreCarousel title="Añadidas recientemente" items={recentlyAdded} />
             )}
-
             {mostViewed.length > 0 && (
               <GenreCarousel title="Las más vistas" items={mostViewed} />
             )}
-
             {trending.length > 0 && (
               <GenreCarousel title="Tendencias" items={trending} />
             )}
-
-            {/* ── Custom sections ────────────────────────────────────────── */}
             {customCarousels.map((sec) => (
-              <GenreCarousel
-                key={sec.id}
-                title={sec.label}
-                items={sec.items}
-                pageSize={30}
-              />
+              <GenreCarousel key={sec.id} title={sec.label} items={sec.items} pageSize={30} />
             ))}
           </>
         )}
 
-        {/* Lazy loading trigger para sagas */}
+        {/* ── SAGAS: una sola fila con tarjetas ─────────────────── */}
         <div ref={sagaRef} />
         {isLoading && sagaVisible ? (
-          <SectionSkeleton title="Grandes Sagas" />
-        ) : sagaCarousels.length > 0 ? (
-          <div className="mt-12 mb-8">
-            <div className="px-4 sm:px-6 lg:px-8 mb-6">
+          <SectionSkeleton title="Sagas" />
+        ) : sagaCards.length > 0 ? (
+          <div className="mt-4 mb-8">
+            <div className="px-4 sm:px-6 lg:px-8 mb-4">
               <h2 className="text-2xl sm:text-3xl font-black text-white flex items-center gap-3">
                 <span className="w-2 h-8 bg-brand-red rounded-full" />
-                Grandes Sagas
+                Sagas
               </h2>
               <p className="text-gray-400 text-sm mt-1">Explora tus franquicias favoritas</p>
             </div>
-            {sagaCarousels.map((saga) => (
-              <GenreCarousel key={saga.id} title={saga.label} items={saga.items} pageSize={SAGA_PAGE_SIZE} />
-            ))}
+            <div className="px-4 sm:px-6 lg:px-8">
+              <div className="flex gap-3 overflow-x-auto pb-4 no-scrollbar">
+                {sagaCards.map((saga) => (
+                  <SagaCard
+                    key={saga.collection_id}
+                    collectionId={saga.collection_id}
+                    name={saga.label}
+                    covers={saga.covers}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
         ) : null}
 
-        {/* Secciones de Películas Populares */}
+        {/* Películas populares */}
         {loadingMovies ? (
           <SectionSkeleton title="Películas populares" />
         ) : errorMovies ? (
@@ -606,7 +571,7 @@ export default function Home() {
           <Carousel title="Películas populares" items={popularMovies} type="movie" />
         )}
 
-        {/* Secciones de Series Populares */}
+        {/* Series populares */}
         {loadingSeries ? (
           <SectionSkeleton title="Series populares" />
         ) : errorSeries ? (
@@ -618,7 +583,7 @@ export default function Home() {
         {/* ── Genre & Platform sections ─────────────────────────────── */}
         <div ref={genreRef} />
         <div ref={platformRef} />
-        
+
         {isLoading && (genreVisible || platformVisible) ? (
           <div className="mt-12">
             <SectionSkeleton title="Explorar" />
