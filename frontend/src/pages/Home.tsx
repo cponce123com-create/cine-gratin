@@ -51,16 +51,6 @@ async function fetchDynamicSagas(): Promise<DynamicSaga[]> {
   return res.json();
 }
 
-// ── NUEVA función: obtiene los IDs de sagas activas ───────────────────────────
-async function fetchActiveSagaIds(): Promise<number[]> {
-  try {
-    const res = await fetch(`${BASE_URL}/api/admin/active-sagas`);
-    if (!res.ok) return [];
-    return res.json();
-  } catch {
-    return [];
-  }
-}
 
 async function fetchTmdbTrending(window: "day" | "week"): Promise<TmdbTrendingItem[]> {
   const res = await fetch(`${BASE_URL}/api/tmdb/trending?window=${window}`);
@@ -232,6 +222,21 @@ function matchesTitle(title: string, keywords: string[]): boolean {
   });
 }
 
+// Words that appear in TMDB collection names but add no matching value
+const COLLECTION_STOP = new Set([
+  'la', 'el', 'los', 'las', 'de', 'del', 'the', 'of', 'a', 'an', 'and', 'en',
+  'y', 'e', 'con', 'por', 'para', 'collection', 'coleccion', 'coleccion',
+  'saga', 'series', 'trilogy', 'trilogia', 'part', 'parte', 'universe',
+  'universo', 'film', 'movie', 'pelicula',
+]);
+
+/** Derive keyword tokens from a TMDB collection name for fuzzy fallback matching */
+function collectionKeywords(name: string): string[] {
+  return normalizeTitle(name)
+    .split(/\s+/)
+    .filter((w) => w.length >= 3 && !COLLECTION_STOP.has(w));
+}
+
 function buildMixed(
   movies: Movie[],
   series: Series[],
@@ -271,18 +276,10 @@ export default function Home() {
     staleTime: 30 * 60 * 1000,
   });
 
-  // ── CORREGIDO: staleTime 0 para reflejar cambios del admin inmediatamente ──
   const { data: dynamicSagas = [] } = useQuery({
     queryKey: ["dynamic-sagas"],
     queryFn: fetchDynamicSagas,
-    staleTime: 0,
-  });
-
-  // ── NUEVO: carga los IDs de sagas activas (para filtrar las estáticas) ──────
-  const { data: activeSagaIds = [] } = useQuery({
-    queryKey: ["active-saga-ids"],
-    queryFn: fetchActiveSagaIds,
-    staleTime: 0,
+    staleTime: 5 * 60 * 1000,
   });
 
   const navigate = useNavigate();
@@ -442,27 +439,27 @@ export default function Home() {
     () => {
       if (!sagaVisible) return [];
 
-      // 1. Sagas estáticas de homeConfig — FILTRADAS por activeSagaIds
+      // ── 1. Static sagas (homeConfig.ts) ─────────────────────────────────────
+      // Always shown — no gate.
+      // Filter: exact collection_id match (primary) + keyword fallback for items
+      // whose collection_id is still NULL (not yet backfilled from TMDB).
       const staticSagas = SAGA_SECTIONS
-        .filter((sec) => {
-          // Si la saga tiene collection_id, verificar que esté activa
-          if (sec.collection_id) return activeSagaIds.includes(sec.collection_id);
-          // Sagas sin collection_id (solo keywords) se incluyen siempre
-          return true;
-        })
         .map((sec) => ({
           ...sec,
           items: buildMixed(
             allMovies, allSeries,
             (m) => {
               if (m.collection_id === -1) return false;
-              if (sec.collection_id) return m.collection_id === sec.collection_id;
+              // Primary: exact TMDB collection match
+              if (sec.collection_id && m.collection_id === sec.collection_id) return true;
+              // Skip items already claimed by another collection
               if (m.collection_id != null) return false;
+              // Fallback: curated keyword list for items not yet assigned
               return matchesTitle(m.title, sec.keywords);
             },
             (s) => {
               if (s.collection_id === -1) return false;
-              if (sec.collection_id) return s.collection_id === sec.collection_id;
+              if (sec.collection_id && s.collection_id === sec.collection_id) return true;
               if (s.collection_id != null) return false;
               return matchesTitle(s.title, sec.keywords);
             }
@@ -470,25 +467,46 @@ export default function Home() {
         }))
         .filter((s) => s.items.length >= 1);
 
-      // 2. Sagas dinámicas de la BD (ya vienen filtradas por cv_active_sagas desde el backend)
-      const staticIds = new Set(SAGA_SECTIONS.map(s => s.collection_id).filter(Boolean));
+      // ── 2. Dynamic sagas (auto-discovered from DB) ───────────────────────────
+      // The backend now returns ALL collections with ≥2 items (movies + series).
+      // We exclude any already covered by a static saga above.
+      const staticIds = new Set(SAGA_SECTIONS.map((s) => s.collection_id).filter(Boolean));
+
       const dynamicSagaCarousels = dynamicSagas
-        .filter(ds => !staticIds.has(ds.collection_id))
-        .map(ds => ({
-          id: `dynamic-${ds.collection_id}`,
-          label: ds.collection_name,
-          collection_id: ds.collection_id,
-          items: buildMixed(
-            allMovies, allSeries,
-            (m) => m.collection_id === ds.collection_id,
-            (s) => s.collection_id === ds.collection_id
-          )
-        }))
-        .filter(s => s.items.length >= 1);
+        .filter((ds) => !staticIds.has(ds.collection_id))
+        .map((ds) => {
+          // Derive fallback keywords from the collection name so that items whose
+          // collection_id is NULL but whose title matches can still appear.
+          // Require ≥2 tokens to reduce false positives from generic single words.
+          const nameKws = collectionKeywords(ds.collection_name);
+          const useFallback = nameKws.length >= 2;
+
+          return {
+            id: `dynamic-${ds.collection_id}`,
+            label: ds.collection_name,
+            collection_id: ds.collection_id,
+            items: buildMixed(
+              allMovies, allSeries,
+              (m) => {
+                if (m.collection_id === -1) return false;
+                if (m.collection_id === ds.collection_id) return true;
+                if (m.collection_id != null) return false;
+                return useFallback && matchesTitle(m.title, nameKws);
+              },
+              (s) => {
+                if (s.collection_id === -1) return false;
+                if (s.collection_id === ds.collection_id) return true;
+                if (s.collection_id != null) return false;
+                return useFallback && matchesTitle(s.title, nameKws);
+              }
+            ),
+          };
+        })
+        .filter((s) => s.items.length >= 1);
 
       return [...staticSagas, ...dynamicSagaCarousels];
     },
-    [allMovies, allSeries, sagaVisible, dynamicSagas, activeSagaIds]
+    [allMovies, allSeries, sagaVisible, dynamicSagas]
   );
 
   const isLoading = loadingMovies || loadingSeries;
