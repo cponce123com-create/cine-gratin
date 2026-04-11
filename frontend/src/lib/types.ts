@@ -96,10 +96,16 @@ export interface SeasonData {
 export interface Movie {
   id: string | number;
   imdb_id?: string;
+  tmdb_id?: number | null;
   title: string;
   synopsis?: string;
   year?: number;
   genres?: string[];
+  language?: string;
+  networks?: string[];
+  poster_url?: string;
+  background_url?: string;
+  mpa_rating?: string;
   rating?: number;
   /** Runtime in minutes (from TMDB) */
   runtime?: number;
@@ -128,6 +134,7 @@ export interface Series {
   imdb_id?: string;
   tmdb_id?: number | null;
   title: string;
+  networks?: string[];
   synopsis?: string;
   year?: number;
   end_year?: number | null;

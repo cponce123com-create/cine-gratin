@@ -1016,15 +1016,22 @@ router.get("/admin/sync-all-collections-stream", async (req, res) => {
   }
 });
 
-// GET /api/admin/dynamic-sagas — returns distinct collections from movies table that are ACTIVE
+// GET /api/admin/dynamic-sagas — returns ALL collections present in the DB with ≥2 items.
+// No cv_active_sagas gate — every collection auto-appears once it has enough content.
 router.get("/admin/dynamic-sagas", async (_req, res) => {
   try {
     const result = await pool.query(
-      `SELECT DISTINCT m.collection_id, m.collection_name 
-       FROM movies m
-       INNER JOIN cv_active_sagas a ON a.collection_id = m.collection_id
-       WHERE m.collection_id IS NOT NULL 
-       ORDER BY m.collection_name`
+      `SELECT collection_id, MAX(collection_name) AS collection_name, COUNT(*) AS item_count
+       FROM (
+         SELECT collection_id, collection_name FROM movies
+         WHERE collection_id IS NOT NULL AND collection_id != -1
+         UNION ALL
+         SELECT collection_id, collection_name FROM cv_series
+         WHERE collection_id IS NOT NULL AND collection_id != -1
+       ) combined
+       GROUP BY collection_id
+       HAVING COUNT(*) >= 2
+       ORDER BY MAX(collection_name)`
     );
     res.json(result.rows);
   } catch (e) {
