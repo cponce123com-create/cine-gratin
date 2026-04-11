@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button";
 export default function MovieDetail() {
   const [, params] = useRoute("/pelicula/:id");
   const id = params?.id || "";
-  const { data: movie, loading, error } = useMovie(id);
+  const { data: movie, isLoading, error } = useMovie(id);
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Play className="w-8 h-8 text-primary animate-bounce" />

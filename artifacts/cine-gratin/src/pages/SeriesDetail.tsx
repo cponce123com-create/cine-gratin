@@ -15,10 +15,10 @@ function parseSeasons(raw: unknown): SeasonData[] {
 export default function SeriesDetail() {
   const [, params] = useRoute("/serie/:id");
   const id = params?.id || "";
-  const { data: series, loading, error } = useSeries(String(id));
+  const { data: series, isLoading, error } = useSeries(id);
   const [selectedSeason, setSelectedSeason] = useState<number>(1);
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Play className="w-8 h-8 text-primary animate-bounce" />
