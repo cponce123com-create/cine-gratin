@@ -17,10 +17,12 @@ export function useFeaturedMovies() {
   });
 }
 
-export function useMovies(page = 1, limit = 20) {
+export function useMovies(page?: number, limit?: number) {
+  const p = Number(page) || 1;
+  const l = Number(limit) || 20;
   return useQuery<Movie[]>({
-    queryKey: ["movies", page, limit],
-    queryFn: () => apiFetch(`/api/movies?page=${page}&limit=${limit}`),
+    queryKey: ["movies", p, l],
+    queryFn: () => apiFetch(`/api/movies?page=${p}&limit=${l}`),
     staleTime: 5 * 60 * 1000,
   });
 }
@@ -34,10 +36,12 @@ export function useMovie(id: string) {
   });
 }
 
-export function useSeriesList(page = 1, limit = 20) {
+export function useSeriesList(page?: number, limit?: number) {
+  const p = Number(page) || 1;
+  const l = Number(limit) || 20;
   return useQuery<Series[]>({
-    queryKey: ["series", page, limit],
-    queryFn: () => apiFetch(`/api/series?page=${page}&limit=${limit}`),
+    queryKey: ["series", p, l],
+    queryFn: () => apiFetch(`/api/series?page=${p}&limit=${l}`),
     staleTime: 5 * 60 * 1000,
   });
 }
