@@ -28,8 +28,7 @@ const SportChannels = lazy(() => import("@/pages/admin/SportChannels"));
 const EventChannels = lazy(() => import("@/pages/admin/EventChannels"));
 const TmdbScraper = lazy(() => import("@/pages/admin/TmdbScraper"));
 const VidsrcScanner = lazy(() => import("@/pages/admin/VidsrcScanner"));
-const ManageSagas = lazy(() => import("@/pages/admin/ManageSagas"));
-const SagaExplorer = lazy(() => import("@/pages/admin/SagaExplorer"));
+const SagaManager = lazy(() => import("@/pages/admin/SagaManager"));
 
 function AdminFallback() {
   return (
@@ -114,17 +113,7 @@ export default function App() {
           element={
             <ProtectedRoute>
               <Suspense fallback={<AdminFallback />}>
-                <SagaExplorer />
-              </Suspense>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/admin/manage-sagas"
-          element={
-            <ProtectedRoute>
-              <Suspense fallback={<AdminFallback />}>
-                <ManageSagas />
+                <SagaManager />
               </Suspense>
             </ProtectedRoute>
           }
