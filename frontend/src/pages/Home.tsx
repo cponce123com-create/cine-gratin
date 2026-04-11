@@ -505,6 +505,23 @@ export default function Home() {
 
   const clearFilter = () => { setFilterMode(null); setActiveGenre(null); setActivePlatform(null); };
 
+  const SectionSkeleton = ({ title }: { title: string }) => (
+    <div className="px-4 sm:px-6 lg:px-8 mb-10">
+      <div className="flex items-center gap-3 mb-4">
+        <span className="w-2 h-7 bg-brand-surface rounded-full animate-pulse" />
+        <div className="h-6 w-48 bg-brand-surface rounded animate-pulse" />
+      </div>
+      <div className="flex gap-4 overflow-hidden">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="flex-shrink-0 w-36 md:w-44 animate-pulse">
+            <div className="aspect-[2/3] w-full rounded-lg bg-brand-surface" />
+            <div className="mt-2 h-3 w-3/4 rounded bg-brand-surface" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-brand-dark">
       <Helmet>
@@ -528,31 +545,44 @@ export default function Home() {
         {/* ── TMDB Live sections ────────────────────────────────────── */}
         <TmdbTrailersSection />
 
-        {recentlyAdded.length > 0 && (
-          <GenreCarousel title="Añadidas recientemente" items={recentlyAdded} />
-        )}
+        {/* Secciones Mixtas (Películas + Series) */}
+        {isLoading ? (
+          <>
+            <SectionSkeleton title="Añadidas recientemente" />
+            <SectionSkeleton title="Las más vistas" />
+            <SectionSkeleton title="Tendencias" />
+          </>
+        ) : (
+          <>
+            {recentlyAdded.length > 0 && (
+              <GenreCarousel title="Añadidas recientemente" items={recentlyAdded} />
+            )}
 
-        {mostViewed.length > 0 && (
-          <GenreCarousel title="Las más vistas" items={mostViewed} />
-        )}
+            {mostViewed.length > 0 && (
+              <GenreCarousel title="Las más vistas" items={mostViewed} />
+            )}
 
-        {trending.length > 0 && (
-          <GenreCarousel title="Tendencias" items={trending} />
-        )}
+            {trending.length > 0 && (
+              <GenreCarousel title="Tendencias" items={trending} />
+            )}
 
-        {/* ── Custom sections ────────────────────────────────────────── */}
-        {customCarousels.map((sec) => (
-                <GenreCarousel
-                  key={sec.id}
-                  title={sec.label}
-                  items={sec.items}
-                  pageSize={30} // Mostrar más películas en las sagas
-                />
-        ))}
+            {/* ── Custom sections ────────────────────────────────────────── */}
+            {customCarousels.map((sec) => (
+              <GenreCarousel
+                key={sec.id}
+                title={sec.label}
+                items={sec.items}
+                pageSize={30}
+              />
+            ))}
+          </>
+        )}
 
         {/* Lazy loading trigger para sagas */}
         <div ref={sagaRef} />
-        {sagaCarousels.length > 0 && (
+        {isLoading && sagaVisible ? (
+          <SectionSkeleton title="Grandes Sagas" />
+        ) : sagaCarousels.length > 0 ? (
           <div className="mt-12 mb-8">
             <div className="px-4 sm:px-6 lg:px-8 mb-6">
               <h2 className="text-2xl sm:text-3xl font-black text-white flex items-center gap-3">
@@ -565,24 +595,35 @@ export default function Home() {
               <GenreCarousel key={saga.id} title={saga.label} items={saga.items} pageSize={SAGA_PAGE_SIZE} />
             ))}
           </div>
-        )}
+        ) : null}
 
-        {errorMovies ? (
+        {/* Secciones de Películas Populares */}
+        {loadingMovies ? (
+          <SectionSkeleton title="Películas populares" />
+        ) : errorMovies ? (
           <p className="text-red-400 text-center py-8">No se pudieron cargar las películas.</p>
         ) : (
           <Carousel title="Películas populares" items={popularMovies} type="movie" />
         )}
-        {errorSeries ? (
+
+        {/* Secciones de Series Populares */}
+        {loadingSeries ? (
+          <SectionSkeleton title="Series populares" />
+        ) : errorSeries ? (
           <p className="text-red-400 text-center py-8">No se pudieron cargar las series.</p>
         ) : (
           <Carousel title="Series populares" items={popularSeries} type="series" />
         )}
 
         {/* ── Genre & Platform sections ─────────────────────────────── */}
-        {/* Lazy loading trigger para géneros y plataformas */}
         <div ref={genreRef} />
         <div ref={platformRef} />
-        {!isLoading && (genreCarousels.length > 0 || platformCarousels.length > 0) && (
+        
+        {isLoading && (genreVisible || platformVisible) ? (
+          <div className="mt-12">
+            <SectionSkeleton title="Explorar" />
+          </div>
+        ) : (genreCarousels.length > 0 || platformCarousels.length > 0) ? (
           <>
             <div className="px-4 sm:px-6 lg:px-8 mb-5 mt-2">
               <div className="flex items-center gap-3">
@@ -651,7 +692,7 @@ export default function Home() {
                 : null}
             </div>
           </>
-        )}
+        ) : null}
       </div>
     </div>
   );
