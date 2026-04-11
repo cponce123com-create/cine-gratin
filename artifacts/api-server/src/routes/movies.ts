@@ -404,4 +404,45 @@ router.get("/admin/backfill-cast-stream", async (req, res) => {
   }
 });
 
+// GET /api/sagas — sagas activas con más de 3 títulos (público)
+router.get("/sagas", movieLimit, async (_req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT
+        combined.collection_id,
+        MAX(combined.collection_name) AS collection_name,
+        COUNT(*) AS item_count,
+        (
+          SELECT poster_url FROM (
+            SELECT poster_url, year FROM movies
+              WHERE collection_id = combined.collection_id
+            UNION ALL
+            SELECT poster_url, year FROM cv_series
+              WHERE collection_id = combined.collection_id
+          ) sub ORDER BY year ASC LIMIT 1
+        ) AS cover_url
+      FROM (
+        SELECT collection_id, collection_name FROM movies
+          WHERE collection_id IS NOT NULL AND collection_id != -1
+        UNION ALL
+        SELECT collection_id, collection_name FROM cv_series
+          WHERE collection_id IS NOT NULL AND collection_id != -1
+      ) combined
+      INNER JOIN cv_active_sagas act ON act.collection_id = combined.collection_id
+      GROUP BY combined.collection_id
+      HAVING COUNT(*) > 3
+      ORDER BY COUNT(*) DESC, MAX(collection_name)
+    `);
+    res.setHeader("Cache-Control", "public, max-age=600, stale-while-revalidate=3600");
+    res.json(rows.map((r) => ({
+      collection_id: Number(r.collection_id),
+      collection_name: r.collection_name as string,
+      item_count: Number(r.item_count),
+      cover_url: (r.cover_url as string) ?? "",
+    })));
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
 export default router;
