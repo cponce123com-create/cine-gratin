@@ -80,11 +80,19 @@ export default function Home() {
             <Link href="/peliculas" className="text-primary hover:underline text-sm font-medium">Ver todas</Link>
           </div>
           <div className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory hide-scrollbar">
-            {moviesLoading ? <CardSkeleton count={8} /> : popularMovies.map((movie) => (
-              <div key={movie.id} className="flex-none w-40 md:w-48 lg:w-56 snap-start">
-                <MediaCard id={movie.id} title={movie.title} posterUrl={movie.poster_url} year={movie.year} type="movie" />
+            {moviesLoading ? (
+              <CardSkeleton count={8} />
+            ) : popularMovies.length === 0 ? (
+              <div className="w-full py-12 text-center border-2 border-dashed rounded-xl border-muted">
+                <p className="text-muted-foreground">Sin contenido disponible por el momento.</p>
               </div>
-            ))}
+            ) : (
+              popularMovies.map((movie) => (
+                <div key={movie.id} className="flex-none w-40 md:w-48 lg:w-56 snap-start">
+                  <MediaCard id={movie.id} title={movie.title} posterUrl={movie.poster_url} year={movie.year} type="movie" />
+                </div>
+              ))
+            )}
           </div>
         </section>
 
@@ -98,11 +106,19 @@ export default function Home() {
             <Link href="/series" className="text-primary hover:underline text-sm font-medium">Ver todas</Link>
           </div>
           <div className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory hide-scrollbar">
-            {seriesLoading ? <CardSkeleton count={8} /> : popularSeries.map((s) => (
-              <div key={s.id} className="flex-none w-40 md:w-48 lg:w-56 snap-start">
-                <MediaCard id={s.id} title={s.title} posterUrl={s.poster_url} year={s.year} type="series" />
+            {seriesLoading ? (
+              <CardSkeleton count={8} />
+            ) : popularSeries.length === 0 ? (
+              <div className="w-full py-12 text-center border-2 border-dashed rounded-xl border-muted">
+                <p className="text-muted-foreground">Sin contenido disponible por el momento.</p>
               </div>
-            ))}
+            ) : (
+              popularSeries.map((s) => (
+                <div key={s.id} className="flex-none w-40 md:w-48 lg:w-56 snap-start">
+                  <MediaCard id={s.id} title={s.title} posterUrl={s.poster_url} year={s.year} type="series" />
+                </div>
+              ))
+            )}
           </div>
         </section>
 
