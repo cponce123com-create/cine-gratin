@@ -10,7 +10,7 @@ import { GENRE_SECTIONS, PLATFORM_SECTIONS, SAGA_SECTIONS, CUSTOM_SECTIONS } fro
 import type { Movie, Series } from "@/lib/types";
 import { useContinueWatching } from "@/hooks/useContinueWatching";
 import { useIntersectionObserver } from "@/hooks/useIntersectionObserver";
-import { useMovies, useSeries } from "@/hooks/useApi";
+import { useMovies, useSeriesList } from "@/hooks/useApi";
 import SagaCard from "@/components/SagaCard";
 
 const BASE_URL =
@@ -52,7 +52,6 @@ async function fetchDynamicSagas(): Promise<DynamicSaga[]> {
   return res.json();
 }
 
-
 async function fetchTmdbTrending(window: "day" | "week"): Promise<TmdbTrendingItem[]> {
   const res = await fetch(`${BASE_URL}/api/tmdb/trending?window=${window}`);
   if (!res.ok) return [];
@@ -86,7 +85,6 @@ function TmdbTrailersSection() {
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 mb-10">
-      {/* Header */}
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-3">
           <span className="w-2 h-7 bg-brand-red rounded-full" />
@@ -109,7 +107,6 @@ function TmdbTrailersSection() {
         </div>
       </div>
 
-      {/* Carousel */}
       {isLoading ? (
         <div className="flex gap-3 overflow-hidden">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -148,7 +145,6 @@ function TmdbTrailersSection() {
         </div>
       )}
 
-      {/* YouTube Modal */}
       {activeTrailer && (
         <div
           ref={modalRef}
@@ -179,7 +175,6 @@ function TmdbTrailersSection() {
 }
 
 const MIN_ITEMS_TO_SHOW = 2;
-const LOAD_ALL_FOR_SAGAS = true;
 
 function matchesKeywords(genres: string[] | undefined, keywords: string[]): boolean {
   if (!genres || genres.length === 0) return false;
@@ -236,8 +231,9 @@ function buildMixed(
 type FilterMode = "genre" | "platform" | null;
 
 export default function Home() {
-  const { data: movieData, isLoading: loadingMovies, error: errorMovies } = useMovies({ limit: 100 });
-  const { data: seriesData, isLoading: loadingSeries, error: errorSeries } = useSeries({ limit: 50 });
+  // ← CORRECTO: dos números separados, no un objeto
+  const { data: movieData, isLoading: loadingMovies, error: errorMovies } = useMovies(1, 500);
+  const { data: seriesData, isLoading: loadingSeries, error: errorSeries } = useSeriesList(1, 200);
 
   const { data: tmdbTrending = [] } = useQuery({
     queryKey: ["tmdb-trending-week"],
@@ -393,11 +389,10 @@ export default function Home() {
     [allMovies, allSeries, platformVisible]
   );
 
-  // ── SAGAS: una sola fila con tarjetas, una por saga ──────────────────────────
+  // ── SAGAS: una sola fila con tarjetas ────────────────────────────────────────
   const sagaCards = useMemo(() => {
     if (!sagaVisible) return [];
 
-    // Sagas de la config estática
     const staticCards = SAGA_SECTIONS
       .map((sec) => {
         const items = [
@@ -423,7 +418,6 @@ export default function Home() {
       })
       .filter((s) => s.count >= 2);
 
-    // Sagas dinámicas del DB no cubiertas por config estática
     const staticIds = new Set(SAGA_SECTIONS.map((s) => s.collection_id).filter(Boolean));
     const dynamicCards = dynamicSagas
       .filter((ds) => !staticIds.has(ds.collection_id))
@@ -496,14 +490,12 @@ export default function Home() {
         <meta name="description" content="Disfruta las mejores películas y series en Cine Gratín. Streaming gratuito, sin registro." />
       </Helmet>
 
-      {/* ── Hero ─────────────────────────────────────────────────── */}
       {isLoading ? (
         <SkeletonHero />
       ) : heroItems.length > 0 ? (
         <HeroCarousel items={heroItems} />
       ) : null}
 
-      {/* ── Main content ──────────────────────────────────────────── */}
       <div className="pt-8 pb-16">
         {continueWatchingItems.length > 0 && (
           <GenreCarousel title="Seguir viendo" items={continueWatchingItems} />
