@@ -46,7 +46,13 @@ function matchesTitle(title: string, keywords: string[]): boolean {
   const normalizedTitle = normalizeTitle(title);
   return keywords.some((kw) => {
     const normalizedKw = normalizeTitle(kw);
-    return normalizedTitle.includes(normalizedKw);
+    if (normalizedKw.includes(' ')) {
+      // Multi-word phrase: substring match is fine
+      return normalizedTitle.includes(normalizedKw);
+    }
+    // Single word: require word boundary to avoid "wick" matching "wicked",
+    // "rings" matching "springs", "bond" matching "bonding", etc.
+    return new RegExp(`(?:^|\\s)${normalizedKw}(?:\\s|$)`).test(normalizedTitle);
   });
 }
 
@@ -232,21 +238,22 @@ export default function Home() {
           (m) => {
             if (m.collection_id === -1) return false; // explicitly excluded
             if (sec.collection_id) {
-              if (m.collection_id === sec.collection_id) return true;
-              if (m.collection_id != null) return false; // belongs to a different collection
-            } else if (m.collection_id != null) {
-              return false; // saga has no collection_id — skip items assigned to other collections
+              // Saga has an official TMDB collection_id → ONLY exact matches.
+              // No keyword fallback: prevents unrelated movies from contaminating
+              // the saga just because their title contains a keyword.
+              return m.collection_id === sec.collection_id;
             }
+            // Saga has no collection_id (e.g. DC) → keyword match, but only
+            // for items not already assigned to another collection.
+            if (m.collection_id != null) return false;
             return matchesTitle(m.title, sec.keywords);
           },
           (s) => {
-            if (s.collection_id === -1) return false; // explicitly excluded
+            if (s.collection_id === -1) return false;
             if (sec.collection_id) {
-              if (s.collection_id === sec.collection_id) return true;
-              if (s.collection_id != null) return false;
-            } else if (s.collection_id != null) {
-              return false; // saga has no collection_id — skip items assigned to other collections
+              return s.collection_id === sec.collection_id;
             }
+            if (s.collection_id != null) return false;
             return matchesTitle(s.title, sec.keywords);
           }
         ),

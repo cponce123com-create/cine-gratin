@@ -6,14 +6,20 @@ import { getMovies, getSeries, updateCollection } from "@/lib/api";
 import { SAGA_SECTIONS } from "@/lib/homeConfig";
 import type { Movie, Series } from "@/lib/types";
 
-// ── Helpers (same logic as Home.tsx) ─────────────────────────────────────────
+// ── Helpers (must match Home.tsx logic exactly) ───────────────────────────────
 
 function normalizeStr(s: string): string {
   return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/&/g, "and").replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
 }
 function matchesKeywords(title: string, keywords: string[]): boolean {
   const n = normalizeStr(title);
-  return keywords.some((k) => n.includes(normalizeStr(k)));
+  return keywords.some((k) => {
+    const nk = normalizeStr(k);
+    if (nk.includes(" ")) return n.includes(nk);
+    // Single-word: word-boundary check (same as Home.tsx) to avoid
+    // "wick" matching "wicked", "bond" matching "bonding", etc.
+    return new RegExp(`(?:^|\\s)${nk}(?:\\s|$)`).test(n);
+  });
 }
 
 type MediaItem = (Movie | Series) & { _type: "movie" | "series" };
@@ -134,18 +140,22 @@ export default function ManageSagas() {
                 )}
               </div>
               <div className="flex gap-4 text-sm">
-                <span className="text-green-400 font-bold">{assigned.length} asignadas</span>
+                <span className="text-green-400 font-bold">{assigned.length} en saga</span>
                 {keywordOnly.length > 0 && (
-                  <span className="text-yellow-400 font-bold">{keywordOnly.length} sin asignar (keyword)</span>
+                  <span className="text-yellow-400 font-bold">{keywordOnly.length} candidatos pendientes</span>
                 )}
               </div>
             </div>
 
-            {/* Assigned items */}
+            {/* Assigned items — these are what actually appear on the home page */}
             <Section
-              title={`Asignadas por colección (${assigned.length})`}
+              title={`Títulos en saga — visibles en el home (${assigned.length})`}
               color="green"
-              emptyMsg="No hay títulos asignados a esta saga por collection_id."
+              emptyMsg={
+                saga.collection_id
+                  ? "Ningún título tiene este collection_id asignado aún. Usa 'Candidatos' para asignarlos."
+                  : "No hay títulos asignados a esta saga."
+              }
             >
               {assigned.map((item) => (
                 <ItemRow
@@ -160,10 +170,10 @@ export default function ManageSagas() {
               ))}
             </Section>
 
-            {/* Keyword-only items */}
+            {/* Keyword candidates — NOT shown on home (need assignment to appear) */}
             {keywordOnly.length > 0 && (
               <Section
-                title={`Por palabras clave — sin collection_id (${keywordOnly.length})`}
+                title={`Candidatos por título — pendientes de asignar (${keywordOnly.length})`}
                 color="yellow"
                 emptyMsg=""
                 headerAction={
@@ -179,8 +189,9 @@ export default function ManageSagas() {
                 }
               >
                 <p className="text-xs text-yellow-500/80 mb-3 -mt-1">
-                  Estos títulos aparecen en la saga porque su nombre coincide con las palabras clave, pero no tienen
-                  collection_id asignado. Asígnalos para confirmarlos, o exclúyelos si no corresponden.
+                  {saga.collection_id
+                    ? "Estos títulos coinciden por nombre pero aún no tienen collection_id asignado — NO aparecen en el home. Asígnalos para incluirlos, o exclúyelos si no corresponden."
+                    : "Estos títulos coinciden por palabras clave. Aparecen en el home, pero puedes excluirlos si no corresponden."}
                 </p>
                 {keywordOnly.map((item) => (
                   <ItemRow
@@ -243,7 +254,7 @@ function Section({
 }: {
   title: string;
   color: "green" | "yellow";
-  emptyMsg: string;
+  emptyMsg: string | React.ReactNode;
   children?: React.ReactNode;
   headerAction?: React.ReactNode;
 }) {
