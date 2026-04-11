@@ -2,7 +2,6 @@ import { useMemo, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Helmet } from "react-helmet-async";
-import { getMovies, getSeries } from "@/lib/api";
 import Carousel from "@/components/Carousel";
 import GenreCarousel, { type MixedItem } from "@/components/GenreCarousel";
 import HeroCarousel from "@/components/HeroCarousel";
@@ -11,6 +10,7 @@ import { GENRE_SECTIONS, PLATFORM_SECTIONS, SAGA_SECTIONS, CUSTOM_SECTIONS } fro
 import type { Movie, Series } from "@/lib/types";
 import { useContinueWatching } from "@/hooks/useContinueWatching";
 import { useIntersectionObserver } from "@/hooks/useIntersectionObserver";
+import { useMovies, useSeries } from "@/hooks/useApi";
 
 const BASE_URL =
   (import.meta.env["VITE_API_URL"] as string | undefined) ||
@@ -259,16 +259,9 @@ function buildMixed(
 type FilterMode = "genre" | "platform" | null;
 
 export default function Home() {
-  const { data: movieData, isLoading: loadingMovies, error: errorMovies } = useQuery({
-    queryKey: ["movies"],
-    queryFn: () => getMovies({ limit: 10000 }),
-    staleTime: 5 * 60 * 1000,
-  });
-  const { data: seriesData, isLoading: loadingSeries, error: errorSeries } = useQuery({
-    queryKey: ["series"],
-    queryFn: () => getSeries({ limit: 5000 }),
-    staleTime: 5 * 60 * 1000,
-  });
+  // Reducir límites iniciales para mejorar el tiempo de carga considerablemente
+  const { data: movieData, isLoading: loadingMovies, error: errorMovies } = useMovies({ limit: 100 });
+  const { data: seriesData, isLoading: loadingSeries, error: errorSeries } = useSeries({ limit: 50 });
 
   const { data: tmdbTrending = [] } = useQuery({
     queryKey: ["tmdb-trending-week"],
@@ -287,6 +280,7 @@ export default function Home() {
   const [activePlatform, setActivePlatform] = useState<string | null>(null);
   const [filterMode, setFilterMode] = useState<FilterMode>(null);
   
+  // Lazy loading para secciones de géneros, plataformas y sagas
   const { ref: genreRef, isVisible: genreVisible } = useIntersectionObserver();
   const { ref: platformRef, isVisible: platformVisible } = useIntersectionObserver();
   const { ref: sagaRef, isVisible: sagaVisible } = useIntersectionObserver();
@@ -312,11 +306,13 @@ export default function Home() {
 
   const continueWatchingItems = useMemo(() => {
     return continueWatching.map((item) => {
+      // Create a partial Movie/Series object that MediaCard can handle
       const base = {
         id: item.id,
         imdb_id: item.imdbId,
         title: item.title,
         poster_url: item.poster_url,
+        // Add extra info for the label if it's a series
         ...(item.type === "series" && item.season && item.episode
           ? { year: `T${item.season} E${item.episode}` as any }
           : {}),
@@ -366,6 +362,7 @@ export default function Home() {
     [allSeries]
   );
 
+  // Memoizar solo cuando sea necesario (cuando el usuario hace scroll)
   const customCarousels = useMemo(() => {
     return CUSTOM_SECTIONS.map((sec) => {
       let items: MixedItem[] = [];
@@ -388,23 +385,17 @@ export default function Home() {
           (m) => (Number(m.year) || 0) >= currentYear - 1,
           (s) => (Number(s.year) || 0) >= currentYear - 1
         ).sort((a, b) => {
+          // Sort by date_added first (newest in catalog), then by year
           const dateA = a.item.date_added ? new Date(a.item.date_added).getTime() : 0;
           const dateB = b.item.date_added ? new Date(b.item.date_added).getTime() : 0;
           return dateB - dateA;
         });
-      } else if (sec.type === "indian") {
-        // Indian languages: Hindi, Telugu, Tamil, Kannada, Malayalam, Bengali, Marathi, Punjabi
-        const INDIAN_LANGS = new Set(["hi", "te", "ta", "kn", "ml", "bn", "mr", "pa"]);
-        items = buildMixed(
-          allMovies, allSeries,
-          (m) => !!(m.language && INDIAN_LANGS.has(m.language)),
-          (s) => !!(s.language && INDIAN_LANGS.has(s.language))
-        ).sort((a, b) => (Number(b.item.rating) || 0) - (Number(a.item.rating) || 0));
       }
       return { ...sec, items };
     }).filter(s => s.items.length >= MIN_ITEMS_TO_SHOW);
   }, [allMovies, allSeries]);
 
+  // Solo procesar géneros cuando sean visibles en el viewport
   const genreCarousels = useMemo(
     () => {
       if (!genreVisible) return [];
@@ -420,6 +411,7 @@ export default function Home() {
     [allMovies, allSeries, genreVisible]
   );
 
+  // Solo procesar plataformas cuando sean visibles en el viewport
   const platformCarousels = useMemo(
     () => {
       if (!platformVisible) return [];
@@ -435,74 +427,50 @@ export default function Home() {
     [allMovies, allSeries, platformVisible]
   );
 
+  // Solo procesar sagas cuando sean visibles en el viewport
   const sagaCarousels = useMemo(
     () => {
       if (!sagaVisible) return [];
+      
+      // 1. Static sagas from config
+      const staticSagas = SAGA_SECTIONS.map((sec) => ({
+        ...sec,
+        items: buildMixed(
+          allMovies, allSeries,
+          (m) => {
+            if (m.collection_id === -1) return false;
+            if (sec.collection_id) return m.collection_id === sec.collection_id;
+            if (m.collection_id != null) return false;
+            // Solo usar keywords si NO hay collection_id configurado para esta sección
+            if (sec.collection_id) return false;
+            return matchesTitle(m.title, sec.keywords);
+          },
+          (s) => {
+            if (s.collection_id === -1) return false;
+            if (sec.collection_id) return s.collection_id === sec.collection_id;
+            if (s.collection_id != null) return false;
+            // Solo usar keywords si NO hay collection_id configurado para esta sección
+            if (sec.collection_id) return false;
+            return matchesTitle(s.title, sec.keywords);
+          }
+        ),
+      })).filter((s) => s.items.length >= 1);
 
-      // ── 1. Static sagas (homeConfig.ts) ─────────────────────────────────────
-      // Always shown — no gate.
-      // Filter: exact collection_id match (primary) + keyword fallback for items
-      // whose collection_id is still NULL (not yet backfilled from TMDB).
-      const staticSagas = SAGA_SECTIONS
-        .map((sec) => ({
-          ...sec,
+      // 2. Dynamic sagas from DB that are not in static list
+      const staticIds = new Set(SAGA_SECTIONS.map(s => s.collection_id).filter(Boolean));
+      const dynamicSagaCarousels = dynamicSagas
+        .filter(ds => !staticIds.has(ds.collection_id))
+        .map(ds => ({
+          id: `dynamic-${ds.collection_id}`,
+          label: ds.collection_name,
+          collection_id: ds.collection_id,
           items: buildMixed(
             allMovies, allSeries,
-            (m) => {
-              if (m.collection_id === -1) return false;
-              // Primary: exact TMDB collection match
-              if (sec.collection_id && m.collection_id === sec.collection_id) return true;
-              // Skip items already claimed by another collection
-              if (m.collection_id != null) return false;
-              // Fallback: curated keyword list for items not yet assigned
-              return matchesTitle(m.title, sec.keywords);
-            },
-            (s) => {
-              if (s.collection_id === -1) return false;
-              if (sec.collection_id && s.collection_id === sec.collection_id) return true;
-              if (s.collection_id != null) return false;
-              return matchesTitle(s.title, sec.keywords);
-            }
-          ),
+            (m) => m.collection_id === ds.collection_id,
+            (s) => s.collection_id === ds.collection_id
+          )
         }))
-        .filter((s) => s.items.length >= 1);
-
-      // ── 2. Dynamic sagas (auto-discovered from DB) ───────────────────────────
-      // The backend now returns ALL collections with ≥2 items (movies + series).
-      // We exclude any already covered by a static saga above.
-      const staticIds = new Set(SAGA_SECTIONS.map((s) => s.collection_id).filter(Boolean));
-
-      const dynamicSagaCarousels = dynamicSagas
-        .filter((ds) => !staticIds.has(ds.collection_id))
-        .map((ds) => {
-          // Derive fallback keywords from the collection name so that items whose
-          // collection_id is NULL but whose title matches can still appear.
-          // Require ≥2 tokens to reduce false positives from generic single words.
-          const nameKws = collectionKeywords(ds.collection_name);
-          const useFallback = nameKws.length >= 2;
-
-          return {
-            id: `dynamic-${ds.collection_id}`,
-            label: ds.collection_name,
-            collection_id: ds.collection_id,
-            items: buildMixed(
-              allMovies, allSeries,
-              (m) => {
-                if (m.collection_id === -1) return false;
-                if (m.collection_id === ds.collection_id) return true;
-                if (m.collection_id != null) return false;
-                return useFallback && matchesTitle(m.title, nameKws);
-              },
-              (s) => {
-                if (s.collection_id === -1) return false;
-                if (s.collection_id === ds.collection_id) return true;
-                if (s.collection_id != null) return false;
-                return useFallback && matchesTitle(s.title, nameKws);
-              }
-            ),
-          };
-        })
-        .filter((s) => s.items.length >= 1);
+        .filter(s => s.items.length >= 1);
 
       return [...staticSagas, ...dynamicSagaCarousels];
     },
@@ -574,12 +542,12 @@ export default function Home() {
 
         {/* ── Custom sections ────────────────────────────────────────── */}
         {customCarousels.map((sec) => (
-          <GenreCarousel
-            key={sec.id}
-            title={sec.label}
-            items={sec.items}
-            pageSize={30}
-          />
+                <GenreCarousel
+                  key={sec.id}
+                  title={sec.label}
+                  items={sec.items}
+                  pageSize={30} // Mostrar más películas en las sagas
+                />
         ))}
 
         {/* Lazy loading trigger para sagas */}
@@ -611,95 +579,76 @@ export default function Home() {
         )}
 
         {/* ── Genre & Platform sections ─────────────────────────────── */}
+        {/* Lazy loading trigger para géneros y plataformas */}
         <div ref={genreRef} />
         <div ref={platformRef} />
         {!isLoading && (genreCarousels.length > 0 || platformCarousels.length > 0) && (
           <>
             <div className="px-4 sm:px-6 lg:px-8 mb-5 mt-2">
               <div className="flex items-center gap-3">
-                <div className="h-px flex-1 bg-brand-border" />
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-widest">
-                  Explorar por categoría
-                </span>
-                <div className="h-px flex-1 bg-brand-border" />
+                <span className="w-2 h-8 bg-brand-red rounded-full" />
+                <h2 className="text-2xl sm:text-3xl font-black text-white">Explorar</h2>
               </div>
             </div>
 
-            <div className="px-4 sm:px-6 lg:px-8 mb-6 space-y-3">
-              {genreCarousels.length > 0 && (
-                <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
-                  <span className="flex-shrink-0 text-[11px] font-semibold text-gray-500 uppercase tracking-wider self-center pr-1">
-                    Géneros
-                  </span>
-                  {genreCarousels.map((sec) => (
-                    <button
-                      key={sec.id}
-                      onClick={() => selectGenre(sec.id)}
-                      className={`flex-shrink-0 text-xs font-semibold px-3 py-1 rounded-full border transition-all ${
-                        filterMode === "genre" && activeGenre === sec.id
-                          ? "bg-brand-red border-red-700 text-white"
-                          : "bg-brand-surface border-brand-border text-gray-400 hover:text-white hover:border-gray-500"
-                      }`}
-                    >
-                      {sec.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {platformCarousels.length > 0 && (
-                <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
-                  <span className="flex-shrink-0 text-[11px] font-semibold text-gray-500 uppercase tracking-wider self-center pr-1">
-                    Plataformas
-                  </span>
-                  {platformCarousels.map((sec) => (
-                    <button
-                      key={sec.id}
-                      onClick={() => selectPlatform(sec.id)}
-                      className={`flex-shrink-0 text-xs font-semibold px-3 py-1 rounded-full border transition-all ${
-                        filterMode === "platform" && activePlatform === sec.id
-                          ? "bg-brand-red border-red-700 text-white"
-                          : "bg-brand-surface border-brand-border text-gray-400 hover:text-white hover:border-gray-500"
-                      }`}
-                    >
-                      {sec.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {filterMode && (
+            <div className="px-4 sm:px-6 lg:px-8 mb-8">
+              <div className="flex flex-wrap gap-2">
                 <button
                   onClick={clearFilter}
-                  className="text-[10px] font-bold text-brand-red uppercase tracking-tighter hover:text-red-400 transition-colors"
+                  className={`px-4 py-2 rounded-xl text-sm font-bold transition-all border ${
+                    !filterMode
+                      ? "bg-brand-red border-brand-red text-white"
+                      : "bg-brand-surface border-brand-border text-gray-400 hover:text-white hover:border-gray-500"
+                  }`}
                 >
-                  &times; Limpiar filtros
+                  Todo
                 </button>
-              )}
+                <div className="h-8 w-px bg-brand-border mx-1" />
+                {GENRE_SECTIONS.map((g) => (
+                  <button
+                    key={g.id}
+                    onClick={() => selectGenre(g.id)}
+                    className={`px-4 py-2 rounded-xl text-sm font-bold transition-all border ${
+                      filterMode === "genre" && activeGenre === g.id
+                        ? "bg-brand-red border-brand-red text-white shadow-lg shadow-brand-red/20"
+                        : "bg-brand-surface border-brand-border text-gray-400 hover:text-white hover:border-gray-500"
+                    }`}
+                  >
+                    {g.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex flex-wrap gap-2 mt-3">
+                {PLATFORM_SECTIONS.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => selectPlatform(p.id)}
+                    className={`px-4 py-2 rounded-xl text-sm font-bold transition-all border flex items-center gap-2 ${
+                      filterMode === "platform" && activePlatform === p.id
+                        ? "bg-white border-white text-brand-dark shadow-lg"
+                        : "bg-brand-surface border-brand-border text-gray-400 hover:text-white hover:border-gray-500"
+                    }`}
+                  >
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.accent }} />
+                    {p.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <div className="space-y-10">
-              {filterMode === "genre" &&
-                visibleGenres.map((sec) => (
-                  <GenreCarousel key={sec.id} title={sec.label} items={sec.items} />
-                ))}
-              {filterMode === "platform" &&
-                visiblePlatforms.map((sec) => (
-                  <GenreCarousel key={sec.id} title={sec.label} items={sec.items} />
-                ))}
-              {!filterMode && (
-                <>
-                  {visibleGenres.slice(0, 4).map((sec) => (
-                    <GenreCarousel key={sec.id} title={sec.label} items={sec.items} />
-                  ))}
-                  {visiblePlatforms.slice(0, 3).map((sec) => (
-                    <GenreCarousel key={sec.id} title={sec.label} items={sec.items} />
-                  ))}
-                  {visibleGenres.slice(4).map((sec) => (
-                    <GenreCarousel key={sec.id} title={sec.label} items={sec.items} />
-                  ))}
-                </>
-              )}
+            <div className="space-y-4">
+              {filterMode === "genre" || !filterMode
+                ? visibleGenres.map((sec) => (
+                    <GenreCarousel key={sec.id} id={sec.id} title={sec.label} items={sec.items} />
+                  ))
+                : null}
+
+              {filterMode === "platform" || !filterMode
+                ? visiblePlatforms.map((sec) => (
+                    <GenreCarousel key={sec.id} id={sec.id} title={sec.label} items={sec.items} />
+                  ))
+                : null}
             </div>
           </>
         )}

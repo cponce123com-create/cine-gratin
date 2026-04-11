@@ -61,7 +61,7 @@ const toMovie = (row: Record<string, unknown>) => ({
 // GET /api/movies - Added pagination and rate limiting
 router.get("/movies", movieLimit, async (req, res) => {
   const page = Math.max(1, Number(req.query.page || 1));
-  const limit = req.query.limit ? Math.max(1, Number(req.query.limit)) : 5000; // Aumentado a 5000 por defecto para permitir gestión completa
+  const limit = req.query.limit ? Math.max(1, Number(req.query.limit)) : 20; // Límite por defecto optimizado
   const offset = (page - 1) * limit;
 
   try {
