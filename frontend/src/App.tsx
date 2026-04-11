@@ -17,6 +17,7 @@ import MoviePlayer from "@/pages/player/MoviePlayer";
 import SeriesPlayer from "@/pages/player/SeriesPlayer";
 import NotFound from "@/pages/NotFound";
 import AdminLogin from "@/pages/admin/Login";
+import SagaPage from "@/pages/SagaPage";
 
 // Lazy-load heavy admin pages so they don't bloat the initial bundle
 const AdminDashboard = lazy(() => import("@/pages/admin/Dashboard"));
@@ -168,6 +169,7 @@ export default function App() {
           <Route path="/eventos" element={<Events />} />
           <Route path="/pelicula/:id" element={<MovieDetail />} />
           <Route path="/serie/:id" element={<SeriesDetail />} />
+          <Route path="/saga/:id" element={<SagaPage />} />
           <Route path="/search/:query" element={<Search />} />
           <Route path="*" element={<NotFound />} />
         </Route>
