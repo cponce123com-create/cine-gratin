@@ -5,7 +5,7 @@ import { Search, Play } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
 export default function Series() {
-  const { data: seriesList, loading } = useSeriesList();
+  const { data: seriesList, isLoading } = useSeriesList();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedGenre, setSelectedGenre] = useState<string>("All");
 
@@ -24,7 +24,7 @@ export default function Series() {
     });
   }, [seriesList, searchTerm, selectedGenre]);
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen pt-24 flex items-center justify-center">
         <div className="animate-pulse flex flex-col items-center gap-4">
