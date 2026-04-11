@@ -118,6 +118,17 @@ export async function initDb() {
       activated_at TIMESTAMPTZ DEFAULT NOW()
     );
 
+    -- Saga config table: replaces the hardcoded SAGA_SECTIONS in homeConfig.ts
+    CREATE TABLE IF NOT EXISTS cv_saga_config (
+      id TEXT PRIMARY KEY,
+      label TEXT NOT NULL,
+      collection_id INTEGER,
+      keywords TEXT[] NOT NULL DEFAULT '{}',
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
     -- Seed initial active sagas from static config IDs
     -- Marvel (420), Harry Potter (1241), LOTR (119), Star Wars (10), Fast (9735), 
     -- M:I (87359), Wick (404609), Jurassic (328), Transformers (8650), X-Men (748), 
