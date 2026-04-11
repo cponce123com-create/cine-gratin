@@ -222,7 +222,13 @@ function matchesTitle(title: string, keywords: string[]): boolean {
   const normalizedTitle = normalizeTitle(title);
   return keywords.some((kw) => {
     const normalizedKw = normalizeTitle(kw);
-    return normalizedTitle.includes(normalizedKw);
+    if (normalizedKw.includes(' ')) {
+      // Multi-word phrase: substring match is fine
+      return normalizedTitle.includes(normalizedKw);
+    }
+    // Single word: require word boundary to avoid "wick" matching "wicked",
+    // "rings" matching "springs", "bond" matching "bonding", etc.
+    return new RegExp(`(?:^|\\s)${normalizedKw}(?:\\s|$)`).test(normalizedTitle);
   });
 }
 
@@ -436,17 +442,12 @@ export default function Home() {
     () => {
       if (!sagaVisible) return [];
 
-      // ── CORREGIDO: si no hay IDs activos aún cargados, no mostrar nada todavía ──
-      // Esto evita un flash de todas las sagas mientras carga la lista de activas.
-      // Una vez que activeSagaIds cargue (aunque sea vacío), se procesa normalmente.
-
       // 1. Sagas estáticas de homeConfig — FILTRADAS por activeSagaIds
       const staticSagas = SAGA_SECTIONS
         .filter((sec) => {
           // Si la saga tiene collection_id, verificar que esté activa
           if (sec.collection_id) return activeSagaIds.includes(sec.collection_id);
           // Sagas sin collection_id (solo keywords) se incluyen siempre
-          // ya que no tienen toggle en el admin
           return true;
         })
         .map((sec) => ({

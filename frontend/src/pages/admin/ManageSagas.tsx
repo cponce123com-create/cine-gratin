@@ -27,7 +27,7 @@ interface SyncProgress {
   errors: number;
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Helpers (must match Home.tsx logic exactly) ───────────────────────────────
 
 function normalizeStr(s: string): string {
   return s
@@ -42,7 +42,13 @@ function normalizeStr(s: string): string {
 
 function matchesKeywords(title: string, keywords: string[]): boolean {
   const n = normalizeStr(title);
-  return keywords.some((k) => n.includes(normalizeStr(k)));
+  return keywords.some((k) => {
+    const nk = normalizeStr(k);
+    if (nk.includes(" ")) return n.includes(nk);
+    // Single-word: word-boundary check (same as Home.tsx) to avoid
+    // "wick" matching "wicked", "bond" matching "bonding", etc.
+    return new RegExp(`(?:^|\\s)${nk}(?:\\s|$)`).test(n);
+  });
 }
 
 function authHeaders(): Record<string, string> {
@@ -626,11 +632,15 @@ export default function ManageSagas() {
               </div>
             )}
 
-            {/* Assigned items */}
+            {/* Assigned items — these are what actually appear on the home page */}
             <Section
-              title={`Asignadas por collection_id (${assigned.length})`}
+              title={`Títulos en saga — visibles en el home (${assigned.length})`}
               color="green"
-              emptyMsg="No hay títulos con collection_id asignado. Usa 'Importar desde TMDB' o 'Sincronizar'."
+              emptyMsg={
+                saga.collection_id
+                  ? "Ningún título tiene este collection_id asignado aún. Usa 'Candidatos' para asignarlos."
+                  : "No hay títulos asignados a esta saga."
+              }
             >
               {assigned.map((item) => (
                 <ItemRow
@@ -645,10 +655,10 @@ export default function ManageSagas() {
               ))}
             </Section>
 
-            {/* Keyword-only items */}
+            {/* Keyword candidates — NOT shown on home (need assignment to appear) */}
             {keywordOnly.length > 0 && (
               <Section
-                title={`Por palabras clave — sin collection_id (${keywordOnly.length})`}
+                title={`Candidatos por título — pendientes de asignar (${keywordOnly.length})`}
                 color="yellow"
                 emptyMsg=""
                 headerAction={
@@ -664,9 +674,9 @@ export default function ManageSagas() {
                 }
               >
                 <p className="text-xs text-yellow-500/80 mb-3 -mt-1">
-                  Aparecen por coincidencia de título pero no tienen{" "}
-                  <code>collection_id</code>. Usa <strong>Sincronizar</strong> para
-                  asignarlos automáticamente desde TMDB, o gestiónalos manualmente.
+                  {saga.collection_id
+                    ? "Estos títulos coinciden por nombre pero aún no tienen collection_id asignado — NO aparecen en el home. Asígnalos para incluirlos, o exclúyelos si no corresponden."
+                    : "Estos títulos coinciden por palabras clave. Aparecen en el home, pero puedes excluirlos si no corresponden."}
                 </p>
                 {keywordOnly.map((item) => (
                   <ItemRow
@@ -749,7 +759,7 @@ function Section({
 }: {
   title: string;
   color: "green" | "yellow";
-  emptyMsg: string;
+  emptyMsg: string | React.ReactNode;
   children?: React.ReactNode;
   headerAction?: React.ReactNode;
 }) {
