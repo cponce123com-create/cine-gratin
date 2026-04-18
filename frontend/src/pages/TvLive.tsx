@@ -370,6 +370,7 @@ export default function TvLive() {
       {selectedChannel ? (
         <>
           <HlsPlayer
+            key={selectedChannel.url}
             src={selectedChannel.url}
             channelName={selectedChannel.name}
             logo={selectedChannel.logo}

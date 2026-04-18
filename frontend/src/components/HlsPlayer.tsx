@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 
 // ─── Internal types ─────────────────────────────────────────────────────────────
 
@@ -80,124 +80,122 @@ function NoSignalIcon() {
 // ─── Component ─────────────────────────────────────────────────────────────────
 
 export default function HlsPlayer({ src, channelName, logo, onError }: HlsPlayerProps) {
-  const videoRef    = useRef<HTMLVideoElement>(null);
-  const hlsRef      = useRef<HlsInstance | null>(null);
-  const timeoutRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const firedError  = useRef(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const hlsRef = useRef<HlsInstance | null>(null);  // ← CLAVE: ref, no variable local
+  const [status, setStatus] = useState<PlayerState>("loading");
 
-  const [state, setState]       = useState<PlayerState>("loading");
-  const [retryKey, setRetryKey] = useState(0);
-  const nativeHls = supportsHlsNatively();
-
-  // Track whether error callback was already fired for this (src, retryKey) pair
-  useEffect(() => { firedError.current = false; }, [src, retryKey]);
-
-  const markError = useCallback(() => {
-    setState("error");
-    if (!firedError.current) {
-      firedError.current = true;
-      onError?.();
-    }
-    if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
-  }, [onError]);
-
-  const startTimeout = useCallback(() => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    // 12-second timeout: if nothing plays, consider it failed
-    timeoutRef.current = setTimeout(() => {
-      if (state !== "playing") markError();
-    }, 12_000);
-  }, [state, markError]);
-
-  const setupHls = useCallback(async () => {
+  useEffect(() => {
     const video = videoRef.current;
     if (!video || !src) return;
 
-    setState("loading");
-    startTimeout();
+    // ── 1. DESTRUIR instancia anterior SIEMPRE antes de crear nueva ──
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
 
-    // ── Safari / native HLS ───────────────────────────────────────────────
-    if (nativeHls) {
+    // ── 2. Limpiar el elemento video ──
+    video.pause();
+    video.removeAttribute("src");
+    video.load();
+    setStatus("loading");
+
+    // ── 3. Timeout de seguridad: si en 12s no hay datos → error ──
+    const timeout = setTimeout(() => {
+      setStatus("error");
+    }, 12000);
+
+    // ── 4. Safari: HLS nativo ──
+    if (supportsHlsNatively()) {
       video.src = src;
       video.load();
+      
       const onCanPlay = () => {
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        setState("playing");
-        video.play().catch(() => { /* autoplay blocked — user taps play */ });
-      };
-      const onNativeError = () => markError();
-      video.addEventListener("canplay",  onCanPlay,      { once: true });
-      video.addEventListener("error",    onNativeError,  { once: true });
-      return;
-    }
-
-    // ── hls.js (Chrome / Firefox / Edge / etc.) ───────────────────────────
-    try {
-      const mod = await import("hls.js");
-      const Hls = (mod.default ?? mod) as unknown as HlsConstructor;
-
-      if (!Hls.isSupported()) {
-        console.warn("[HlsPlayer] hls.js not supported in this browser");
-        markError();
-        return;
-      }
-
-      // Destroy previous instance if any
-      if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
-
-      const hls = new Hls({
-        enableWorker: true,
-        lowLatencyMode: true,
-        backBufferLength: 30,
-        maxBufferLength: 60,
-      });
-      hlsRef.current = hls;
-
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        setState("playing");
+        clearTimeout(timeout);
+        setStatus("playing");
         video.play().catch(() => { /* autoplay blocked */ });
-      });
+      };
+      
+      const onNativeError = () => {
+        clearTimeout(timeout);
+        setStatus("error");
+        onError?.();
+      };
+      
+      video.addEventListener("canplay", onCanPlay, { once: true });
+      video.addEventListener("error", onNativeError, { once: true });
 
-      hls.on(Hls.Events.ERROR, (_evt: string, data: HlsErrorPayload) => {
-        if (!data.fatal) return;
-        console.warn("[HlsPlayer] Fatal HLS error:", data.type);
-        if (data.type === "networkError") {
-          hls.startLoad();
-        } else if (data.type === "mediaError") {
-          hls.recoverMediaError();
-        } else {
-          markError();
-        }
-      });
-
-      hls.loadSource(src);
-      hls.attachMedia(video);
-    } catch (err) {
-      console.warn("[HlsPlayer] Could not initialise hls.js:", err);
-      markError();
+      return () => {
+        clearTimeout(timeout);
+        video.removeEventListener("canplay", onCanPlay);
+        video.removeEventListener("error", onNativeError);
+        video.pause();
+        video.removeAttribute("src");
+        video.load();
+      };
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [src, nativeHls, retryKey]);
 
-  useEffect(() => {
-    void setupHls();
+    // ── 5. Resto de browsers: hls.js ──
+    (async () => {
+      try {
+        const mod = await import("hls.js");
+        const Hls = (mod.default ?? mod) as unknown as HlsConstructor;
 
+        if (!Hls.isSupported()) {
+          clearTimeout(timeout);
+          setStatus("error");
+          onError?.();
+          return;
+        }
+
+        const hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: true,
+          backBufferLength: 90,
+        });
+
+        hlsRef.current = hls;  // ← guardar en ref INMEDIATAMENTE
+
+        hls.loadSource(src);
+        hls.attachMedia(video);
+
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          clearTimeout(timeout);
+          video.play()
+            .then(() => setStatus("playing"))
+            .catch(() => setStatus("error"));
+        });
+
+        hls.on(Hls.Events.ERROR, (_event, data: HlsErrorPayload) => {
+          if (data.fatal) {
+            clearTimeout(timeout);
+            setStatus("error");
+            onError?.();
+          }
+        });
+      } catch (err) {
+        console.warn("[HlsPlayer] Could not initialise hls.js:", err);
+        clearTimeout(timeout);
+        setStatus("error");
+        onError?.();
+      }
+    })();
+
+    // ── 6. CLEANUP: se ejecuta cuando src cambia o componente desmonta ──
     return () => {
-      // ── Cleanup on unmount or src change ───────────────────────────────
-      if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
-      if (hlsRef.current)     { hlsRef.current.destroy(); hlsRef.current = null; }
-      if (videoRef.current)   { videoRef.current.src = ""; videoRef.current.load(); }
+      clearTimeout(timeout);
+      if (hlsRef.current) {
+        hlsRef.current.destroy();  // destruir instancia hls
+        hlsRef.current = null;     // limpiar ref
+      }
+      if (video) {
+        video.pause();
+        video.removeAttribute("src");
+        video.load();              // resetear el elemento video
+      }
     };
-  }, [setupHls]);
 
-  const handleRetry = () => {
-    firedError.current = false;
-    setState("loading");
-    setRetryKey((k: number) => k + 1);
-  };
-
-  // ─── Render ────────────────────────────────────────────────────────────────
+  }, [src, onError]);  // ← solo depende de src y onError
 
   return (
     <div className="relative w-full bg-black overflow-hidden" style={{ aspectRatio: "16/9" }}>
@@ -212,7 +210,7 @@ export default function HlsPlayer({ src, channelName, logo, onError }: HlsPlayer
       />
 
       {/* ── LOADING overlay ─────────────────────────────────────────────── */}
-      {state === "loading" && (
+      {status === "loading" && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-brand-dark/95 gap-4 pointer-events-none">
           <div className="relative">
             <div className="w-14 h-14 rounded-full border-[3px] border-brand-surface" />
@@ -226,7 +224,7 @@ export default function HlsPlayer({ src, channelName, logo, onError }: HlsPlayer
       )}
 
       {/* ── ERROR overlay ───────────────────────────────────────────────── */}
-      {state === "error" && (
+      {status === "error" && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-brand-dark gap-5 p-6">
           <NoSignalIcon />
           <div className="text-center">
@@ -237,7 +235,7 @@ export default function HlsPlayer({ src, channelName, logo, onError }: HlsPlayer
           </div>
           <div className="flex gap-3 flex-wrap justify-center">
             <button
-              onClick={handleRetry}
+              onClick={() => setStatus("loading")}
               className="px-4 py-2 bg-brand-surface border border-brand-border hover:border-gray-500 text-white text-sm font-medium rounded-lg transition-colors"
             >
               Reintentar
@@ -255,7 +253,7 @@ export default function HlsPlayer({ src, channelName, logo, onError }: HlsPlayer
       )}
 
       {/* ── PLAYING — overlays ──────────────────────────────────────────── */}
-      {state === "playing" && (
+      {status === "playing" && (
         <>
           {/* EN VIVO badge — top left */}
           <div className="absolute top-3 left-3 pointer-events-none">
