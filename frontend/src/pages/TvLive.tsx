@@ -1,78 +1,58 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Helmet } from "react-helmet-async";
-import { useIptvChannels, type IptvSource } from "@/hooks/useIptv";
+import { toast } from "sonner";
+import { useIptvChannels } from "@/hooks/useIptv";
+import type { IptvSource } from "@/hooks/useIptv";
 import type { IptvChannel } from "@/lib/iptv-api";
 import HlsPlayer from "@/components/HlsPlayer";
 
-// ─── Fallback SVG logo ──────────────────────────────────────────────────────────
+// ─── Source tab config ─────────────────────────────────────────────────────────
 
-const FALLBACK_LOGO =
-  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' fill='%231A1A1A' rx='6'/%3E%3Ctext x='24' y='32' font-family='sans-serif' font-size='22' text-anchor='middle' fill='%23555'%3E📺%3C/text%3E%3C/svg%3E";
-
-// ─── Source selector config ─────────────────────────────────────────────────────
-
-const SOURCES: { id: IptvSource; label: string }[] = [
-  { id: "peru", label: "🇵🇪 Perú" },
-  { id: "spanish", label: "🌎 En Español" },
+const SOURCE_TABS: { id: IptvSource; label: string }[] = [
+  { id: "peru",        label: "🇵🇪 Perú" },
+  { id: "latino",      label: "🌎 Latino" },
+  { id: "mexico",      label: "🇲🇽 México" },
+  { id: "argentina",   label: "🇦🇷 Argentina" },
+  { id: "colombia",    label: "🇨🇴 Colombia" },
+  { id: "news",        label: "📰 Noticias" },
+  { id: "sports",      label: "⚽ Deportes" },
+  { id: "movies",      label: "🎬 Películas" },
+  { id: "music",       label: "🎵 Música" },
+  { id: "kids",        label: "🧒 Infantil" },
+  { id: "documentary", label: "🎥 Documental" },
+  { id: "all",         label: "🌍 Todo" },
 ];
 
-// ─── Sub-components ─────────────────────────────────────────────────────────────
+// ─── Fallback logo (initial letter in brand-gold) ──────────────────────────────
 
-function LiveBadge() {
+function ChannelInitial({ name }: { name: string }) {
+  const letter = (name || "?")[0].toUpperCase();
   return (
-    <span className="inline-flex items-center gap-1 bg-brand-red/10 text-brand-red text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide flex-shrink-0">
+    <div className="w-full h-full flex items-center justify-center bg-brand-surface">
+      <span className="text-brand-gold font-black text-lg leading-none">{letter}</span>
+    </div>
+  );
+}
+
+// ─── Live badge ────────────────────────────────────────────────────────────────
+
+function LiveBadge({ offline = false }: { offline?: boolean }) {
+  if (offline) {
+    return (
+      <span className="inline-flex items-center gap-1 bg-gray-700/60 text-gray-400 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide flex-shrink-0 whitespace-nowrap">
+        Sin señal
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 bg-brand-red/15 text-brand-red text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide flex-shrink-0 whitespace-nowrap">
       <span className="w-1.5 h-1.5 rounded-full bg-brand-red animate-pulse" />
       EN VIVO
     </span>
   );
 }
 
-interface ChannelCardProps {
-  channel: IptvChannel;
-  isSelected: boolean;
-  onClick: () => void;
-}
-
-function ChannelCard({ channel, isSelected, onClick }: ChannelCardProps) {
-  return (
-    <button
-      onClick={onClick}
-      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors group ${
-        isSelected
-          ? "bg-brand-surface border border-brand-red/50 shadow-lg shadow-brand-red/10"
-          : "hover:bg-brand-surface/60 border border-transparent"
-      }`}
-    >
-      {/* Channel logo */}
-      <div className="w-10 h-10 rounded-md overflow-hidden bg-brand-surface flex-shrink-0 border border-brand-border flex items-center justify-center">
-        <img
-          src={channel.logo || FALLBACK_LOGO}
-          alt={channel.name}
-          className="w-full h-full object-contain"
-          onError={(e) => {
-            (e.currentTarget as HTMLImageElement).src = FALLBACK_LOGO;
-          }}
-          loading="lazy"
-        />
-      </div>
-
-      {/* Channel info */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <p
-            className={`text-sm font-semibold truncate flex-1 ${
-              isSelected ? "text-white" : "text-gray-300 group-hover:text-white"
-            } transition-colors`}
-          >
-            {channel.name}
-          </p>
-          <LiveBadge />
-        </div>
-        <p className="text-[11px] text-gray-500 truncate mt-0.5">{channel.group}</p>
-      </div>
-    </button>
-  );
-}
+// ─── Search icon ───────────────────────────────────────────────────────────────
 
 function SearchIcon() {
   return (
@@ -83,33 +63,175 @@ function SearchIcon() {
   );
 }
 
-// ─── Main Page ──────────────────────────────────────────────────────────────────
+// ─── Desktop channel list item ─────────────────────────────────────────────────
+
+interface ChannelRowProps {
+  key?: string;
+  channel: IptvChannel;
+  isSelected: boolean;
+  isOffline: boolean;
+  onClick: () => void;
+}
+
+function ChannelRow({ channel, isSelected, isOffline, onClick }: ChannelRowProps) {
+  const [logoFailed, setLogoFailed] = useState(false);
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={isOffline}
+      className={[
+        "w-full flex items-center gap-3 px-3 py-2.5 text-left transition-all group",
+        isSelected
+          ? "bg-brand-red/15 border-l-2 border-brand-red"
+          : "border-l-2 border-transparent hover:bg-brand-surface hover:border-l-brand-border",
+        isOffline ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
+      ].join(" ")}
+    >
+      {/* Logo */}
+      <div className="w-10 h-10 rounded-md overflow-hidden flex-shrink-0 bg-brand-surface border border-brand-border">
+        {!logoFailed && channel.logo ? (
+          <img
+            src={channel.logo}
+            alt={channel.name}
+            loading="lazy"
+            className="w-full h-full object-contain"
+            onError={() => setLogoFailed(true)}
+          />
+        ) : (
+          <ChannelInitial name={channel.name} />
+        )}
+      </div>
+
+      {/* Info */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 mb-0.5">
+          <p className={[
+            "text-sm font-semibold truncate flex-1 transition-colors",
+            isSelected ? "text-white" : "text-gray-300 group-hover:text-white",
+          ].join(" ")}>
+            {channel.name}
+          </p>
+          <LiveBadge offline={isOffline} />
+        </div>
+        <p className="text-[11px] text-gray-500 truncate">
+          {channel.group}{channel.country ? ` · ${channel.country}` : ""}
+        </p>
+      </div>
+    </button>
+  );
+}
+
+// ─── Mobile channel card (grid) ────────────────────────────────────────────────
+
+interface ChannelCardProps {
+  key?: string;
+  channel: IptvChannel;
+  isSelected: boolean;
+  isOffline: boolean;
+  onClick: () => void;
+}
+
+function ChannelCard({ channel, isSelected, isOffline, onClick }: ChannelCardProps) {
+  const [logoFailed, setLogoFailed] = useState(false);
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={isOffline}
+      className={[
+        "flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all border",
+        isSelected
+          ? "bg-brand-red/10 border-brand-red ring-2 ring-brand-red ring-offset-1 ring-offset-brand-dark"
+          : "bg-brand-card border-brand-border hover:bg-brand-surface hover:border-gray-600",
+        isOffline ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
+      ].join(" ")}
+    >
+      {/* Square logo area */}
+      <div className="w-full aspect-square rounded-lg overflow-hidden bg-brand-surface border border-brand-border/50">
+        {!logoFailed && channel.logo ? (
+          <img
+            src={channel.logo}
+            alt={channel.name}
+            loading="lazy"
+            className="w-full h-full object-contain"
+            onError={() => setLogoFailed(true)}
+          />
+        ) : (
+          <ChannelInitial name={channel.name} />
+        )}
+      </div>
+
+      {/* Name */}
+      <p className="text-[10px] font-semibold text-gray-300 text-center w-full truncate leading-tight px-0.5">
+        {channel.name}
+      </p>
+
+      {/* Badge */}
+      <LiveBadge offline={isOffline} />
+    </button>
+  );
+}
+
+// ─── Skeleton loaders ──────────────────────────────────────────────────────────
+
+function SkeletonRows({ count = 10 }: { count?: number }) {
+  return (
+    <div className="space-y-0.5 p-1">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="flex items-center gap-3 px-3 py-2.5 animate-pulse">
+          <div className="w-10 h-10 rounded-md bg-brand-surface flex-shrink-0" />
+          <div className="flex-1 space-y-2">
+            <div className="h-3 bg-brand-surface rounded w-3/4" />
+            <div className="h-2.5 bg-brand-surface rounded w-1/2" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SkeletonCards({ count = 12 }: { count?: number }) {
+  return (
+    <div className="grid grid-cols-2 gap-2 p-2">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="flex flex-col gap-2 p-2 rounded-xl bg-brand-card border border-brand-border animate-pulse">
+          <div className="w-full aspect-square rounded-lg bg-brand-surface" />
+          <div className="h-2.5 bg-brand-surface rounded w-4/5 mx-auto" />
+          <div className="h-2 bg-brand-surface rounded w-3/5 mx-auto" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Main page ─────────────────────────────────────────────────────────────────
 
 export default function TvLive() {
-  const [source, setSource] = useState<IptvSource>("peru");
-  const [rawSearch, setRawSearch] = useState("");
+  const [source, setSource]               = useState<IptvSource>("peru");
+  const [rawSearch, setRawSearch]         = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [selectedGroup, setSelectedGroup] = useState("");
+  const [selectedGroup, setSelectedGroup] = useState("Todos");
   const [selectedChannel, setSelectedChannel] = useState<IptvChannel | null>(null);
+  // Track offline channels by id within the current session
+  const [offlineIds, setOfflineIds]       = useState<Set<string>>(new Set());
 
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const groupScrollRef = useRef<HTMLDivElement>(null);
+  const debounceRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const listRef        = useRef<HTMLDivElement>(null);
+  const mobilePlayerRef = useRef<HTMLDivElement>(null);
 
-  // Debounce search input by 300ms
+  // Debounce search
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setDebouncedSearch(rawSearch);
-    }, 300);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
+    debounceRef.current = setTimeout(() => setDebouncedSearch(rawSearch), 300);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [rawSearch]);
 
-  // Reset group/channel when source changes
+  // Reset state on source change
   useEffect(() => {
-    setSelectedGroup("");
+    setSelectedGroup("Todos");
     setSelectedChannel(null);
+    setOfflineIds(new Set());
     setRawSearch("");
     setDebouncedSearch("");
   }, [source]);
@@ -117,229 +239,333 @@ export default function TvLive() {
   const { channels, groups, isLoading, isError } = useIptvChannels(
     source,
     debouncedSearch,
-    selectedGroup
+    selectedGroup === "Todos" ? "" : selectedGroup
   );
 
-  // Auto-select first channel when list loads or filters change
+  // Auto-select first available channel when list arrives or changes
   useEffect(() => {
-    if (channels.length > 0 && !selectedChannel) {
-      setSelectedChannel(channels[0]);
+    if (channels.length === 0) return;
+    if (selectedChannel && channels.some((c) => c.id === selectedChannel.id)) return;
+    const first = channels.find((c) => !offlineIds.has(c.id)) ?? channels[0];
+    setSelectedChannel(first);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channels]);
+
+  // Available (non-offline) count
+  const availableCount = useMemo(
+    () => channels.filter((c) => !offlineIds.has(c.id)).length,
+    [channels, offlineIds]
+  );
+
+  // When a channel fails: mark offline, advance to next, toast
+  const handleChannelError = useCallback(() => {
+    if (!selectedChannel) return;
+    const id = selectedChannel.id;
+
+    setOfflineIds((prev: Set<string>) => new Set([...prev, id]));
+
+    // Find next available channel
+    const idx = channels.findIndex((c) => c.id === id);
+    const next = channels.slice(idx + 1).find((c) => !offlineIds.has(c.id));
+
+    if (next) {
+      toast.warning("Canal no disponible, cambiando al siguiente...", {
+        duration: 3000,
+        icon: "📡",
+      });
+      setSelectedChannel(next);
+    } else {
+      toast.error("No hay más canales disponibles en esta lista.", { duration: 4000 });
     }
-    // If selected channel is no longer in filtered list, keep it anyway
-    // (user may want to keep watching while searching)
-  }, [channels]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedChannel, channels, offlineIds]);
 
-  // Memoize "all groups" pill label
-  const allGroupsLabel = "Todos";
+  // Scroll mobile up to player when channel selected
+  const selectChannel = (ch: IptvChannel) => {
+    setSelectedChannel(ch);
+    if (window.innerWidth < 768 && mobilePlayerRef.current) {
+      mobilePlayerRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
 
-  const displayedGroups = useMemo(() => [allGroupsLabel, ...groups], [groups]);
+  const clearFilters = () => {
+    setRawSearch("");
+    setDebouncedSearch("");
+    setSelectedGroup("Todos");
+  };
+
+  const displayedGroups = useMemo(() => ["Todos", ...groups], [groups]);
+
+  // ─── Common subviews ───────────────────────────────────────────────────────
+
+  const sourceTabs = (
+    <div
+      className="flex gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden"
+      style={{ scrollbarWidth: "none" }}
+    >
+      {SOURCE_TABS.map((tab) => (
+        <button
+          key={tab.id}
+          onClick={() => setSource(tab.id)}
+          className={[
+            "flex-shrink-0 rounded-full text-xs font-medium py-1.5 px-3 border transition-colors whitespace-nowrap",
+            source === tab.id
+              ? "bg-brand-red text-white border-brand-red"
+              : "bg-brand-surface text-gray-400 border-brand-border hover:text-white hover:border-gray-500",
+          ].join(" ")}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  );
+
+  const searchBox = (
+    <div className="relative">
+      <input
+        type="text"
+        value={rawSearch}
+        onChange={(e: { target: HTMLInputElement }) => setRawSearch(e.target.value)}
+        placeholder="Buscar canal..."
+        className="w-full bg-brand-surface border border-brand-border rounded-lg px-4 py-2.5 pl-10 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-gray-500 transition-colors"
+      />
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+        <SearchIcon />
+      </span>
+      {rawSearch && (
+        <button
+          onClick={() => setRawSearch("")}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white text-xl leading-none"
+          aria-label="Limpiar búsqueda"
+        >
+          &times;
+        </button>
+      )}
+    </div>
+  );
+
+  const groupPills = groups.length > 1 ? (
+    <div
+      className="flex gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden"
+      style={{ scrollbarWidth: "none" }}
+    >
+      {displayedGroups.map((g: string) => (
+        <button
+          key={g}
+          onClick={() => setSelectedGroup(g)}
+          className={[
+            "flex-shrink-0 rounded-full text-xs font-medium py-1 px-2.5 border transition-colors whitespace-nowrap",
+            selectedGroup === g
+              ? "bg-brand-gold/20 text-brand-gold border-brand-gold/50"
+              : "bg-transparent text-gray-500 border-brand-border hover:text-white hover:border-gray-500",
+          ].join(" ")}
+        >
+          {g}
+        </button>
+      ))}
+    </div>
+  ) : null;
+
+  const playerSection = (
+    <div className="bg-brand-card border border-brand-border rounded-xl overflow-hidden shadow-xl">
+      {selectedChannel ? (
+        <>
+          <HlsPlayer
+            src={selectedChannel.url}
+            channelName={selectedChannel.name}
+            logo={selectedChannel.logo}
+            onError={handleChannelError}
+          />
+          {/* Info bar */}
+          <div className="px-4 py-3 bg-brand-surface/40 border-t border-brand-border flex items-center gap-3">
+            <div className="w-9 h-9 rounded-md overflow-hidden bg-brand-surface border border-brand-border flex-shrink-0">
+              {selectedChannel.logo ? (
+                <img
+                  src={selectedChannel.logo}
+                  alt={selectedChannel.name}
+                  className="w-full h-full object-contain"
+                  onError={(e: { currentTarget: HTMLImageElement }) => {
+                    e.currentTarget.style.display = "none";
+                  }}
+                />
+              ) : (
+                <ChannelInitial name={selectedChannel.name} />
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-white font-bold text-sm truncate">{selectedChannel.name}</p>
+              <p className="text-gray-500 text-xs truncate">{selectedChannel.group}</p>
+            </div>
+            <LiveBadge offline={offlineIds.has(selectedChannel.id)} />
+          </div>
+        </>
+      ) : (
+        <div
+          className="flex flex-col items-center justify-center gap-4 bg-brand-dark"
+          style={{ aspectRatio: "16/9" }}
+        >
+          <div className="text-5xl opacity-20">📺</div>
+          <p className="text-gray-600 text-sm">Selecciona un canal para reproducir</p>
+        </div>
+      )}
+
+      {/* CORS notice */}
+      <p className="text-[10px] text-gray-600 text-center px-4 py-2 border-t border-brand-border/50">
+        Algunos canales pueden no estar disponibles por restricciones de red (CORS). Prueba otro canal.
+      </p>
+    </div>
+  );
+
+  const channelList = (isMobile: boolean) => {
+    if (isLoading) {
+      return isMobile ? <SkeletonCards count={12} /> : <SkeletonRows count={10} />;
+    }
+
+    if (isError) {
+      return (
+        <div className="flex flex-col items-center justify-center py-12 px-4 text-center gap-3">
+          <span className="text-4xl">📡</span>
+          <p className="text-gray-400 text-sm font-medium">No se pudieron cargar los canales.</p>
+          <p className="text-gray-600 text-xs">Verifica tu conexión e intenta nuevamente.</p>
+        </div>
+      );
+    }
+
+    if (channels.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center py-12 px-4 text-center gap-3">
+          <span className="text-4xl">🔍</span>
+          <p className="text-gray-400 text-sm font-medium">No se encontraron canales.</p>
+          <p className="text-gray-600 text-xs">Prueba otra fuente o limpia el buscador.</p>
+          {(rawSearch || selectedGroup !== "Todos") && (
+            <button
+              onClick={clearFilters}
+              className="mt-1 px-3 py-1.5 bg-brand-surface border border-brand-border rounded-lg text-xs text-gray-300 hover:text-white transition-colors"
+            >
+              Limpiar filtros
+            </button>
+          )}
+        </div>
+      );
+    }
+
+    if (isMobile) {
+      return (
+        <div className="grid grid-cols-2 gap-2 p-2">
+          {channels.map((ch) => (
+            <ChannelCard
+              key={ch.id}
+              channel={ch}
+              isSelected={selectedChannel?.id === ch.id}
+              isOffline={Boolean(offlineIds.has(ch.id))}
+              onClick={() => selectChannel(ch)}
+            />
+          ))}
+        </div>
+      );
+    }
+
+    return (
+      <div ref={listRef} className="overflow-y-auto h-[calc(100vh-340px)] min-h-[320px]">
+        {channels.map((ch) => (
+          <ChannelRow
+            key={ch.id}
+            channel={ch}
+            isSelected={selectedChannel?.id === ch.id}
+            isOffline={Boolean(offlineIds.has(ch.id))}
+            onClick={() => selectChannel(ch)}
+          />
+        ))}
+      </div>
+    );
+  };
+
+  // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-brand-dark pt-20 pb-16">
+    <div className="min-h-screen bg-brand-dark pt-16 pb-16">
       <Helmet>
         <title>TV en Vivo — Cine Gratín</title>
       </Helmet>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* ── Page header ─────────────────────────────────────────────── */}
-        <div className="mb-6">
-          <h1 className="text-3xl font-black text-white mb-1">📺 TV en Vivo</h1>
-          <p className="text-gray-400 text-sm">
-            {isLoading
-              ? "Cargando canales…"
-              : channels.length > 0
-              ? `${channels.length} canal${channels.length !== 1 ? "es" : ""} disponible${channels.length !== 1 ? "s" : ""}`
-              : "No se encontraron canales"}
-          </p>
+      {/* ══════════════════════════════════════════════════════════════════════
+          MOBILE LAYOUT  (hidden on md+)
+      ══════════════════════════════════════════════════════════════════════ */}
+      <div className="md:hidden flex flex-col">
+        {/* Header */}
+        <div className="px-4 pt-4 pb-3 border-b border-brand-border">
+          <h1 className="text-2xl font-black text-white mb-3">📺 TV en Vivo</h1>
+          {/* Source tabs */}
+          <div className="mb-3">{sourceTabs}</div>
+          {/* Search */}
+          {searchBox}
         </div>
 
-        {/* ── Source tabs ──────────────────────────────────────────────── */}
-        <div className="flex gap-2 mb-5">
-          {SOURCES.map((s) => (
-            <button
-              key={s.id}
-              onClick={() => setSource(s.id)}
-              className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors border ${
-                source === s.id
-                  ? "bg-brand-red border-brand-red text-white"
-                  : "bg-transparent border-brand-border text-gray-400 hover:text-white hover:border-gray-500"
-              }`}
-            >
-              {s.label}
-            </button>
-          ))}
+        {/* Player (sticky at top when scrolling) */}
+        <div ref={mobilePlayerRef} className="sticky top-16 z-30 bg-brand-dark border-b border-brand-border shadow-2xl">
+          {playerSection}
         </div>
 
-        {/* ── Search ───────────────────────────────────────────────────── */}
-        <div className="relative max-w-sm mb-5">
-          <input
-            type="text"
-            value={rawSearch}
-            onChange={(e) => setRawSearch(e.target.value)}
-            placeholder="Buscar canal…"
-            className="w-full bg-brand-surface border border-brand-border rounded-lg px-4 py-2.5 pl-10 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-gray-500 transition-colors"
-          />
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
-            <SearchIcon />
-          </span>
-          {rawSearch && (
-            <button
-              onClick={() => setRawSearch("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white text-lg leading-none"
-            >
-              &times;
-            </button>
-          )}
-        </div>
-
-        {/* ── Category pills ────────────────────────────────────────────── */}
-        {groups.length > 0 && (
-          <div
-            ref={groupScrollRef}
-            className="flex gap-2 overflow-x-auto pb-2 mb-6 scrollbar-thin scrollbar-thumb-brand-border"
-            style={{ scrollbarWidth: "thin" }}
-          >
-            {displayedGroups.map((g) => {
-              const active = g === allGroupsLabel ? selectedGroup === "" : selectedGroup === g;
-              return (
-                <button
-                  key={g}
-                  onClick={() => setSelectedGroup(g === allGroupsLabel ? "" : g)}
-                  className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border whitespace-nowrap ${
-                    active
-                      ? "bg-brand-gold/20 border-brand-gold/50 text-brand-gold"
-                      : "bg-transparent border-brand-border text-gray-400 hover:text-white hover:border-gray-500"
-                  }`}
-                >
-                  {g}
-                </button>
-              );
-            })}
+        {/* Groups + channel count */}
+        {(groups.length > 1 || !isLoading) && (
+          <div className="px-3 pt-3 pb-2 space-y-2 border-b border-brand-border">
+            {groupPills}
+            {!isLoading && (
+              <p className="text-[11px] text-gray-600 px-1">
+                {availableCount} canal{availableCount !== 1 ? "es" : ""} disponible{availableCount !== 1 ? "s" : ""}
+              </p>
+            )}
           </div>
         )}
 
-        {/* ── Main content: two-column layout ─────────────────────────── */}
-        <div className="flex flex-col lg:flex-row gap-6">
-          {/* ── Channel list (left on desktop, top on mobile) ─────────── */}
-          <div className="lg:w-80 xl:w-96 flex-shrink-0 order-2 lg:order-1">
+        {/* Channel grid */}
+        {channelList(true)}
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          DESKTOP LAYOUT  (hidden on mobile)
+      ══════════════════════════════════════════════════════════════════════ */}
+      <div className="hidden md:block max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+        {/* Page header */}
+        <div className="mb-5">
+          <div className="flex items-baseline gap-4 mb-3 flex-wrap">
+            <h1 className="text-3xl font-black text-white">📺 TV en Vivo</h1>
+            {!isLoading && (
+              <span className="text-gray-500 text-sm">
+                {availableCount} canal{availableCount !== 1 ? "es" : ""} disponible{availableCount !== 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
+
+          {/* Source tabs */}
+          <div className="mb-4">{sourceTabs}</div>
+
+          {/* Search + group pills in one row */}
+          <div className="flex flex-col gap-3">
+            <div className="max-w-sm">{searchBox}</div>
+            {groupPills}
+          </div>
+        </div>
+
+        {/* Two-column layout */}
+        <div className="flex gap-5">
+          {/* LEFT — channel list */}
+          <div className="w-80 xl:w-96 flex-shrink-0">
             <div className="bg-brand-card border border-brand-border rounded-xl overflow-hidden">
-              <div className="px-4 py-3 border-b border-brand-border bg-brand-surface/30">
+              {/* List header */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-brand-border bg-brand-surface/30">
                 <h2 className="text-sm font-bold text-white">Canales</h2>
+                {!isLoading && channels.length > 0 && (
+                  <span className="text-[10px] text-gray-600">{channels.length} resultados</span>
+                )}
               </div>
-
-              {/* Loading skeleton */}
-              {isLoading && (
-                <div className="p-3 space-y-2">
-                  {Array.from({ length: 8 }).map((_, i) => (
-                    <div key={i} className="flex items-center gap-3 p-2.5 rounded-lg animate-pulse">
-                      <div className="w-10 h-10 rounded-md bg-brand-surface flex-shrink-0" />
-                      <div className="flex-1 space-y-1.5">
-                        <div className="h-3 bg-brand-surface rounded w-3/4" />
-                        <div className="h-2.5 bg-brand-surface rounded w-1/2" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Error state */}
-              {isError && !isLoading && (
-                <div className="px-4 py-10 text-center">
-                  <p className="text-gray-400 text-sm">No se pudieron cargar los canales.</p>
-                  <p className="text-gray-600 text-xs mt-1">Verifica tu conexión e inténtalo nuevamente.</p>
-                </div>
-              )}
-
-              {/* Empty state */}
-              {!isLoading && !isError && channels.length === 0 && (
-                <div className="px-4 py-10 text-center">
-                  <p className="text-2xl mb-3">📡</p>
-                  <p className="text-gray-400 text-sm font-medium">No hay canales</p>
-                  <p className="text-gray-600 text-xs mt-1 leading-relaxed">
-                    {debouncedSearch || selectedGroup
-                      ? "Prueba con otro término o categoría."
-                      : "Algunos canales pueden no estar disponibles por restricciones de red. Prueba otro canal."}
-                  </p>
-                  {(debouncedSearch || selectedGroup) && (
-                    <button
-                      onClick={() => {
-                        setRawSearch("");
-                        setDebouncedSearch("");
-                        setSelectedGroup("");
-                      }}
-                      className="mt-3 text-brand-red hover:text-red-400 text-xs underline"
-                    >
-                      Limpiar filtros
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {/* Channel list */}
-              {!isLoading && !isError && channels.length > 0 && (
-                <div className="overflow-y-auto max-h-[60vh] lg:max-h-[calc(100vh-280px)] p-2 space-y-0.5">
-                  {channels.map((ch, idx) => (
-                    <ChannelCard
-                      key={`${ch.url}-${idx}`}
-                      channel={ch}
-                      isSelected={selectedChannel?.url === ch.url}
-                      onClick={() => setSelectedChannel(ch)}
-                    />
-                  ))}
-                </div>
-              )}
+              {channelList(false)}
             </div>
           </div>
 
-          {/* ── Player (right on desktop, bottom on mobile) ─────────────── */}
-          <div className="flex-1 order-1 lg:order-2">
-            <div className="lg:sticky lg:top-24">
-              {selectedChannel ? (
-                <div className="bg-brand-card border border-brand-border rounded-xl overflow-hidden">
-                  {/* Player */}
-                  <HlsPlayer
-                    src={selectedChannel.url}
-                    channelName={selectedChannel.name}
-                  />
-
-                  {/* Channel info bar */}
-                  <div className="px-4 py-3 bg-brand-surface/30 border-t border-brand-border flex items-center gap-3">
-                    {/* Logo */}
-                    <div className="w-9 h-9 rounded-md overflow-hidden bg-brand-surface border border-brand-border flex-shrink-0 flex items-center justify-center">
-                      <img
-                        src={selectedChannel.logo || FALLBACK_LOGO}
-                        alt={selectedChannel.name}
-                        className="w-full h-full object-contain"
-                        onError={(e) => {
-                          (e.currentTarget as HTMLImageElement).src = FALLBACK_LOGO;
-                        }}
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white font-bold text-sm truncate">{selectedChannel.name}</p>
-                      <p className="text-gray-500 text-xs truncate">{selectedChannel.group}</p>
-                    </div>
-                    <LiveBadge />
-                  </div>
-                </div>
-              ) : (
-                /* Placeholder when no channel selected yet */
-                <div className="bg-brand-card border border-brand-border rounded-xl overflow-hidden">
-                  <div
-                    className="flex flex-col items-center justify-center bg-brand-dark gap-4"
-                    style={{ aspectRatio: "16/9" }}
-                  >
-                    <div className="text-5xl opacity-30">📺</div>
-                    <p className="text-gray-600 text-sm">Selecciona un canal para reproducir</p>
-                  </div>
-                </div>
-              )}
-
-              {/* CORS notice */}
-              <p className="mt-3 text-[11px] text-gray-600 leading-relaxed text-center">
-                Algunos canales pueden no estar disponibles por restricciones de red (CORS).{" "}
-                Prueba otro canal si el actual no carga.
-              </p>
+          {/* RIGHT — player (sticky) */}
+          <div className="flex-1 min-w-0">
+            <div className="sticky top-20">
+              {playerSection}
             </div>
           </div>
         </div>
