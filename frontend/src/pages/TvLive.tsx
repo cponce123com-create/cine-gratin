@@ -242,14 +242,23 @@ export default function TvLive() {
     selectedGroup === "Todos" ? "" : selectedGroup
   );
 
-  // Auto-select first available channel when list arrives or changes
+  // Auto-select SOLO una vez por source. NO usar [channels] como dep porque
+  // React Query devuelve array nuevo en cada render → dispara el efecto
+  // múltiples veces → selecciones en cadena → doble/triple audio.
+  const autoSelectedRef = useRef(false);
+
   useEffect(() => {
-    if (channels.length === 0) return;
-    if (selectedChannel && channels.some((c) => c.id === selectedChannel.id)) return;
+    autoSelectedRef.current = false;
+  }, [source]);
+
+  useEffect(() => {
+    if (autoSelectedRef.current) return;
+    if (isLoading || channels.length === 0) return;
+    autoSelectedRef.current = true;
     const first = channels.find((c) => !offlineIds.has(c.id)) ?? channels[0];
     setSelectedChannel(first);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channels]);
+  }, [isLoading, channels.length]);
 
   // Available (non-offline) count
   const availableCount = useMemo(
@@ -257,14 +266,25 @@ export default function TvLive() {
     [channels, offlineIds]
   );
 
-  // When a channel fails: mark offline, advance to next, toast
+  // Refs para evitar que handleChannelError cambie en cada render
+  // y provoque re-renders encadenados en HlsPlayer.
+  const selectedChannelRef = useRef(selectedChannel);
+  const channelsRef = useRef(channels);
+  const offlineIdsRef = useRef(offlineIds);
+  useEffect(() => { selectedChannelRef.current = selectedChannel; }, [selectedChannel]);
+  useEffect(() => { channelsRef.current = channels; }, [channels]);
+  useEffect(() => { offlineIdsRef.current = offlineIds; }, [offlineIds]);
+
+  // useCallback sin deps → función estable, nunca cambia → HlsPlayer no re-renderiza
   const handleChannelError = useCallback(() => {
+    const selectedChannel = selectedChannelRef.current;
+    const channels = channelsRef.current;
+    const offlineIds = offlineIdsRef.current;
     if (!selectedChannel) return;
     const id = selectedChannel.id;
 
     setOfflineIds((prev: Set<string>) => new Set([...prev, id]));
 
-    // Find next available channel
     const idx = channels.findIndex((c) => c.id === id);
     const next = channels.slice(idx + 1).find((c) => !offlineIds.has(c.id));
 
@@ -277,7 +297,7 @@ export default function TvLive() {
     } else {
       toast.error("No hay más canales disponibles en esta lista.", { duration: 4000 });
     }
-  }, [selectedChannel, channels, offlineIds]);
+  }, []); // deps vacías → función estable
 
   // Scroll mobile up to player when channel selected
   const selectChannel = (ch: IptvChannel) => {
