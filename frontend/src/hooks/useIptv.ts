@@ -1,13 +1,16 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchIptvChannels, type IptvChannel } from "@/lib/iptv-api";
+import { fetchIptvChannels } from "@/lib/iptv-api";
+import type { IptvChannel, IptvSource } from "@/lib/iptv-api";
+
+export type { IptvSource };
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
-export type IptvSource = "peru" | "spanish";
-
 interface UseIptvChannelsResult {
+  /** Filtered channel list (search + group applied) */
   channels: IptvChannel[];
+  /** All unique group names from the full (unfiltered) list, sorted A-Z */
   groups: string[];
   isLoading: boolean;
   isError: boolean;
@@ -16,11 +19,11 @@ interface UseIptvChannelsResult {
 // ─── Hook ──────────────────────────────────────────────────────────────────────
 
 /**
- * React Query hook for fetching, caching, and filtering IPTV channels.
+ * Fetches, caches, and filters an IPTV channel list.
  *
- * @param source   - "peru" or "spanish" — selects which M3U playlist to fetch
- * @param searchQuery - text to filter channels by name (case-insensitive)
- * @param selectedGroup - group/category to filter by, or "" for all groups
+ * @param source        - Which playlist to load
+ * @param searchQuery   - Case-insensitive channel name filter (debounced externally)
+ * @param selectedGroup - Filter by group-title; pass "" or "Todos" for all
  */
 export function useIptvChannels(
   source: IptvSource,
@@ -28,35 +31,33 @@ export function useIptvChannels(
   selectedGroup: string = ""
 ): UseIptvChannelsResult {
   const { data, isLoading, isError } = useQuery<IptvChannel[]>({
-    queryKey: ["iptv-channels", source],
+    queryKey: ["iptv", source],
     queryFn: () => fetchIptvChannels(source),
-    staleTime: 10 * 60 * 1000, // 10 minutes — M3U playlists don't change often
-    gcTime: 15 * 60 * 1000,    // Keep in cache for 15 minutes
-    retry: 1,                   // Only retry once to avoid hammering on CORS errors
+    staleTime: 15 * 60 * 1000,   // 15 min — M3U playlists rarely change
+    gcTime:    20 * 60 * 1000,   // keep in memory 20 min after last use
+    retry: 1,
     refetchOnWindowFocus: false,
   });
 
-  // Extract unique sorted group names from the full channel list
+  // Unique sorted group names from the FULL list (not filtered)
   const groups = useMemo<string[]>(() => {
-    if (!data) return [];
+    if (!data?.length) return [];
     const seen = new Set<string>();
-    for (const ch of data) {
-      if (ch.group) seen.add(ch.group);
-    }
-    return Array.from(seen).sort((a, b) => a.localeCompare(b));
+    for (const ch of data) if (ch.group) seen.add(ch.group);
+    return Array.from(seen).sort((a, b) => a.localeCompare(b, "es"));
   }, [data]);
 
-  // Apply search + group filters
+  // Apply group + search filters
   const channels = useMemo<IptvChannel[]>(() => {
     let list = data ?? [];
 
-    if (selectedGroup) {
-      list = list.filter((ch) => ch.group === selectedGroup);
+    if (selectedGroup && selectedGroup !== "Todos") {
+      list = list.filter((ch: IptvChannel) => ch.group === selectedGroup);
     }
 
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      list = list.filter((ch) => ch.name.toLowerCase().includes(q));
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      list = list.filter((ch: IptvChannel) => ch.name.toLowerCase().includes(q));
     }
 
     return list;
