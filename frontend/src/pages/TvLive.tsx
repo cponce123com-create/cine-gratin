@@ -137,7 +137,8 @@ function ChannelCard({ channel, isSelected, isOffline, onClick }: ChannelCardPro
 
   return (
     <button
-      onClick={onClick}
+      onTouchEnd={(e) => { e.preventDefault(); if (!isOffline) onClick(); }}
+      onClick={(e) => { if (e.detail === 0) return; if (!isOffline) onClick(); }}
       disabled={isOffline}
       className={[
         "flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all border",
@@ -299,13 +300,19 @@ export default function TvLive() {
     }
   }, []); // deps vacías → función estable
 
-  // Scroll mobile up to player when channel selected
-  const selectChannel = (ch: IptvChannel) => {
+  // Ref para evitar doble disparo en mobile (touchstart + click)
+  const lastSelectedIdRef = useRef<string | null>(null);
+  const selectChannel = useCallback((ch: IptvChannel) => {
+    // Ignorar si ya está seleccionado (evita doble tap / doble click)
+    if (lastSelectedIdRef.current === ch.id) return;
+    lastSelectedIdRef.current = ch.id;
     setSelectedChannel(ch);
     if (window.innerWidth < 768 && mobilePlayerRef.current) {
-      mobilePlayerRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+      setTimeout(() => {
+        mobilePlayerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 50);
     }
-  };
+  }, []);
 
   const clearFilters = () => {
     setRawSearch("");
