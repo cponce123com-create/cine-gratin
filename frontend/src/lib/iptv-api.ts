@@ -20,6 +20,18 @@ export interface IptvChannel {
 const SOURCES: Record<"peru" | "spanish", string> = {
   peru: "https://iptv-org.github.io/iptv/countries/pe.m3u",
   spanish: "https://iptv-org.github.io/iptv/languages/spa.m3u",
+  all:           'https://iptv-org.github.io/iptv/index.m3u',           // +11,000 canales
+  peru:          'https://iptv-org.github.io/iptv/countries/pe.m3u',
+  latino:        'https://iptv-org.github.io/iptv/languages/spa.m3u',   // Todo en español
+  mexico:        'https://iptv-org.github.io/iptv/countries/mx.m3u',
+  argentina:     'https://iptv-org.github.io/iptv/countries/ar.m3u',
+  colombia:      'https://iptv-org.github.io/iptv/countries/co.m3u',
+  news:          'https://iptv-org.github.io/iptv/categories/news.m3u',
+  sports:        'https://iptv-org.github.io/iptv/categories/sports.m3u',
+  movies:        'https://iptv-org.github.io/iptv/categories/movies.m3u',
+  kids:          'https://iptv-org.github.io/iptv/categories/kids.m3u',
+  music:         'https://iptv-org.github.io/iptv/categories/music.m3u',
+  documentary:   'https://iptv-org.github.io/iptv/categories/documentary.m3u',
 };
 
 // ─── M3U Parser ────────────────────────────────────────────────────────────────
