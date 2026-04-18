@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@tanstack/react-query": "catalog:",
+    "hls.js": "^1.5.20",
     "lucide-react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
