@@ -8,6 +8,7 @@ import Home from "@/pages/Home";
 import Movies from "@/pages/Movies";
 import Sports from "@/pages/Sports";
 import Events from "@/pages/Events";
+import TvLive from "@/pages/TvLive";
 import SeriesList from "@/pages/SeriesList";
 import MovieDetail from "@/pages/MovieDetail";
 import SeriesDetail from "@/pages/SeriesDetail";
@@ -156,6 +157,7 @@ export default function App() {
           <Route path="/series" element={<SeriesList />} />
           <Route path="/deportes" element={<Sports />} />
           <Route path="/eventos" element={<Events />} />
+          <Route path="/tv-en-vivo" element={<TvLive />} />
           <Route path="/pelicula/:id" element={<MovieDetail />} />
           <Route path="/serie/:id" element={<SeriesDetail />} />
           <Route path="/saga/:id" element={<SagaPage />} />
