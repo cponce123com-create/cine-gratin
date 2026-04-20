@@ -1,64 +1,63 @@
 import { useEffect, useRef, useState } from "react";
 
-// ─── Types ──────────────────────────────────────────────────────────────────
+// ─── Types ──────────────────────────────────────────────────────────────────────
 
 interface HlsPlayerProps {
+  /** React key (used by parent to force remount on channel change) */
+  key?: string;
+  /** HLS stream URL (.m3u8) */
   src: string;
+  /** Channel display name */
   channelName: string;
+  /** Optional channel logo URL */
   logo?: string;
+  /** Called once when the channel fails definitively (timeout / fatal error) */
   onError?: () => void;
 }
 
 type PlayerState = "loading" | "playing" | "error";
 
-interface HlsInstance {
-  loadSource(src: string): void;
-  attachMedia(media: HTMLMediaElement): void;
-  destroy(): void;
-  on(event: string, cb: (evt: string, data: HlsErrorPayload) => void): void;
-}
-
-interface HlsErrorPayload {
+// Minimal typed surface for the hls.js UMD bundle we load dynamically
+interface HlsErrorData {
   fatal: boolean;
   type: string;
 }
 
-interface HlsConstructor {
-  new (config?: Record<string, unknown>): HlsInstance;
+interface HlsInstance {
+  loadSource(src: string): void;
+  attachMedia(media: HTMLMediaElement): void;
+  destroy(): void;
+  on(event: string, cb: (evt: string, data: HlsErrorData) => void): void;
+}
+
+interface HlsStatic {
+  new (cfg?: Record<string, unknown>): HlsInstance;
   isSupported(): boolean;
   readonly Events: Record<string, string>;
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-function supportsHlsNatively(): boolean {
-  if (typeof document === "undefined") return false;
-  const v = document.createElement("video");
-  return (
-    v.canPlayType("application/vnd.apple.mpegurl") !== "" ||
-    v.canPlayType("application/x-mpegURL") !== ""
-  );
-}
-
-function resetVideo(video: HTMLVideoElement) {
-  video.pause();
-  video.removeAttribute("src");
-  while (video.firstChild) video.removeChild(video.firstChild);
-  video.load();
-}
-
-// ─── Icons ──────────────────────────────────────────────────────────────────
+// ─── SVG icon ───────────────────────────────────────────────────────────────────
 
 function NoSignalIcon() {
   return (
-    <svg viewBox="0 0 64 64" className="w-16 h-16 text-gray-600"
-      fill="none" stroke="currentColor" strokeWidth="2"
-      strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 64 64"
+      className="w-16 h-16 text-gray-600"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {/* TV body */}
       <rect x="4" y="16" width="56" height="38" rx="4" />
+      {/* Screen X */}
       <line x1="18" y1="26" x2="46" y2="46" />
       <line x1="46" y1="26" x2="18" y2="46" />
+      {/* Antennas */}
       <line x1="22" y1="16" x2="12" y2="4" />
       <line x1="42" y1="16" x2="52" y2="4" />
+      {/* Stand */}
       <line x1="24" y1="54" x2="20" y2="62" />
       <line x1="40" y1="54" x2="44" y2="62" />
       <line x1="18" y1="62" x2="46" y2="62" />
@@ -66,148 +65,168 @@ function NoSignalIcon() {
   );
 }
 
-// ─── Component ──────────────────────────────────────────────────────────────
+// ─── Component ──────────────────────────────────────────────────────────────────
 
 export default function HlsPlayer({ src, channelName, logo, onError }: HlsPlayerProps) {
-  const videoRef   = useRef<HTMLVideoElement>(null);
-  const hlsRef     = useRef<HlsInstance | null>(null);
-  // cancelRef: se pone en true en el cleanup para que el import() async
-  // no ejecute nada si src ya cambió antes de que terminara de cargar.
-  // ESTE es el fix del doble audio: el import("hls.js") es async, y sin
-  // cancelRef, la instancia hls se crea DESPUÉS del cleanup, nunca se destruye,
-  // y queda reproduciéndose en paralelo con la nueva.
-  const cancelRef  = useRef(false);
-  const onErrorRef = useRef(onError);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  // CRITICAL: hls instance lives in a ref, never in local scope, so the
+  // cleanup function always has access to it even after async operations.
+  const hlsRef   = useRef<HlsInstance | null>(null);
 
-  useEffect(() => { onErrorRef.current = onError; }, [onError]);
+  const [state,    setState]    = useState<PlayerState>("loading");
+  const [retryKey, setRetryKey] = useState(0);
 
-  const [status, setStatus] = useState<PlayerState>("loading");
-
+  // ─── Core effect — runs when src or retryKey changes ───────────────────────
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !src) return;
 
-    // 1. Cancelar cualquier import() async pendiente del efecto anterior
-    cancelRef.current = false;
-
-    // 2. Destruir instancia HLS anterior SINCRÓNICAMENTE (si ya existía)
+    // ── STEP 1: destroy any previous hls instance SYNCHRONOUSLY ─────────────
     if (hlsRef.current) {
       hlsRef.current.destroy();
       hlsRef.current = null;
     }
 
-    // 3. Resetear el elemento <video> completamente (libera buffer de audio)
-    resetVideo(video);
-    setStatus("loading");
+    // ── STEP 2: fully reset the video element so no audio bleeds through ─────
+    video.pause();
+    video.removeAttribute("src");
+    video.load(); // forces the browser to release the media buffer
 
+    setState("loading");
+
+    // ── STEP 3: 12-second safety timeout ────────────────────────────────────
+    let cancelled = false; // guard for async path
     const timeout = setTimeout(() => {
-      if (!cancelRef.current) setStatus("error");
-    }, 12000);
+      if (!cancelled) {
+        setState("error");
+        onError?.();
+      }
+    }, 12_000);
 
-    // ── Safari / iOS: HLS nativo ──────────────────────────────────────────
-    if (supportsHlsNatively()) {
+    // ── STEP 4: Safari — native HLS ─────────────────────────────────────────
+    // We feature-detect at runtime instead of caching, because supportsHlsNatively
+    // is called inside the effect (no stale closure risk).
+    const nativeHls =
+      video.canPlayType("application/vnd.apple.mpegurl") !== "" ||
+      video.canPlayType("application/x-mpegURL") !== "";
+
+    if (nativeHls) {
       video.src = src;
       video.load();
 
       const onCanPlay = () => {
-        if (cancelRef.current) return;
+        if (cancelled) return;
         clearTimeout(timeout);
-        setStatus("playing");
-        video.play().catch(() => {});
+        setState("playing");
+        video.play().catch(() => {/* autoplay policy — user will tap play */});
       };
       const onNativeError = () => {
-        if (cancelRef.current) return;
+        if (cancelled) return;
         clearTimeout(timeout);
-        setStatus("error");
-        onErrorRef.current?.();
+        setState("error");
+        onError?.();
       };
 
-      video.addEventListener("canplay", onCanPlay, { once: true });
-      video.addEventListener("error",   onNativeError, { once: true });
+      video.addEventListener("canplay", onCanPlay,      { once: true });
+      video.addEventListener("error",   onNativeError,  { once: true });
 
       return () => {
-        cancelRef.current = true;
+        cancelled = true;
         clearTimeout(timeout);
         video.removeEventListener("canplay", onCanPlay);
         video.removeEventListener("error",   onNativeError);
-        resetVideo(video);
+        video.pause();
+        video.removeAttribute("src");
+        video.load();
       };
     }
 
-    // ── Resto de browsers: hls.js (import async) ─────────────────────────
-    // NOTA: el .then() se ejecuta en el siguiente tick o después.
-    // El cleanup return() se ejecuta SINCRÓNICAMENTE cuando src cambia.
-    // cancelRef.current = true en el cleanup evita que el .then() haga algo.
-    import("hls.js").then((mod) => {
-      if (cancelRef.current) return; // src ya cambió, ignorar
-
-      const Hls = (mod.default ?? mod) as unknown as HlsConstructor;
-
-      if (!Hls.isSupported()) {
-        clearTimeout(timeout);
-        setStatus("error");
-        onErrorRef.current?.();
+    // ── STEP 5: hls.js path (Chrome / Firefox / Edge / etc.) ────────────────
+    // We use a dynamic import so the 400 kB bundle is code-split.
+    // The import is kicked off asynchronously but the cleanup is guaranteed
+    // to run because we track `cancelled` and hlsRef.current.
+    void (async () => {
+      let Hls: HlsStatic;
+      try {
+        const mod = await import("hls.js");
+        Hls = (mod.default ?? mod) as unknown as HlsStatic;
+      } catch {
+        if (!cancelled) { clearTimeout(timeout); setState("error"); onError?.(); }
         return;
       }
 
+      // Bail out if cleanup already ran while we were importing
+      if (cancelled) return;
+
+      if (!Hls.isSupported()) {
+        clearTimeout(timeout);
+        setState("error");
+        onError?.();
+        return;
+      }
+
+      // ── Create instance and save to ref IMMEDIATELY ──────────────────────
       const hls = new Hls({
-        enableWorker:     true,
-        lowLatencyMode:   true,
-        backBufferLength: 30,
+        enableWorker:   true,
+        lowLatencyMode: true,
+        backBufferLength: 90,
+      });
+      hlsRef.current = hls; // ← ref updated before any event subscription
+
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        if (cancelled) return;
+        clearTimeout(timeout);
+        setState("playing");
+        video.play().catch(() => {/* autoplay policy */});
       });
 
-      hlsRef.current = hls; // guardar ANTES de suscribir eventos
+      hls.on(Hls.Events.ERROR, (_evt: string, data: HlsErrorData) => {
+        if (!data.fatal || cancelled) return;
+        clearTimeout(timeout);
+        setState("error");
+        // Destroy immediately so the dead instance does not keep buffering
+        hls.destroy();
+        hlsRef.current = null;
+        onError?.();
+      });
 
       hls.loadSource(src);
       hls.attachMedia(video);
+    })();
 
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        if (cancelRef.current) return;
-        clearTimeout(timeout);
-        video.play()
-          .then(() => { if (!cancelRef.current) setStatus("playing"); })
-          .catch(() => { if (!cancelRef.current) setStatus("error"); });
-      });
-
-      hls.on(Hls.Events.ERROR, (_evt, data: HlsErrorPayload) => {
-        if (cancelRef.current || !data.fatal) return;
-        clearTimeout(timeout);
-        setStatus("error");
-        onErrorRef.current?.();
-      });
-
-    }).catch(() => {
-      if (cancelRef.current) return;
-      clearTimeout(timeout);
-      setStatus("error");
-      onErrorRef.current?.();
-    });
-
-    // ── Cleanup SÍNCRONO ─────────────────────────────────────────────────
+    // ── STEP 6: cleanup — runs when src/retryKey changes OR on unmount ──────
     return () => {
-      cancelRef.current = true;   // cancela el import() si aún no terminó
+      cancelled = true;
       clearTimeout(timeout);
+
+      // Destroy the hls instance via ref (works even if async init is still
+      // in flight — when it eventually stores the instance, we destroy it).
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
       }
-      resetVideo(video);
+
+      // Reset the video element — this is what stops the audio
+      video.pause();
+      video.removeAttribute("src");
+      video.load(); // mandatory: releases the audio/video buffer in the browser
     };
 
-  }, [src]); // solo src — onError se maneja via ref
+  // retryKey is intentionally included so "Reintentar" re-runs the full setup.
+  // onError is stable (useCallback in parent) so it won't cause extra runs.
+  }, [src, retryKey, onError]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRetry = () => {
-    setStatus("loading");
-    const video = videoRef.current;
-    if (!video) return;
-    resetVideo(video);
-    video.src = src;
-    video.load();
-    video.play().catch(() => {});
+    setState("loading");
+    setRetryKey((k: number) => k + 1);
   };
+
+  // ─── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="relative w-full bg-black overflow-hidden" style={{ aspectRatio: "16/9" }}>
+
+      {/* video element is always in the DOM — hls.js needs a stable reference */}
       <video
         ref={videoRef}
         className="w-full h-full object-contain"
@@ -216,7 +235,8 @@ export default function HlsPlayer({ src, channelName, logo, onError }: HlsPlayer
         aria-label={`Reproduciendo ${channelName}`}
       />
 
-      {status === "loading" && (
+      {/* ── LOADING overlay ───────────────────────────────────────────────── */}
+      {state === "loading" && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-brand-dark/95 gap-4 pointer-events-none">
           <div className="relative">
             <div className="w-14 h-14 rounded-full border-[3px] border-brand-surface" />
@@ -229,7 +249,8 @@ export default function HlsPlayer({ src, channelName, logo, onError }: HlsPlayer
         </div>
       )}
 
-      {status === "error" && (
+      {/* ── ERROR overlay ─────────────────────────────────────────────────── */}
+      {state === "error" && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-brand-dark gap-5 p-6">
           <NoSignalIcon />
           <div className="text-center">
@@ -239,13 +260,17 @@ export default function HlsPlayer({ src, channelName, logo, onError }: HlsPlayer
             </p>
           </div>
           <div className="flex gap-3 flex-wrap justify-center">
-            <button onClick={handleRetry}
-              className="px-4 py-2 bg-brand-surface border border-brand-border hover:border-gray-500 text-white text-sm font-medium rounded-lg transition-colors">
+            <button
+              onClick={handleRetry}
+              className="px-4 py-2 bg-brand-surface border border-brand-border hover:border-gray-500 text-white text-sm font-medium rounded-lg transition-colors"
+            >
               Reintentar
             </button>
             {onError && (
-              <button onClick={onError}
-                className="px-4 py-2 bg-brand-red hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition-colors">
+              <button
+                onClick={onError}
+                className="px-4 py-2 bg-brand-red hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition-colors"
+              >
                 Probar otro canal
               </button>
             )}
@@ -253,18 +278,28 @@ export default function HlsPlayer({ src, channelName, logo, onError }: HlsPlayer
         </div>
       )}
 
-      {status === "playing" && (
+      {/* ── PLAYING overlays ──────────────────────────────────────────────── */}
+      {state === "playing" && (
         <>
+          {/* EN VIVO badge — top left */}
           <div className="absolute top-3 left-3 pointer-events-none">
             <span className="inline-flex items-center gap-1.5 bg-brand-red/90 backdrop-blur-sm text-white text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider shadow-lg">
               <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
               EN VIVO
             </span>
           </div>
+
+          {/* Channel name + logo — top right */}
           <div className="absolute top-3 right-3 pointer-events-none flex items-center gap-2 max-w-[45%]">
             {logo && (
-              <img src={logo} alt={channelName} className="w-6 h-6 object-contain rounded"
-                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+              <img
+                src={logo}
+                alt={channelName}
+                className="w-6 h-6 object-contain rounded"
+                onError={(e: { currentTarget: HTMLImageElement }) => {
+                  e.currentTarget.style.display = "none";
+                }}
+              />
             )}
             <span className="text-white/70 text-[10px] font-medium truncate bg-black/40 backdrop-blur-sm px-2 py-0.5 rounded">
               {channelName}
