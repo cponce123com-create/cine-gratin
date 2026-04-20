@@ -26,6 +26,8 @@ export type IptvSource =
   | "kids"
   | "music"
   | "documentary"
+  | "tdtchannels"
+  | "peru_regional"
   | "all";
 
 // ─── Sources map ───────────────────────────────────────────────────────────────
@@ -41,8 +43,10 @@ const SOURCES: Record<IptvSource, string> = {
   movies:      "https://iptv-org.github.io/iptv/categories/movies.m3u",
   kids:        "https://iptv-org.github.io/iptv/categories/kids.m3u",
   music:       "https://iptv-org.github.io/iptv/categories/music.m3u",
-  documentary: "https://iptv-org.github.io/iptv/categories/documentary.m3u",
-  all:         "https://iptv-org.github.io/iptv/index.m3u",
+  documentary:   "https://iptv-org.github.io/iptv/categories/documentary.m3u",
+  tdtchannels:   "https://www.tdtchannels.com/lists/tv.m3u8",
+  peru_regional: "https://raw.githubusercontent.com/antholyber1a/lista-iptv-peru/main/iptvperu.m3u",
+  all:           "https://iptv-org.github.io/iptv/index.m3u",
 };
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────

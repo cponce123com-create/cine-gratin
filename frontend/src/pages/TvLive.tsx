@@ -20,6 +20,8 @@ const SOURCE_TABS: { id: IptvSource; label: string }[] = [
   { id: "music",       label: "🎵 Música" },
   { id: "kids",        label: "🧒 Infantil" },
   { id: "documentary", label: "🎥 Documental" },
+  { id: "tdtchannels",   label: "📡 TDT (Perú/España)" },
+  { id: "peru_regional", label: "🇵🇪 Perú Regional" },
   { id: "all",         label: "🌍 Todo" },
 ];
 
