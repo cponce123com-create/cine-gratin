@@ -45,7 +45,7 @@ const publicDir = path.resolve(__dirname, "../public");
 app.use(express.static(publicDir));
 
 // SPA catch-all: serve index.html for all non-API routes so React Router works
-app.get("*splat", (_req, res) => {
+app.get("(.*)", (_req, res) => {
   const indexFile = path.join(publicDir, "index.html");
   res.sendFile(indexFile, (err) => {
     if (err) {

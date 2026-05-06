@@ -1,5 +1,19 @@
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 import { pool } from "../lib/db";
+
+/** Inline auth check for routes not under /admin/* */
+function requireAuth(req: Request, res: Response): boolean {
+  const secret = process.env["ADMIN_SECRET"];
+  if (!secret) return true;
+  const authHeader = req.headers["authorization"];
+  const queryToken = req.query["token"] as string | undefined;
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : queryToken;
+  if (!token || token !== secret) {
+    res.status(401).json({ error: "No autorizado" });
+    return false;
+  }
+  return true;
+}
 
 const router = Router();
 
@@ -184,6 +198,7 @@ router.get("/events/settings", async (_req, res) => {
 
 // POST /api/events/settings
 router.post("/events/settings", async (req, res) => {
+    if (!requireAuth(req, res)) return;
   try {
     const { youtube_api_key } = req.body as { youtube_api_key: string };
     if (!youtube_api_key) return res.status(400).json({ error: "Falta youtube_api_key" });
@@ -215,6 +230,8 @@ router.get("/events/channels", async (_req, res) => {
 
 // POST /api/events/channels
 router.post("/events/channels", async (req, res) => {
+    if (!requireAuth(req, res)) return;
+  if (!requireAuth(req, res)) return;
   try {
     const { name, url, keyword = "" } = req.body as {
       name: string;
@@ -237,6 +254,8 @@ router.post("/events/channels", async (req, res) => {
 
 // DELETE /api/events/channels/:id
 router.delete("/events/channels/:id", async (req, res) => {
+    if (!requireAuth(req, res)) return;
+  if (!requireAuth(req, res)) return;
   try {
     await pool.query("DELETE FROM event_channels WHERE id = $1", [req.params["id"]]);
     res.json({ ok: true });
@@ -247,6 +266,8 @@ router.delete("/events/channels/:id", async (req, res) => {
 
 // POST /api/events/channels/:id/sync
 router.post("/events/channels/:id/sync", async (req, res) => {
+    if (!requireAuth(req, res)) return;
+  if (!requireAuth(req, res)) return;
   try {
     const apiKey = await getYoutubeApiKey();
     const { rows } = await pool.query("SELECT * FROM event_channels WHERE id = $1", [
@@ -264,6 +285,7 @@ router.post("/events/channels/:id/sync", async (req, res) => {
 
 // POST /api/events/sync-all
 router.post("/events/sync-all", async (_req, res) => {
+    if (!requireAuth(_req, res)) return;
   try {
     const apiKey = await getYoutubeApiKey();
     const { rows: channels } = await pool.query("SELECT * FROM event_channels");
@@ -323,6 +345,8 @@ router.get("/events", async (req, res) => {
 
 // DELETE /api/events/:id
 router.delete("/events/:id", async (req, res) => {
+    if (!requireAuth(req, res)) return;
+  if (!requireAuth(req, res)) return;
   try {
     await pool.query("DELETE FROM events WHERE id = $1", [req.params["id"]]);
     res.json({ ok: true });

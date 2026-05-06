@@ -1,5 +1,19 @@
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 import { pool } from "../lib/db";
+
+/** Inline auth check for routes not under /admin/* */
+function requireAuth(req: Request, res: Response): boolean {
+  const secret = process.env["ADMIN_SECRET"];
+  if (!secret) return true;
+  const authHeader = req.headers["authorization"];
+  const queryToken = req.query["token"] as string | undefined;
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : queryToken;
+  if (!token || token !== secret) {
+    res.status(401).json({ error: "No autorizado" });
+    return false;
+  }
+  return true;
+}
 
 const router = Router();
 
@@ -186,6 +200,7 @@ router.get("/sports/settings", async (_req, res) => {
 
 // POST /api/sports/settings
 router.post("/sports/settings", async (req, res) => {
+  if (!requireAuth(req, res)) return;
   try {
     const { youtube_api_key } = req.body as { youtube_api_key: string };
     if (!youtube_api_key) return res.status(400).json({ error: "Falta youtube_api_key" });
@@ -217,6 +232,7 @@ router.get("/sports/channels", async (_req, res) => {
 
 // POST /api/sports/channels
 router.post("/sports/channels", async (req, res) => {
+  if (!requireAuth(req, res)) return;
   try {
     const { name, url, keyword = "" } = req.body as {
       name: string;
@@ -239,6 +255,7 @@ router.post("/sports/channels", async (req, res) => {
 
 // DELETE /api/sports/channels/:id
 router.delete("/sports/channels/:id", async (req, res) => {
+  if (!requireAuth(req, res)) return;
   try {
     await pool.query("DELETE FROM sport_channels WHERE id = $1", [req.params["id"]]);
     res.json({ ok: true });
@@ -249,6 +266,7 @@ router.delete("/sports/channels/:id", async (req, res) => {
 
 // POST /api/sports/channels/:id/sync
 router.post("/sports/channels/:id/sync", async (req, res) => {
+  if (!requireAuth(req, res)) return;
   try {
     const apiKey = await getYoutubeApiKey();
     const { rows } = await pool.query("SELECT * FROM sport_channels WHERE id = $1", [
@@ -266,6 +284,7 @@ router.post("/sports/channels/:id/sync", async (req, res) => {
 
 // POST /api/sports/sync-all
 router.post("/sports/sync-all", async (_req, res) => {
+  if (!requireAuth(_req, res)) return;
   try {
     const apiKey = await getYoutubeApiKey();
     const { rows: channels } = await pool.query("SELECT * FROM sport_channels");
@@ -325,6 +344,7 @@ router.get("/sports/matches", async (req, res) => {
 
 // DELETE /api/sports/matches/:id
 router.delete("/sports/matches/:id", async (req, res) => {
+  if (!requireAuth(req, res)) return;
   try {
     await pool.query("DELETE FROM sport_matches WHERE id = $1", [req.params["id"]]);
     res.json({ ok: true });

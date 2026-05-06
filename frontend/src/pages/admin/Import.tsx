@@ -262,18 +262,10 @@ export default function ImportPage() {
       const res = await runAutoImport(selectedSources);
       setPhase("snapshot_after");
       
-      // Map backend response to AutoDone structure
-      const adaptedResult: RunImportResult = {
-        added_movies: res.movies_imported || [],
-        added_series: res.series_imported || [],
-        processed_movies: res.total_checked || 0,
-        processed_series: 0,
-      };
-
       setResult({
         kind: "auto_done",
-        newItems: [...adaptedResult.added_movies, ...adaptedResult.added_series],
-        apiResult: adaptedResult,
+        newItems: [],
+        apiResult: res,
       });
     } catch (err: any) {
       setError(err.message || "Error al ejecutar auto-import.");
@@ -455,7 +447,7 @@ export default function ImportPage() {
                   <div>
                     <h3 className="text-green-400 font-bold text-xl">Auto-importación completada</h3>
                     <p className="text-green-400/60 text-sm mt-1">
-                      Se han procesado {result.apiResult.processed_movies + result.apiResult.processed_series} títulos.
+                      Se han procesado {result.apiResult.total_checked} títulos.
                     </p>
                   </div>
                 </div>
@@ -464,14 +456,14 @@ export default function ImportPage() {
                   <div className="bg-brand-card border border-brand-border rounded-2xl p-5">
                     <p className="text-gray-500 text-xs font-bold uppercase mb-3">Películas</p>
                     <div className="flex items-end gap-2">
-                      <span className="text-3xl font-black text-white">{result.apiResult.added_movies.length}</span>
+                      <span className="text-3xl font-black text-white">{result.apiResult.movies_imported}</span>
                       <span className="text-gray-500 text-sm mb-1">añadidas</span>
                     </div>
                   </div>
                   <div className="bg-brand-card border border-brand-border rounded-2xl p-5">
                     <p className="text-gray-500 text-xs font-bold uppercase mb-3">Series</p>
                     <div className="flex items-end gap-2">
-                      <span className="text-3xl font-black text-white">{result.apiResult.added_series.length}</span>
+                      <span className="text-3xl font-black text-white">{result.apiResult.series_imported}</span>
                       <span className="text-gray-500 text-sm mb-1">añadidas</span>
                     </div>
                   </div>

@@ -273,8 +273,9 @@ router.post("/auth/login", async (req, res) => {
     const { rows } = await pool.query(
       "SELECT password, username FROM cv_auth WHERE id = 'admin'"
     );
-    const storedPassword = rows[0]?.password || "admin123";
-    const storedUsername = rows[0]?.username || "admin";
+    if (!rows[0]) return res.status(401).json({ error: "No hay usuario admin configurado. Ejecuta el script set-superadmin.sql" });
+    const storedPassword = rows[0].password;
+    const storedUsername = rows[0].username;
 
     // Validar tanto usuario como contraseña
     if (username === storedUsername && password === storedPassword) {

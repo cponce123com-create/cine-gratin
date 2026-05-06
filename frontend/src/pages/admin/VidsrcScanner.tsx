@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
-import { getMovies, getSeries, saveVidsrcResults, cleanupNoVidsrc } from "@/lib/api";
+import { getMovies, getSeries, saveVidsrcResults, cleanupNoVidsrc, fetchVidsrcRange } from "@/lib/api";
 import type { Movie, Series } from "@/lib/types";
 
 type RowStatus = "pending" | "active" | "inactive";
@@ -47,32 +47,24 @@ export default function VidsrcScanner() {
   // Descarga la lista completa de vidsrc.me en rangos de 50 páginas
   // 3 rangos en paralelo, con reintentos en caso de fallo
   const fetchVidsrcMovSet = async (type: "movie" | "series"): Promise<Set<string>> => {
-    const token = localStorage.getItem("cg_admin_token") ?? "";
-    const headers: Record<string, string> = token ? { "Authorization": `Bearer ${token}` } : {};
     const available = new Set<string>();
-    const RANGE = 50;   // páginas por llamada (más pequeño = menos timeout)
-    const PARALLEL = 3; // rangos simultáneos
-    const RETRIES = 2;  // reintentos por rango fallido
+    const RANGE = 50;
+    const PARALLEL = 3;
+    const RETRIES = 2;
 
     const fetchRange = async (from: number, to: number): Promise<string[]> => {
       for (let attempt = 0; attempt <= RETRIES; attempt++) {
         try {
-          const res = await fetch(`/api/admin/vidsrc-range?type=${type}&from=${from}&to=${to}`, { headers });
-          if (!res.ok) continue;
-          const data = await res.json() as { imdb_ids?: string[]; totalPages?: number };
+          const data = await fetchVidsrcRange(type, from, to);
           return data.imdb_ids ?? [];
         } catch { /* reintento */ }
       }
       return [];
     };
 
-    // Primera llamada para obtener totalPages
     let totalPages = RANGE;
     try {
-      const res = await fetch(`/api/admin/vidsrc-range?type=${type}&from=1&to=${RANGE}`, { headers });
-      if (!res.ok) { console.error(`[vidsrc-range] HTTP ${res.status}`); return available; }
-      const data = await res.json() as { totalPages?: number; imdb_ids?: string[] };
-      console.log(`[vidsrc-range] type=${type} totalPages=${data.totalPages} ids=${data.imdb_ids?.length}`);
+      const data = await fetchVidsrcRange(type, 1, RANGE);
       totalPages = data.totalPages ?? RANGE;
       for (const id of data.imdb_ids ?? []) available.add(id);
       setProgress(p => ({ ...p, pagesLoaded: p.pagesLoaded + Math.min(RANGE, totalPages), totalPages: p.totalPages || totalPages }));
@@ -91,9 +83,7 @@ export default function VidsrcScanner() {
       for (const ids of results) {
         for (const id of ids) available.add(id);
       }
-      const pagesLoaded = batch[batch.length - 1][1]; // última página del batch
       setProgress(p => ({ ...p, pagesLoaded: p.pagesLoaded + batch.reduce((s, [f, t]) => s + (t - f + 1), 0) }));
-      void pagesLoaded; // suppress unused warning
     }
     return available;
   };
@@ -180,7 +170,7 @@ export default function VidsrcScanner() {
   const pendingCount = rows.filter(r => r.status === "pending").length;
   const isScanning = phase === "downloading" || phase === "matching";
   const pct = progress.total > 0
-    ? Math.round((phase === "matching" ? progress.matched : progress.pagesLoaded * 20) / Math.max(progress.total, 1) * 100)
+    ? Math.round((phase === "matching" ? progress.matched : progress.pagesLoaded) / Math.max(progress.total, 1) * 100)
     : 0;
 
   return (

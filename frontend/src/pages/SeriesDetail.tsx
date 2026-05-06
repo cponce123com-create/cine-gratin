@@ -164,19 +164,19 @@ export default function SeriesDetail() {
             <h2 className="text-xl font-bold text-white mb-4">Temporadas</h2>
             <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
               {seasonsData.map(season => (
-                <div key={season.season_number} className="flex-shrink-0 w-36 group">
+                <div key={season.season} className="flex-shrink-0 w-36 group">
                   <div className="aspect-[2/3] rounded-xl overflow-hidden bg-brand-surface border border-brand-border">
-                    {season.poster_url ? (
-                      <img src={season.poster_url} alt={season.name} className="w-full h-full object-cover" loading="lazy" />
+                    {season.poster ? (
+                      <img src={season.poster} alt={season.name} className="w-full h-full object-cover" loading="lazy" />
                     ) : (
                       <div className="w-full h-full flex flex-col items-center justify-center text-gray-500 text-sm font-bold">
-                        <span>{season.season_number}</span>
+                        <span>{season.season}</span>
                       </div>
                     )}
                   </div>
                   <p className="mt-1.5 text-xs font-semibold text-gray-200 truncate">{season.name}</p>
-                  {season.episode_count && (
-                    <p className="text-[10px] text-gray-500">{season.episode_count} episodios</p>
+                  {season.episodes && (
+                    <p className="text-[10px] text-gray-500">{season.episodes} episodios</p>
                   )}
                 </div>
               ))}

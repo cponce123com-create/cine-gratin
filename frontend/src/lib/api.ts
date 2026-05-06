@@ -249,3 +249,15 @@ export const importByTmdbIds = (
   type: "movie" | "series"
 ): Promise<{ ok: boolean; summary: { imported: number; existed_or_error: number; total: number } }> =>
   adminPost("/api/admin/import-by-tmdb-ids", { tmdb_ids, type });
+
+export interface VidsrcRangeResponse {
+  imdb_ids: string[];
+  totalPages: number;
+}
+
+export const fetchVidsrcRange = (
+  type: "movie" | "series",
+  from: number,
+  to: number
+): Promise<VidsrcRangeResponse> =>
+  adminFetch(`/api/admin/vidsrc-range?type=${type}&from=${from}&to=${to}`);

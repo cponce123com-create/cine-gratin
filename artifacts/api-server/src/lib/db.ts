@@ -49,11 +49,8 @@ export async function initDb() {
 
     CREATE TABLE IF NOT EXISTS cv_auth (
       id TEXT PRIMARY KEY DEFAULT 'admin',
-      password TEXT NOT NULL DEFAULT 'admin123'
+      password TEXT NOT NULL DEFAULT ''
     );
-
-    INSERT INTO cv_auth (id, password) VALUES ('admin', 'admin123')
-      ON CONFLICT (id) DO NOTHING;
 
     CREATE TABLE IF NOT EXISTS cv_series (
       id TEXT PRIMARY KEY,
