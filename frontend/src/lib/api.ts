@@ -2,19 +2,19 @@ import { getToken } from "./auth";
 import type { Movie, Series } from "./types";
 import type { AutoImportStatus, VidsrcResult, RunImportResult, AdminStats } from "./types";
 
-const BASE_URL =
+export const BASE_URL =
   (import.meta.env["VITE_API_URL"] as string | undefined) ||
   "https://cine-gratin.onrender.com";
 
 // ── Generic helpers ───────────────────────────────────────────────────────────
 
-async function apiFetch<T>(path: string): Promise<T> {
+export async function apiFetch<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`);
   if (!res.ok) throw new Error(`API error ${res.status}: ${path}`);
   return res.json() as Promise<T>;
 }
 
-async function apiPost<T>(path: string, body: unknown): Promise<T> {
+export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -24,18 +24,18 @@ async function apiPost<T>(path: string, body: unknown): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-async function apiPatch(path: string): Promise<void> {
+export async function apiPatch(path: string): Promise<void> {
   await fetch(`${BASE_URL}${path}`, { method: "PATCH" }).catch(() => {});
 }
 
-function authHeaders(): Record<string, string> {
+export function authHeaders(): Record<string, string> {
   const token = getToken();
   return token
     ? { "Content-Type": "application/json", Authorization: `Bearer ${token}` }
     : { "Content-Type": "application/json" };
 }
 
-async function adminFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+export async function adminFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     ...options,
     headers: { ...authHeaders(), ...options.headers },
@@ -51,14 +51,14 @@ async function adminFetch<T>(path: string, options: RequestInit = {}): Promise<T
   return res.json() as Promise<T>;
 }
 
-async function adminPost<T>(path: string, body: unknown): Promise<T> {
+export async function adminPost<T>(path: string, body: unknown): Promise<T> {
   return adminFetch<T>(path, {
     method: "POST",
     body: JSON.stringify(body),
   });
 }
 
-async function adminDelete(path: string): Promise<void> {
+export async function adminDelete(path: string): Promise<void> {
   const res = await fetch(`${BASE_URL}${path}`, {
     method: "DELETE",
     headers: authHeaders(),

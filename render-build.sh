@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
 echo "=== Installing workspace dependencies ==="
-pnpm install --no-frozen-lockfile
+pnpm install --frozen-lockfile
 
 echo "=== Building frontend ==="
-cd frontend
+pushd frontend > /dev/null
 pnpm run build
-cd ..
+popd > /dev/null
 
 echo "=== Copying frontend dist to API server public/ ==="
 mkdir -p artifacts/api-server/public
 cp -r frontend/dist/. artifacts/api-server/public/
 
 echo "=== Building API server ==="
-cd artifacts/api-server
+pushd artifacts/api-server > /dev/null
 pnpm build
-cd ../..
+popd > /dev/null
 
 echo "=== Build complete ==="

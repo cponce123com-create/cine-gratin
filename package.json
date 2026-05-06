@@ -7,7 +7,9 @@
     "build": "node node_modules/.bin/vite build",
     "typecheck": "node node_modules/.bin/tsc --noEmit",
     "render:build": "bash render-build.sh",
-    "render:start": "node artifacts/api-server/dist/index.mjs"
+    "render:start": "node artifacts/api-server/dist/index.mjs",
+    "format": "prettier --write \"frontend/src/**/*.{ts,tsx,css}\" \"*.json\" \"*.md\"",
+    "format:check": "prettier --check \"frontend/src/**/*.{ts,tsx,css}\" \"*.json\" \"*.md\""
   },
   "private": true,
   "devDependencies": {

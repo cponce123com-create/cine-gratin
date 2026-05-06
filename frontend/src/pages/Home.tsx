@@ -1,59 +1,23 @@
-import { useMemo, useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Helmet } from "react-helmet-async";
 import Carousel from "@/components/Carousel";
 import GenreCarousel, { type MixedItem } from "@/components/GenreCarousel";
 import HeroCarousel from "@/components/HeroCarousel";
 import { SkeletonHero } from "@/components/SkeletonCard";
+import SagaCard from "@/components/SagaCard";
+import TmdbTrailersSection from "@/components/home/TmdbTrailersSection";
+import SectionSkeleton from "@/components/home/SectionSkeleton";
 import { GENRE_SECTIONS, PLATFORM_SECTIONS, CUSTOM_SECTIONS } from "@/lib/homeConfig";
-import type { Movie, Series } from "@/lib/types";
 import { useContinueWatching } from "@/hooks/useContinueWatching";
 import { useIntersectionObserver } from "@/hooks/useIntersectionObserver";
 import { useMovies, useSeriesList } from "@/hooks/useApi";
-import SagaCard from "@/components/SagaCard";
+import { matchesKeywords, matchesNetworks, matchesTitle, buildMixed, MIN_ITEMS_TO_SHOW } from "@/components/home/helpers";
+import type { TmdbTrendingItem, DynamicSaga, SagaConfigRow } from "@/components/home/types";
 
 const BASE_URL =
   (import.meta.env["VITE_API_URL"] as string | undefined) ||
   "https://cine-gratin.onrender.com";
-
-// ── TMDB types ────────────────────────────────────────────────────────────────
-interface TmdbTrendingItem {
-  tmdb_id: number;
-  media_type: "movie" | "tv";
-  title: string;
-  poster_url: string;
-  backdrop_url: string;
-  year: string;
-  rating: number;
-  overview: string;
-}
-
-interface TmdbTrailerItem {
-  tmdb_id: number;
-  title: string;
-  backdrop_url: string;
-  poster_url: string;
-  year: string;
-  trailer_key: string;
-  trailer_name: string;
-  youtube_url: string;
-  thumbnail_url: string;
-}
-
-interface DynamicSaga {
-  collection_id: number;
-  collection_name: string;
-}
-
-// Sagas configured in DB (replaces hardcoded SAGA_SECTIONS)
-interface SagaConfigRow {
-  id: string;
-  label: string;
-  collection_id: number | null;
-  keywords: string[];
-  active: boolean;
-}
 
 async function fetchSagaConfig(): Promise<SagaConfigRow[]> {
   const res = await fetch(`${BASE_URL}/api/saga-config`);
@@ -73,180 +37,9 @@ async function fetchTmdbTrending(window: "day" | "week"): Promise<TmdbTrendingIt
   return res.json();
 }
 
-async function fetchTmdbTrailers(type: string): Promise<TmdbTrailerItem[]> {
-  const res = await fetch(`${BASE_URL}/api/tmdb/trailers?type=${type}`);
-  if (!res.ok) return [];
-  return res.json();
-}
-
-// ── TmdbTrailersSection component ─────────────────────────────────────────────
-function TmdbTrailersSection() {
-  const TABS = [
-    { id: "popular",   label: "Popular" },
-    { id: "streaming", label: "Streaming" },
-    { id: "theatres",  label: "En cines" },
-  ];
-  const [activeTab, setActiveTab] = useState("popular");
-  const [activeTrailer, setActiveTrailer] = useState<string | null>(null);
-  const modalRef = useRef<HTMLDivElement>(null);
-
-  const { data: items = [], isLoading } = useQuery({
-    queryKey: ["tmdb-trailers", activeTab],
-    queryFn: () => fetchTmdbTrailers(activeTab),
-    staleTime: 30 * 60 * 1000,
-  });
-
-  const closeModal = () => setActiveTrailer(null);
-
-  return (
-    <div className="px-4 sm:px-6 lg:px-8 mb-10">
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-        <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-3">
-          <span className="w-2 h-7 bg-brand-red rounded-full" />
-          Últimos Tráileres
-        </h2>
-        <div className="flex gap-1 bg-brand-surface border border-brand-border rounded-full p-0.5">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
-                activeTab === tab.id
-                  ? "bg-brand-red text-white"
-                  : "text-gray-400 hover:text-white"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {isLoading ? (
-        <div className="flex gap-3 overflow-hidden">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="flex-shrink-0 w-56 sm:w-64 h-36 sm:h-40 bg-brand-surface rounded-xl animate-pulse" />
-          ))}
-        </div>
-      ) : (
-        <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
-          {items.map((item) => (
-            <button
-              key={item.tmdb_id}
-              onClick={() => setActiveTrailer(item.trailer_key)}
-              className="flex-shrink-0 w-56 sm:w-64 group text-left"
-            >
-              <div className="relative rounded-xl overflow-hidden bg-brand-surface aspect-video">
-                <img
-                  src={item.backdrop_url || item.thumbnail_url}
-                  alt={item.title}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  loading="lazy"
-                />
-                <div className="absolute inset-0 bg-black/30 group-hover:bg-black/10 transition-colors flex items-center justify-center">
-                  <div className="w-12 h-12 rounded-full bg-white/90 group-hover:bg-white group-hover:scale-110 transition-all flex items-center justify-center shadow-lg">
-                    <svg className="w-5 h-5 text-black ml-0.5" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M8 5v14l11-7z" />
-                    </svg>
-                  </div>
-                </div>
-              </div>
-              <p className="mt-1.5 text-xs font-semibold text-gray-200 truncate group-hover:text-white transition-colors">
-                {item.title}
-              </p>
-              <p className="text-[10px] text-gray-500 truncate">{item.trailer_name}</p>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {activeTrailer && (
-        <div
-          ref={modalRef}
-          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
-          onClick={(e) => { if (e.target === modalRef.current) closeModal(); }}
-        >
-          <div className="relative w-full max-w-4xl">
-            <button
-              onClick={closeModal}
-              className="absolute -top-10 right-0 text-white/70 hover:text-white text-2xl font-bold transition-colors"
-            >
-              ✕
-            </button>
-            <div className="relative aspect-video rounded-xl overflow-hidden bg-black shadow-2xl">
-              <iframe
-                src={`https://www.youtube.com/embed/${activeTrailer}?autoplay=1&rel=0`}
-                className="absolute inset-0 w-full h-full"
-                allow="autoplay; fullscreen"
-                allowFullScreen
-                title="Tráiler"
-              />
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-const MIN_ITEMS_TO_SHOW = 2;
-
-function matchesKeywords(genres: string[] | undefined, keywords: string[]): boolean {
-  if (!genres || genres.length === 0) return false;
-  return genres.some((g) =>
-    keywords.some((kw) => g.toLowerCase().includes(kw.toLowerCase()))
-  );
-}
-
-function matchesNetworks(itemNetworks: string[] | undefined, targets: string[]): boolean {
-  if (!itemNetworks || itemNetworks.length === 0) return false;
-  return itemNetworks.some((n) =>
-    targets.some((t) => n.toLowerCase().includes(t.toLowerCase()))
-  );
-}
-
-function normalizeTitle(title: string): string {
-  return title
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[&]/g, "and")
-    .replace(/[^a-z0-9\s]/g, "")
-    .trim();
-}
-
-function matchesTitle(title: string, keywords: string[]): boolean {
-  const normalizedTitle = normalizeTitle(title);
-  return keywords.some((kw) => {
-    const normalizedKw = normalizeTitle(kw);
-    if (normalizedKw.includes(" ")) {
-      return normalizedTitle.includes(normalizedKw);
-    }
-    return new RegExp(`(?:^|\\s)${normalizedKw}(?:\\s|$)`).test(normalizedTitle);
-  });
-}
-
-function buildMixed(
-  movies: Movie[],
-  series: Series[],
-  filterFn: (m: Movie) => boolean,
-  filterSeries: (s: Series) => boolean
-): MixedItem[] {
-  const result: MixedItem[] = [];
-  for (const m of movies) if (filterFn(m)) result.push({ item: m, type: "movie" });
-  for (const s of series) if (filterSeries(s)) result.push({ item: s, type: "series" });
-  result.sort((a, b) => {
-    const yearA = Number(a.item.year) || 0;
-    const yearB = Number(b.item.year) || 0;
-    return yearB - yearA;
-  });
-  return result;
-}
-
 type FilterMode = "genre" | "platform" | null;
 
 export default function Home() {
-  // ← CORRECTO: dos números separados, no un objeto
   const { data: movieData, isLoading: loadingMovies, error: errorMovies } = useMovies(1, 500);
   const { data: seriesData, isLoading: loadingSeries, error: errorSeries } = useSeriesList(1, 200);
 
@@ -268,7 +61,6 @@ export default function Home() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const navigate = useNavigate();
   const [activeGenre, setActiveGenre] = useState<string | null>(null);
   const [activePlatform, setActivePlatform] = useState<string | null>(null);
   const [filterMode, setFilterMode] = useState<FilterMode>(null);
@@ -327,7 +119,7 @@ export default function Home() {
 
   const trending = useMemo(() => {
     if (!tmdbTrending.length) return [];
-    const result: MixedItem[] = [];
+    const result: import("@/components/GenreCarousel").MixedItem[] = [];
     tmdbTrending.forEach((tmdbItem) => {
       if (tmdbItem.media_type === "movie") {
         const found = allMovies.find(m => m.tmdb_id === tmdbItem.tmdb_id);
@@ -342,34 +134,34 @@ export default function Home() {
 
   const popularMovies = useMemo(() =>
     [...allMovies].sort((a, b) => (Number(b.views) || 0) - (Number(a.views) || 0)),
-    [allMovies]
+    [allMovies],
   );
   const popularSeries = useMemo(() =>
     [...allSeries].sort((a, b) => (Number(b.views) || 0) - (Number(a.views) || 0)),
-    [allSeries]
+    [allSeries],
   );
 
   const customCarousels = useMemo(() => {
     return CUSTOM_SECTIONS.map((sec) => {
-      let items: MixedItem[] = [];
+      let items: import("@/components/GenreCarousel").MixedItem[] = [];
       if (sec.type === "classics") {
         items = buildMixed(
           allMovies, allSeries,
           (m) => (Number(m.year) || 0) <= 2000,
-          (s) => (Number(s.year) || 0) <= 2000
+          (s) => (Number(s.year) || 0) <= 2000,
         ).sort((a, b) => (Number(b.item.views) || 0) - (Number(a.item.views) || 0));
       } else if (sec.type === "old-animation") {
         items = buildMixed(
           allMovies, allSeries,
           (m) => (Number(m.year) || 0) <= 1990 && matchesKeywords(m.genres, ["animación", "animation"]),
-          (s) => (Number(s.year) || 0) <= 1990 && matchesKeywords(s.genres, ["animación", "animation"])
+          (s) => (Number(s.year) || 0) <= 1990 && matchesKeywords(s.genres, ["animación", "animation"]),
         ).sort((a, b) => (Number(b.item.views) || 0) - (Number(a.item.views) || 0));
       } else if (sec.type === "estrenos") {
         const currentYear = new Date().getFullYear();
         items = buildMixed(
           allMovies, allSeries,
           (m) => (Number(m.year) || 0) >= currentYear - 1,
-          (s) => (Number(s.year) || 0) >= currentYear - 1
+          (s) => (Number(s.year) || 0) >= currentYear - 1,
         ).sort((a, b) => {
           const dateA = a.item.date_added ? new Date(a.item.date_added).getTime() : 0;
           const dateB = b.item.date_added ? new Date(b.item.date_added).getTime() : 0;
@@ -388,11 +180,11 @@ export default function Home() {
         items: buildMixed(
           allMovies, allSeries,
           (m) => matchesKeywords(m.genres, sec.keywords),
-          (s) => matchesKeywords(s.genres, sec.keywords)
+          (s) => matchesKeywords(s.genres, sec.keywords),
         ),
       })).filter((s) => s.items.length >= MIN_ITEMS_TO_SHOW);
     },
-    [allMovies, allSeries, genreVisible]
+    [allMovies, allSeries, genreVisible],
   );
 
   const platformCarousels = useMemo(
@@ -403,11 +195,11 @@ export default function Home() {
         items: buildMixed(
           allMovies, allSeries,
           (m) => matchesNetworks(m.networks, sec.networks),
-          (s) => matchesNetworks(s.networks, sec.networks)
+          (s) => matchesNetworks(s.networks, sec.networks),
         ),
       })).filter((s) => s.items.length >= MIN_ITEMS_TO_SHOW);
     },
-    [allMovies, allSeries, platformVisible]
+    [allMovies, allSeries, platformVisible],
   );
 
   // ── SAGAS: una sola fila con tarjetas ────────────────────────────────────────
@@ -487,23 +279,6 @@ export default function Home() {
   };
 
   const clearFilter = () => { setFilterMode(null); setActiveGenre(null); setActivePlatform(null); };
-
-  const SectionSkeleton = ({ title }: { title: string }) => (
-    <div className="px-4 sm:px-6 lg:px-8 mb-10">
-      <div className="flex items-center gap-3 mb-4">
-        <span className="w-2 h-7 bg-brand-surface rounded-full animate-pulse" />
-        <div className="h-6 w-48 bg-brand-surface rounded animate-pulse" />
-      </div>
-      <div className="flex gap-4 overflow-hidden">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="flex-shrink-0 w-36 md:w-44 animate-pulse">
-            <div className="aspect-[2/3] w-full rounded-lg bg-brand-surface" />
-            <div className="mt-2 h-3 w-3/4 rounded bg-brand-surface" />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
 
   return (
     <div className="min-h-screen bg-brand-dark">

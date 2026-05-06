@@ -1,13 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
+import { apiFetch } from "@/lib/api";
 import type { Movie, Series } from "@/lib/types";
-
-const API_BASE_URL = "https://cine-gratin.onrender.com";
-
-async function apiFetch<T>(url: string): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${url}`);
-  if (!res.ok) throw new Error(`API error ${res.status}: ${url}`);
-  return res.json();
-}
 
 export function useFeaturedMovies() {
   return useQuery<Movie[]>({

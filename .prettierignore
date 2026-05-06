@@ -1,0 +1,10 @@
+node_modules
+dist
+build
+artifacts
+pnpm-lock.yaml
+*.svg
+*.png
+*.jpg
+*.woff
+*.woff2
