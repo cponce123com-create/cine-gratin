@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { pool } from "../lib/db";
 import { rateLimit } from "express-rate-limit";
-import { tmdbFetch, fetchMovieByTmdbId } from "../lib/tmdb-client";
+import { tmdbFetch } from "../lib/tmdb-client";
 
 /** Inline auth check for routes that are NOT under /admin/* but still need protection. */
 function requireAuth(req: Request, res: Response): boolean {
@@ -54,8 +54,6 @@ const toMovie = (row: Record<string, unknown>) => ({
   torrents: row.torrents,
   views: Number(row.views),
   date_added: row.date_added,
-  collection_id: row.collection_id,
-  collection_name: row.collection_name,
 });
 
 // GET /api/movies - Added pagination and rate limiting
@@ -69,7 +67,7 @@ router.get("/movies", movieLimit, async (req, res) => {
       `SELECT id, imdb_id, title, year, rating, runtime, genres, language, synopsis,
               director, cast_list, networks, poster_url, background_url, yt_trailer_code,
               mpa_rating, slug, featured, video_sources, torrents, views, date_added,
-              vidsrc_status, auto_imported, collection_id, collection_name,
+              vidsrc_status, auto_imported,
               '[]'::jsonb AS videos, '[]'::jsonb AS reviews, '[]'::jsonb AS cast_full
        FROM movies ORDER BY year DESC, date_added DESC LIMIT $1 OFFSET $2`,
       [limit, offset]
@@ -164,13 +162,13 @@ router.post(["/admin/movies", "/admin/movies/:id"], async (req, res) => {
     await pool.query(
       `INSERT INTO movies (id, imdb_id, title, year, rating, runtime, genres, language, synopsis,
         director, cast_list, networks, poster_url, background_url, yt_trailer_code, videos, reviews,
-        mpa_rating, slug, featured, video_sources, torrents, views, date_added, collection_id, collection_name)
+        mpa_rating, slug, featured, video_sources, torrents, views, date_added)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
        ON CONFLICT (id) DO UPDATE SET
          imdb_id=$2, title=$3, year=$4, rating=$5, runtime=$6, genres=$7, language=$8, synopsis=$9,
          director=$10, cast_list=$11, networks=$12, poster_url=$13, background_url=$14,
          yt_trailer_code=$15, videos=$16, reviews=$17, mpa_rating=$18, slug=$19, featured=$20,
-         video_sources=$21, torrents=$22, views=$23, collection_id=$25, collection_name=$26`,
+         video_sources=$21, torrents=$22, views=$23`,
       [
         id, m.imdb_id, m.title, m.year, m.rating, m.runtime,
         m.genres, m.language, m.synopsis, m.director, m.cast_list,
@@ -180,7 +178,7 @@ router.post(["/admin/movies", "/admin/movies/:id"], async (req, res) => {
         m.mpa_rating, m.slug, m.featured,
         JSON.stringify(m.video_sources), JSON.stringify(m.torrents),
         m.views || 0, m.date_added || new Date().toISOString(),
-        m.collection_id !== undefined ? m.collection_id : null, m.collection_name ?? null
+        
       ]
     );
     const { rows } = await pool.query("SELECT * FROM movies WHERE id = $1", [id]);
@@ -413,47 +411,6 @@ router.get("/admin/backfill-cast-stream", async (req, res) => {
   } catch (e) {
     send("error", { message: String(e) });
     res.end();
-  }
-});
-
-// GET /api/sagas — sagas activas con más de 3 títulos (público)
-router.get("/sagas", movieLimit, async (_req, res) => {
-  try {
-    const { rows } = await pool.query(`
-      SELECT
-        combined.collection_id,
-        MAX(combined.collection_name) AS collection_name,
-        COUNT(*) AS item_count,
-        (
-          SELECT poster_url FROM (
-            SELECT poster_url, year FROM movies
-              WHERE collection_id = combined.collection_id
-            UNION ALL
-            SELECT poster_url, year FROM cv_series
-              WHERE collection_id = combined.collection_id
-          ) sub ORDER BY year ASC LIMIT 1
-        ) AS cover_url
-      FROM (
-        SELECT collection_id, collection_name FROM movies
-          WHERE collection_id IS NOT NULL AND collection_id != -1
-        UNION ALL
-        SELECT collection_id, collection_name FROM cv_series
-          WHERE collection_id IS NOT NULL AND collection_id != -1
-      ) combined
-      INNER JOIN cv_active_sagas act ON act.collection_id = combined.collection_id
-      GROUP BY combined.collection_id
-      HAVING COUNT(*) > 3
-      ORDER BY COUNT(*) DESC, MAX(collection_name)
-    `);
-    res.setHeader("Cache-Control", "public, max-age=600, stale-while-revalidate=3600");
-    res.json(rows.map((r) => ({
-      collection_id: Number(r.collection_id),
-      collection_name: r.collection_name as string,
-      item_count: Number(r.item_count),
-      cover_url: (r.cover_url as string) ?? "",
-    })));
-  } catch (e) {
-    res.status(500).json({ error: String(e) });
   }
 });
 

@@ -135,8 +135,6 @@ export async function fetchMovieByTmdbId(tmdbId: number): Promise<Record<string,
     const productionCompanies = (details.production_companies as Array<{ name: string }>) || [];
     const networks = productionCompanies.slice(0, 5).map(c => c.name);
 
-    const belongsToCollection = details.belongs_to_collection as { id: number; name: string } | null;
-
     return {
       imdb_id: imdbId,
       tmdb_id: tmdbId,
@@ -158,8 +156,6 @@ export async function fetchMovieByTmdbId(tmdbId: number): Promise<Record<string,
       reviews: allReviews,
       mpa_rating: "NR",
       slug: makeSlug(title, year),
-      collection_id: belongsToCollection?.id || null,
-      collection_name: belongsToCollection?.name || null,
     };
   } catch {
     return null;
@@ -245,8 +241,6 @@ export async function fetchSeriesByTmdbId(tmdbId: number): Promise<Record<string
     const networksRaw = (details.networks as Array<{ name: string }>) || [];
     const networks = networksRaw.map(n => n.name);
 
-    const belongsToCollection = details.belongs_to_collection as { id: number; name: string } | null;
-
     return {
       imdb_id: imdbId,
       tmdb_id: tmdbId,
@@ -270,8 +264,6 @@ export async function fetchSeriesByTmdbId(tmdbId: number): Promise<Record<string
       total_seasons: (details.number_of_seasons as number) || seasons.length,
       seasons_data: seasons,
       slug: makeSlug(title, year),
-      collection_id: belongsToCollection?.id || null,
-      collection_name: belongsToCollection?.name || null,
     };
   } catch {
     return null;

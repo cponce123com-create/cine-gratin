@@ -48,17 +48,3 @@ export function useSeries(id: string) {
   });
 }
 
-export interface Saga {
-  collection_id: number;
-  collection_name: string;
-  item_count: number;
-  cover_url: string;
-}
-
-export function useSagas() {
-  return useQuery<Saga[]>({
-    queryKey: ["sagas"],
-    queryFn: () => apiFetch("/api/sagas"),
-    staleTime: 10 * 60 * 1000,
-  });
-}

@@ -21,15 +21,3 @@ export interface TmdbTrailerItem {
   thumbnail_url: string;
 }
 
-export interface DynamicSaga {
-  collection_id: number;
-  collection_name: string;
-}
-
-export interface SagaConfigRow {
-  id: string;
-  label: string;
-  collection_id: number | null;
-  keywords: string[];
-  active: boolean;
-}

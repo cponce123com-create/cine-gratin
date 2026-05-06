@@ -19,6 +19,12 @@ export async function importMovie(tmdbId: number): Promise<boolean> {
     const data = await fetchMovieByTmdbId(tmdbId);
     if (!data || !data.imdb_id) return false;
 
+    // Skip movies shorter than 30 minutes (cortometrajes)
+    if ((data.runtime as number) > 0 && (data.runtime as number) < 30) {
+      logger.info({ tmdbId, title: data.title, runtime: data.runtime }, "Skip: movie shorter than 30 min");
+      return false;
+    }
+
     const exists = await getImdbIdExists(data.imdb_id as string, "movies");
     if (exists) return false;
 
@@ -28,12 +34,9 @@ export async function importMovie(tmdbId: number): Promise<boolean> {
     await pool.query(
       `INSERT INTO movies (id, imdb_id, title, year, rating, runtime, genres, language, synopsis,
         director, cast_list, cast_full, networks, poster_url, background_url, yt_trailer_code, videos, reviews,
-        mpa_rating, slug, featured, video_sources, torrents, views, date_added, auto_imported,
-        collection_id, collection_name)
+        mpa_rating, slug, featured, video_sources, torrents, views, date_added, auto_imported)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)
        ON CONFLICT (id) DO UPDATE SET
-         collection_id = EXCLUDED.collection_id,
-         collection_name = EXCLUDED.collection_name,
          cast_full = EXCLUDED.cast_full`,
       [
         id, data.imdb_id, data.title, data.year, data.rating, data.runtime,
@@ -42,8 +45,7 @@ export async function importMovie(tmdbId: number): Promise<boolean> {
         data.networks ?? [],
         data.poster_url, data.background_url, data.yt_trailer_code,
         JSON.stringify(data.videos ?? []), JSON.stringify(data.reviews ?? []),
-        data.mpa_rating, slug, false, "[]", "[]", 0, new Date().toISOString(), true,
-        data.collection_id, data.collection_name
+        data.mpa_rating, slug, false, "[]", "[]", 0, new Date().toISOString(), true
       ]
     );
     return true;
@@ -67,11 +69,9 @@ export async function importSeries(tmdbId: number): Promise<boolean> {
       `INSERT INTO cv_series (id, imdb_id, tmdb_id, title, year, end_year, rating, genres, language,
         synopsis, creators, cast_list, cast_full, networks, poster_url, background_url, yt_trailer_code,
         videos, reviews, status, total_seasons, seasons_data, video_sources,
-        featured, views, date_added, auto_imported, collection_id, collection_name)
+        featured, views, date_added, auto_imported)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29)
        ON CONFLICT (id) DO UPDATE SET
-         collection_id = EXCLUDED.collection_id,
-         collection_name = EXCLUDED.collection_name,
          cast_full = EXCLUDED.cast_full`,
       [
         id, data.imdb_id, data.tmdb_id, data.title, data.year, data.end_year || null,
@@ -83,8 +83,7 @@ export async function importSeries(tmdbId: number): Promise<boolean> {
         JSON.stringify(data.videos ?? []), JSON.stringify(data.reviews ?? []),
         data.status, data.total_seasons,
         JSON.stringify(data.seasons_data || []), "[]",
-        false, 0, new Date().toISOString(), true,
-        data.collection_id, data.collection_name
+        false, 0, new Date().toISOString(), true
       ]
     );
     return true;

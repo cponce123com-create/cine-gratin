@@ -40,8 +40,6 @@ const toSeries = (row: Record<string, unknown>) => ({
   featured: row.featured,
   views: Number(row.views),
   date_added: row.date_added,
-  collection_id: row.collection_id,
-  collection_name: row.collection_name,
 });
 
 // GET /api/series - Added pagination and rate limiting
@@ -55,7 +53,7 @@ router.get("/series", seriesLimit, async (req, res) => {
       `SELECT id, imdb_id, tmdb_id, title, year, end_year, rating, genres, language, synopsis,
               creators, cast_list, networks, poster_url, background_url, yt_trailer_code,
               status, total_seasons, video_sources, featured, views, date_added,
-              vidsrc_status, auto_imported, collection_id, collection_name,
+              vidsrc_status, auto_imported,
               '[]'::jsonb AS videos, '[]'::jsonb AS reviews, '[]'::jsonb AS seasons_data,
               '[]'::jsonb AS cast_full
        FROM cv_series ORDER BY year DESC, date_added DESC LIMIT $1 OFFSET $2`,
@@ -121,13 +119,13 @@ router.post(["/admin/series", "/admin/series/:id"], async (req, res) => {
     await pool.query(
       `INSERT INTO cv_series (id, imdb_id, tmdb_id, title, year, end_year, rating, genres, language,
         synopsis, creators, cast_list, networks, poster_url, background_url, yt_trailer_code,
-        videos, reviews, status, total_seasons, seasons_data, video_sources, featured, views, date_added, collection_id, collection_name)
+        videos, reviews, status, total_seasons, seasons_data, video_sources, featured, views, date_added)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
        ON CONFLICT (id) DO UPDATE SET
          imdb_id=$2, tmdb_id=$3, title=$4, year=$5, end_year=$6, rating=$7, genres=$8, language=$9,
          synopsis=$10, creators=$11, cast_list=$12, networks=$13, poster_url=$14, background_url=$15,
          yt_trailer_code=$16, videos=$17, reviews=$18, status=$19, total_seasons=$20,
-         seasons_data=$21, video_sources=$22, featured=$23, views=$24, collection_id=$26, collection_name=$27`,
+         seasons_data=$21, video_sources=$22, featured=$23, views=$24`,
       [
         id, s.imdb_id, s.tmdb_id || null, s.title, s.year, s.end_year || null,
         s.rating, s.genres, s.language, s.synopsis, s.creators, s.cast_list,
@@ -139,7 +137,7 @@ router.post(["/admin/series", "/admin/series/:id"], async (req, res) => {
         JSON.stringify(s.video_sources || []),
         s.featured || false, s.views || 0,
         s.date_added || new Date().toISOString(),
-        s.collection_id !== undefined ? s.collection_id : null, s.collection_name ?? null
+        
       ]
     );
     const { rows } = await pool.query("SELECT * FROM cv_series WHERE id = $1", [id]);

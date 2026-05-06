@@ -21,7 +21,6 @@ const MoviePlayer = lazy(() => import("@/pages/player/MoviePlayer"));
 const SeriesPlayer = lazy(() => import("@/pages/player/SeriesPlayer"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 const AdminLogin = lazy(() => import("@/pages/admin/Login"));
-const SagaPage = lazy(() => import("@/pages/SagaPage"));
 const AdminDashboard = lazy(() => import("@/pages/admin/Dashboard"));
 const AdminImport = lazy(() => import("@/pages/admin/Import"));
 const ManageMovies = lazy(() => import("@/pages/admin/ManageMovies"));
@@ -30,7 +29,6 @@ const SportChannels = lazy(() => import("@/pages/admin/SportChannels"));
 const EventChannels = lazy(() => import("@/pages/admin/EventChannels"));
 const TmdbScraper = lazy(() => import("@/pages/admin/TmdbScraper"));
 const VidsrcScanner = lazy(() => import("@/pages/admin/VidsrcScanner"));
-const SagaManager = lazy(() => import("@/pages/admin/SagaManager"));
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -121,7 +119,6 @@ export default function App() {
         <Route path="/admin/movies" element={<AdminPage><ManageMovies /></AdminPage>} />
         <Route path="/admin/series" element={<AdminPage><ManageSeries /></AdminPage>} />
         <Route path="/admin/tmdb" element={<AdminPage><TmdbScraper /></AdminPage>} />
-        <Route path="/admin/sagas" element={<AdminPage><SagaManager /></AdminPage>} />
         <Route path="/admin/vidsrc-scanner" element={<AdminPage><VidsrcScanner /></AdminPage>} />
         <Route path="/admin/sport-channels" element={<AdminPage><SportChannels /></AdminPage>} />
         <Route path="/admin/event-channels" element={<AdminPage><EventChannels /></AdminPage>} />
@@ -136,7 +133,6 @@ export default function App() {
           <Route path="/tv-en-vivo" element={<TvLive />} />
           <Route path="/pelicula/:id" element={<MovieDetail />} />
           <Route path="/serie/:id" element={<SeriesDetail />} />
-          <Route path="/saga/:id" element={<SagaPage />} />
           <Route path="/search/:query" element={<Search />} />
           <Route path="*" element={<NotFound />} />
         </Route>

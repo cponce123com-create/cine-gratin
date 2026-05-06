@@ -5,31 +5,18 @@ import Carousel from "@/components/Carousel";
 import GenreCarousel, { type MixedItem } from "@/components/GenreCarousel";
 import HeroCarousel from "@/components/HeroCarousel";
 import { SkeletonHero } from "@/components/SkeletonCard";
-import SagaCard from "@/components/SagaCard";
 import TmdbTrailersSection from "@/components/home/TmdbTrailersSection";
 import SectionSkeleton from "@/components/home/SectionSkeleton";
 import { GENRE_SECTIONS, PLATFORM_SECTIONS, CUSTOM_SECTIONS } from "@/lib/homeConfig";
 import { useContinueWatching } from "@/hooks/useContinueWatching";
 import { useIntersectionObserver } from "@/hooks/useIntersectionObserver";
 import { useMovies, useSeriesList } from "@/hooks/useApi";
-import { matchesKeywords, matchesNetworks, matchesTitle, buildMixed, MIN_ITEMS_TO_SHOW } from "@/components/home/helpers";
-import type { TmdbTrendingItem, DynamicSaga, SagaConfigRow } from "@/components/home/types";
+import { matchesKeywords, matchesNetworks, buildMixed, MIN_ITEMS_TO_SHOW } from "@/components/home/helpers";
+import type { TmdbTrendingItem } from "@/components/home/types";
 
 const BASE_URL =
   (import.meta.env["VITE_API_URL"] as string | undefined) ||
   "https://cine-gratin.onrender.com";
-
-async function fetchSagaConfig(): Promise<SagaConfigRow[]> {
-  const res = await fetch(`${BASE_URL}/api/saga-config`);
-  if (!res.ok) return [];
-  return res.json();
-}
-
-async function fetchDynamicSagas(): Promise<DynamicSaga[]> {
-  const res = await fetch(`${BASE_URL}/api/admin/dynamic-sagas`);
-  if (!res.ok) return [];
-  return res.json();
-}
 
 async function fetchTmdbTrending(window: "day" | "week"): Promise<TmdbTrendingItem[]> {
   const res = await fetch(`${BASE_URL}/api/tmdb/trending?window=${window}`);
@@ -49,25 +36,12 @@ export default function Home() {
     staleTime: 30 * 60 * 1000,
   });
 
-  const { data: sagaConfig = [] } = useQuery({
-    queryKey: ["saga-config"],
-    queryFn: fetchSagaConfig,
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const { data: dynamicSagas = [] } = useQuery({
-    queryKey: ["dynamic-sagas"],
-    queryFn: fetchDynamicSagas,
-    staleTime: 5 * 60 * 1000,
-  });
-
   const [activeGenre, setActiveGenre] = useState<string | null>(null);
   const [activePlatform, setActivePlatform] = useState<string | null>(null);
   const [filterMode, setFilterMode] = useState<FilterMode>(null);
 
   const { ref: genreRef, isVisible: genreVisible } = useIntersectionObserver();
   const { ref: platformRef, isVisible: platformVisible } = useIntersectionObserver();
-  const { ref: sagaRef, isVisible: sagaVisible } = useIntersectionObserver();
 
   const allMovies = movieData ?? [];
   const allSeries = seriesData ?? [];
@@ -202,56 +176,6 @@ export default function Home() {
     [allMovies, allSeries, platformVisible],
   );
 
-  // ── SAGAS: una sola fila con tarjetas ────────────────────────────────────────
-  const sagaCards = useMemo(() => {
-    if (!sagaVisible) return [];
-
-    // Use DB-driven config (replaces hardcoded SAGA_SECTIONS)
-    const staticCards = sagaConfig
-      .map((sec) => {
-        const items = [
-          ...allMovies.filter((m) => {
-            if (m.collection_id === -1) return false;
-            if (sec.collection_id) return m.collection_id === sec.collection_id;
-            if (m.collection_id != null) return false;
-            return matchesTitle(m.title, sec.keywords);
-          }),
-          ...allSeries.filter((s) => {
-            if (s.collection_id === -1) return false;
-            if (sec.collection_id) return s.collection_id === sec.collection_id;
-            if (s.collection_id != null) return false;
-            return matchesTitle(s.title, sec.keywords);
-          }),
-        ];
-        return {
-          collection_id: sec.collection_id ?? 0,
-          label: sec.label,
-          covers: items.slice(0, 4).map((i) => i.poster_url).filter(Boolean),
-          count: items.length,
-        };
-      })
-      .filter((s) => s.count >= 2);
-
-    const staticIds = new Set(sagaConfig.map((s) => s.collection_id).filter(Boolean));
-    const dynamicCards = dynamicSagas
-      .filter((ds) => !staticIds.has(ds.collection_id))
-      .map((ds) => {
-        const items = [
-          ...allMovies.filter((m) => m.collection_id === ds.collection_id),
-          ...allSeries.filter((s) => s.collection_id === ds.collection_id),
-        ];
-        return {
-          collection_id: ds.collection_id,
-          label: ds.collection_name,
-          covers: items.slice(0, 4).map((i) => i.poster_url).filter(Boolean),
-          count: items.length,
-        };
-      })
-      .filter((s) => s.count >= 2);
-
-    return [...staticCards, ...dynamicCards];
-  }, [allMovies, allSeries, sagaVisible, dynamicSagas, sagaConfig]);
-
   const isLoading = loadingMovies || loadingSeries;
 
   const visibleGenres = filterMode === "genre" && activeGenre
@@ -323,34 +247,6 @@ export default function Home() {
           </>
         )}
 
-        {/* ── SAGAS: una sola fila con tarjetas ─────────────────── */}
-        <div ref={sagaRef} />
-        {isLoading && sagaVisible ? (
-          <SectionSkeleton title="Sagas" />
-        ) : sagaCards.length > 0 ? (
-          <div className="mt-4 mb-8">
-            <div className="px-4 sm:px-6 lg:px-8 mb-4">
-              <h2 className="text-2xl sm:text-3xl font-black text-white flex items-center gap-3">
-                <span className="w-2 h-8 bg-brand-red rounded-full" />
-                Sagas
-              </h2>
-              <p className="text-gray-400 text-sm mt-1">Explora tus franquicias favoritas</p>
-            </div>
-            <div className="px-4 sm:px-6 lg:px-8">
-              <div className="flex gap-3 overflow-x-auto pb-4 no-scrollbar">
-                {sagaCards.map((saga) => (
-                  <SagaCard
-                    key={saga.collection_id}
-                    collectionId={saga.collection_id}
-                    name={saga.label}
-                    covers={saga.covers}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-        ) : null}
-
         {/* Películas populares */}
         {loadingMovies ? (
           <SectionSkeleton title="Películas populares" />
@@ -398,53 +294,41 @@ export default function Home() {
                 >
                   Todo
                 </button>
-                <div className="h-8 w-px bg-brand-border mx-1" />
-                {GENRE_SECTIONS.map((g) => (
+                {GENRE_SECTIONS.map((sec) => (
                   <button
-                    key={g.id}
-                    onClick={() => selectGenre(g.id)}
+                    key={sec.id}
+                    onClick={() => selectGenre(sec.id)}
                     className={`px-4 py-2 rounded-xl text-sm font-bold transition-all border ${
-                      filterMode === "genre" && activeGenre === g.id
-                        ? "bg-brand-red border-brand-red text-white shadow-lg shadow-brand-red/20"
+                      filterMode === "genre" && activeGenre === sec.id
+                        ? "bg-brand-red border-brand-red text-white"
                         : "bg-brand-surface border-brand-border text-gray-400 hover:text-white hover:border-gray-500"
                     }`}
                   >
-                    {g.label}
+                    {sec.label}
                   </button>
                 ))}
-              </div>
-
-              <div className="flex flex-wrap gap-2 mt-3">
-                {PLATFORM_SECTIONS.map((p) => (
+                {PLATFORM_SECTIONS.map((sec) => (
                   <button
-                    key={p.id}
-                    onClick={() => selectPlatform(p.id)}
-                    className={`px-4 py-2 rounded-xl text-sm font-bold transition-all border flex items-center gap-2 ${
-                      filterMode === "platform" && activePlatform === p.id
-                        ? "bg-white border-white text-brand-dark shadow-lg"
+                    key={sec.id}
+                    onClick={() => selectPlatform(sec.id)}
+                    className={`px-4 py-2 rounded-xl text-sm font-bold transition-all border ${
+                      filterMode === "platform" && activePlatform === sec.id
+                        ? "bg-brand-red border-brand-red text-white"
                         : "bg-brand-surface border-brand-border text-gray-400 hover:text-white hover:border-gray-500"
                     }`}
                   >
-                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.accent }} />
-                    {p.label}
+                    {sec.label}
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="space-y-4">
-              {filterMode === "genre" || !filterMode
-                ? visibleGenres.map((sec) => (
-                    <GenreCarousel key={sec.id} id={sec.id} title={sec.label} items={sec.items} />
-                  ))
-                : null}
-
-              {filterMode === "platform" || !filterMode
-                ? visiblePlatforms.map((sec) => (
-                    <GenreCarousel key={sec.id} id={sec.id} title={sec.label} items={sec.items} />
-                  ))
-                : null}
-            </div>
+            {visibleGenres.map((sec) => (
+              <GenreCarousel key={sec.id} title={sec.label} items={sec.items} pageSize={20} />
+            ))}
+            {visiblePlatforms.map((sec) => (
+              <GenreCarousel key={sec.id} title={sec.label} items={sec.items} pageSize={20} />
+            ))}
           </>
         ) : null}
       </div>
