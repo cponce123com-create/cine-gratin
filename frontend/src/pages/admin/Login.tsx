@@ -48,14 +48,14 @@ export default function AdminLogin() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-gray-400 text-xs font-medium mb-1.5 uppercase tracking-wider">
-                Usuario
+                Email
               </label>
               <input
-                type="text"
+                type="email"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="admin"
-                autoComplete="username"
+                placeholder="admin@ejemplo.com"
+                autoComplete="email"
                 autoFocus
                 required
                 className="w-full bg-brand-surface border border-brand-border rounded-lg px-4 py-2.5 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-gray-500 transition-colors"

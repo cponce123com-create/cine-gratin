@@ -270,27 +270,39 @@ router.post("/servers", async (req, res) => {
 
 // POST /api/auth/login
 router.post("/auth/login", async (req, res) => {
-  const { password } = req.body;
+  const { username, password } = req.body;
   try {
-    const { rows } = await pool.query("SELECT password FROM cv_auth WHERE id = 'admin'");
-    const stored = rows[0]?.password || "admin123";
-    if (password === stored) {
+    const { rows } = await pool.query(
+      "SELECT password, username FROM cv_auth WHERE id = 'admin'"
+    );
+    const storedPassword = rows[0]?.password || "admin123";
+    const storedUsername = rows[0]?.username || "admin";
+
+    // Validar tanto usuario como contraseña
+    if (username === storedUsername && password === storedPassword) {
       const token = process.env["ADMIN_SECRET"] ?? null;
       res.json({ ok: true, token });
     } else {
-      res.status(401).json({ error: "Contraseña incorrecta" });
+      res.status(401).json({ error: "Usuario o contraseña incorrectos." });
     }
   } catch (e) {
     res.status(500).json({ error: String(e) });
   }
 });
 
-// POST /api/auth/change-password
+// POST /api/auth/change-password — cambia contraseña y opcionalmente el usuario
 router.post("/auth/change-password", async (req, res) => {
   if (!requireAuth(req, res)) return;
-  const { password } = req.body;
+  const { password, username } = req.body;
   try {
-    await pool.query("UPDATE cv_auth SET password = $1 WHERE id = 'admin'", [password]);
+    if (username) {
+      await pool.query(
+        "UPDATE cv_auth SET password = $1, username = $2 WHERE id = 'admin'",
+        [password, username]
+      );
+    } else {
+      await pool.query("UPDATE cv_auth SET password = $1 WHERE id = 'admin'", [password]);
+    }
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: String(e) });

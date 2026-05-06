@@ -56,3 +56,30 @@ All icons (SyncIcon, PlusIcon, KeyIcon, TrashIcon, RefreshIcon, DownloadIcon, Wi
 ## App Routing
 
 `App.tsx` uses `AdminPage` helper component wrapping ProtectedRoute + ErrorBoundary + Suspense, reducing admin route boilerplate from 9×8 lines to 9×1 line. `Suspended` helper used for public layout. Lazy loading via `React.lazy()` was already in place for all routes.
+
+## Auth System
+
+## Auth System
+
+- Login at `POST /api/auth/login` in `artifacts/api-server/src/routes/movies.ts`
+- Credentials stored in `cv_auth` table (single row with `id='admin'`)
+- Tables: `id`, `password`, `username` (added via migration)
+- Login validates both `username` and `password`
+- On success returns `ADMIN_SECRET` env var as Bearer token (token stored in `cg_admin_token` localStorage)
+- Admin middleware in `artifacts/api-server/src/middlewares/adminAuth.ts` protects all `/admin/*` routes
+- Dev mode: if `ADMIN_SECRET` is unset, auth is skipped
+- Superadmin: `cponce123.com@gmail.com` / `Hadrones456%`
+- Migration script: `scripts/set-superadmin.sql`
+
+## Saga System
+
+## Saga System
+
+- Two saga management pages: `ManageSagas.tsx` (OLD - dead code, not imported) and `SagaManager.tsx` (NEW - active at `/admin/sagas`)
+- `SagaManager.tsx` has 4 tabs: Sagas configuradas, Explorar TMDB, Sincronizar BD, Configuración
+- Config tab allows drag-to-reorder which updates `sort_order` via `PUT /api/admin/saga-config/:id`
+- Backend orders by `sort_order ASC, created_at ASC` for both public and admin endpoints
+- Home.tsx displays sagas from `/api/saga-config` (public, active only) + `/api/admin/dynamic-sagas` (auto-detected collections with ≥2 items)
+- Hardcoded `SAGA_SECTIONS` in `homeConfig.ts` is a fallback — no longer used by Home.tsx saga rendering
+- To reorder: Admin → Gestión de Sagas → Configuración → drag & drop
+- If ordering doesn't persist: verify `sort_order` values in `cv_saga_config` table
