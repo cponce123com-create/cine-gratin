@@ -83,3 +83,24 @@ All icons (SyncIcon, PlusIcon, KeyIcon, TrashIcon, RefreshIcon, DownloadIcon, Wi
 - Hardcoded `SAGA_SECTIONS` in `homeConfig.ts` is a fallback — no longer used by Home.tsx saga rendering
 - To reorder: Admin → Gestión de Sagas → Configuración → drag & drop
 - If ordering doesn't persist: verify `sort_order` values in `cv_saga_config` table
+
+## Saga System (Eliminado)
+
+El sistema completo de sagas/colecciones fue eliminado el 6/May/2026.
+
+Backend:
+- Se eliminaron 18 endpoints de sagas de admin.ts y el endpoint GET /api/sagas de movies.ts
+- Se eliminaron las tablas cv_active_sagas y cv_saga_config de db.ts (seed incluido)
+- Se eliminaron columnas collection_id/collection_name de INSERTs y queries
+- Las columnas collection_id/collection_name en movies y cv_series se conservan en DB (ALTER TABLE ADD COLUMN) para uso futuro
+
+Frontend:
+- Archivos eliminados: SagaPage, SagaCard, SagaManager, ManageSagas, SagaExplorer
+- App.tsx: rutas /saga/:id y /admin/sagas eliminadas
+- Home.tsx: sección de sagas eliminada
+- api.ts: todas las funciones de sagas eliminadas (17 funciones)
+- homeConfig.ts: SAGA_SECTIONS y SagaSection eliminados
+- types.ts: DynamicSaga, SagaConfigRow, collection_id/collection_name de Movie/Series eliminados
+- AdminLayout, EditMediaModal, Import: referencias a sagas eliminadas
+
+Regla de importación: las películas deben tener runtime >= 30 minutos para ser importadas (en importMovie de auto-import.ts). No aplica a series.
