@@ -43,10 +43,10 @@ pnpm workspace monorepo using TypeScript. **Cine Gratín** is a premium dark-the
 - **Routes**: `/api/movies`, `/api/movies/search`, `/api/movies/:id/view`, `/api/series`, `/api/series/search`, `/api/series/:id/view`, `/api/admin/*`, `/api/auth/login`, `/api/health`
 - **DB Tables**: `movies`, `cv_series`, `cv_auth`, `cv_settings`, `cv_servers`
 
-### Local Preview (`artifacts/cine-gratin/`)
-- **Package**: `@workspace/cine-gratin`
-- **Purpose**: Simplified local Replit preview (not the production app)
-- **Served at**: `/cine-gratin/` via Replit proxy
+### Local Preview (`frontend/`)
+- **Package**: `cine-gratin-frontend`
+- **Purpose**: Main production frontend
+- **Dev server**: `cd frontend && pnpm run dev` (port 5173)
 
 ## Environment Variables
 

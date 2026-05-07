@@ -3,9 +3,6 @@ modules = ["nodejs-24"]
 [[artifacts]]
 id = "artifacts/api-server"
 
-[[artifacts]]
-id = "artifacts/mockup-sandbox"
-
 [deployment]
 router = "application"
 deploymentTarget = "autoscale"
@@ -48,8 +45,8 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "PORT=23889 BASE_PATH=/ pnpm --filter @workspace/cinevault run dev"
-waitForPort = 23889
+args = "cd frontend && pnpm run dev"
+waitForPort = 5173
 
 [workflows.workflow.metadata]
 outputType = "webview"
