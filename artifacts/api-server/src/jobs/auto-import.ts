@@ -35,7 +35,7 @@ export async function importMovie(tmdbId: number): Promise<boolean> {
       `INSERT INTO movies (id, imdb_id, tmdb_id, title, year, rating, runtime, genres, language, synopsis,
         director, cast_list, cast_full, networks, poster_url, background_url, yt_trailer_code, videos, reviews,
         mpa_rating, slug, featured, video_sources, torrents, views, date_added, auto_imported)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
        ON CONFLICT (id) DO UPDATE SET
          cast_full = EXCLUDED.cast_full,
          tmdb_id = COALESCE(movies.tmdb_id, EXCLUDED.tmdb_id)`,
@@ -91,7 +91,7 @@ export async function importSeries(tmdbId: number): Promise<boolean> {
         synopsis, creators, cast_list, cast_full, networks, poster_url, background_url, yt_trailer_code,
         videos, reviews, status, total_seasons, seasons_data, video_sources,
         featured, views, date_added, auto_imported)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
        ON CONFLICT (id) DO UPDATE SET
          cast_full = EXCLUDED.cast_full,
          tmdb_id = COALESCE(cv_series.tmdb_id, EXCLUDED.tmdb_id)`,
