@@ -37,7 +37,8 @@ export async function importMovie(tmdbId: number): Promise<boolean> {
         mpa_rating, slug, featured, video_sources, torrents, views, date_added, auto_imported)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29)
        ON CONFLICT (id) DO UPDATE SET
-         cast_full = EXCLUDED.cast_full`,
+         cast_full = EXCLUDED.cast_full,
+         tmdb_id = COALESCE(movies.tmdb_id, EXCLUDED.tmdb_id)`,
       [
         id,
         data.imdb_id,
@@ -92,7 +93,8 @@ export async function importSeries(tmdbId: number): Promise<boolean> {
         featured, views, date_added, auto_imported)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29)
        ON CONFLICT (id) DO UPDATE SET
-         cast_full = EXCLUDED.cast_full`,
+         cast_full = EXCLUDED.cast_full,
+         tmdb_id = COALESCE(cv_series.tmdb_id, EXCLUDED.tmdb_id)`,
       [
         id,
         data.imdb_id,

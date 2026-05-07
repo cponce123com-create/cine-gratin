@@ -153,7 +153,7 @@ async function findLocalMoviesByTmdbIds(tmdbIds: number[]): Promise<Map<number, 
   if (tmdbIds.length === 0) return new Map();
   try {
     const result = await pool.query(
-      `SELECT tmdb_id, id FROM movies WHERE tmdb_id = ANY($1) AND tmdb_id IS NOT NULL`,
+      `SELECT tmdb_id, id FROM movies WHERE tmdb_id = ANY($1::int[]) AND tmdb_id IS NOT NULL`,
       [tmdbIds],
     );
     const map = new Map<number, string>();
@@ -175,18 +175,16 @@ router.get("/sagas", async (_req: Request, res: Response) => {
     );
     const collectionIds: number[] = dbResult.rows.map((r) => r.collection_id);
 
-    if (collectionIds.length === 0) {
-      res.json([]);
-      return;
-    }
+      // Fall back to curated list if table is empty (first run before seeding)
+      const idsToUse = collectionIds.length > 0 ? collectionIds : CURATED_COLLECTION_IDS;
 
     // Process in batches of 5 with 300ms delay to avoid TMDB rate limits
     const BATCH_SIZE = 5;
     const BATCH_DELAY_MS = 300;
     const sagas: SagaItem[] = [];
 
-    for (let i = 0; i < collectionIds.length; i += BATCH_SIZE) {
-      const batch = collectionIds.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < idsToUse.length; i += BATCH_SIZE) {
+      const batch = idsToUse.slice(i, i + BATCH_SIZE);
       const results = await Promise.allSettled(batch.map((id) => fetchCollection(id)));
 
       for (const result of results) {
@@ -221,7 +219,7 @@ router.get("/sagas", async (_req: Request, res: Response) => {
       }
 
       // Delay between batches (skip after last batch)
-      if (i + BATCH_SIZE < collectionIds.length) {
+      if (i + BATCH_SIZE < idsToUse.length) {
         await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
       }
     }
