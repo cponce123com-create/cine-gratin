@@ -817,6 +817,31 @@ router.get("/admin/vidsrc-scan-stream", async (req, res) => {
   }
 });
 
+// POST /api/admin/import-by-tmdb-ids — import movies/series directly by TMDB IDs
+router.post("/admin/import-by-tmdb-ids", async (req, res) => {
+  const { tmdb_ids, type = "movie" } = req.body as { tmdb_ids: number[]; type?: "movie" | "series" };
+
+  if (!Array.isArray(tmdb_ids) || tmdb_ids.length === 0) {
+    return res.status(400).json({ error: "Se requiere un array tmdb_ids" });
+  }
+
+  const results = [];
+  for (const tmdbId of tmdb_ids.slice(0, 100)) {
+    try {
+      const importer = type === "movie" ? importMovie : importSeries;
+      const ok = await importer(tmdbId);
+      results.push({ tmdb_id: tmdbId, status: ok ? "imported" : "existed_or_error" });
+    } catch (e) {
+      results.push({ tmdb_id: tmdbId, status: "error", error: String(e) });
+    }
+  }
+
+  const imported = results.filter(r => r.status === "imported").length;
+  const existedOrError = results.length - imported;
+
+  res.json({ ok: true, summary: { imported, existed_or_error: existedOrError, total: results.length } });
+});
+
 // POST /api/admin/sagas/:id/refresh — refresh saga data from TMDB, optionally import missing
 router.post("/admin/sagas/:id/refresh", async (req, res) => {
   const collectionId = Number(req.params.id);
