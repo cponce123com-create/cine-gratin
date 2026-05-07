@@ -167,12 +167,14 @@ export const saveVidsrcResults = (
 ): Promise<VidsrcResult[]> =>
   adminPost("/api/admin/verify-vidsrc", { results });
 
-// verifyVidsrc: descarga la lista pública de vidsrc.me y cruza con los ids dados
+// verifyVidsrc: verifica disponibilidad de IDs específicos descargando la
+// lista completa de vidsrc.me desde el navegador (para la función "Verificar
+// seleccionados" en ManageMovies/ManageSeries).
+// Prefiere usar el Escáner VIDSRC (página dedicada) para escaneos grandes.
 export const verifyVidsrc = async (
   imdb_ids: string[],
   type: "movie" | "series"
 ): Promise<VidsrcResult[]> => {
-  // Descargar lista completa de vidsrc.me para este tipo
   const available = new Set<string>();
   const base = type === "series"
     ? "https://vidsrc.me/tvshows/latest/page-"
@@ -186,7 +188,6 @@ export const verifyVidsrc = async (
       for (const item of data) { if (item.imdb_id) available.add(item.imdb_id); }
     } catch { break; }
   }
-
   const payload = imdb_ids.map((id) => ({ imdb_id: id, type, available: available.has(id) }));
   await saveVidsrcResults(payload).catch(() => {});
   return payload.map(({ imdb_id, available: av }) => ({ imdb_id, available: av }));
@@ -287,14 +288,4 @@ export const importByTmdbIds = (
 ): Promise<{ ok: boolean; summary: { imported: number; existed_or_error: number; total: number } }> =>
   adminPost("/api/admin/import-by-tmdb-ids", { tmdb_ids, type });
 
-export interface VidsrcRangeResponse {
-  imdb_ids: string[];
-  totalPages: number;
-}
 
-export const fetchVidsrcRange = (
-  type: "movie" | "series",
-  from: number,
-  to: number
-): Promise<VidsrcRangeResponse> =>
-  adminFetch(`/api/admin/vidsrc-range?type=${type}&from=${from}&to=${to}`);

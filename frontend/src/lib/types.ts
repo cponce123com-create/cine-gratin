@@ -125,6 +125,7 @@ export interface Movie {
   featured?: boolean;
   views?: number;
   date_added?: string;
+  vidsrc_status?: string;
 }
 
 export interface Series {
@@ -158,6 +159,7 @@ export interface Series {
   featured?: boolean;
   views?: number;
   date_added?: string;
+  vidsrc_status?: string;
 }
 
 // Legacy types kept for compatibility

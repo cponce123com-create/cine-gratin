@@ -1,6 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
-import { getMovies, getSeries, saveVidsrcResults, cleanupNoVidsrc, fetchVidsrcRange } from "@/lib/api";
+import { getMovies, getSeries, cleanupNoVidsrc } from "@/lib/api";
+import { getToken } from "@/lib/auth";
+import { BASE_URL } from "@/lib/api";
 import type { Movie, Series } from "@/lib/types";
 
 type RowStatus = "pending" | "active" | "inactive";
@@ -10,83 +12,178 @@ type ScanRow = {
   type: "movie" | "series";
   status: RowStatus;
 };
-type Phase = "idle" | "downloading" | "matching" | "done";
+type Phase = "idle" | "downloading" | "matching" | "saving" | "done";
+
+interface PageProgress {
+  type: "movie" | "series";
+  pagesLoaded: number;
+  totalPages: number;
+}
+
+interface MatchProgress {
+  matched: number;
+  total: number;
+}
+
+interface DonePayload {
+  active: number;
+  inactive: number;
+  total: number;
+  moviesActive: number;
+  moviesInactive: number;
+  seriesActive: number;
+  seriesInactive: number;
+}
 
 export default function VidsrcScanner() {
   const [rows, setRows] = useState<ScanRow[]>([]);
-  const [loadingCatalog, setLoadingCatalog] = useState(false);
+  const [loadingCatalog, setLoadingCatalog] = useState(true);
   const [phase, setPhase] = useState<Phase>("idle");
-  const [progress, setProgress] = useState({ pagesLoaded: 0, totalPages: 0, matched: 0, total: 0 });
-  const [counts, setCounts] = useState({ active: 0, inactive: 0 });
+  const [progress, setProgress] = useState({
+    pagesLoaded: { movie: 0, series: 0 },
+    totalPages: { movie: 0, series: 0 },
+    matched: 0,
+    total: 0,
+  });
+  const [counts, setCounts] = useState({ active: 0, inactive: 0, moviesActive: 0, moviesInactive: 0, seriesActive: 0, seriesInactive: 0 });
   const [cleaning, setCleaning] = useState(false);
   const [cleanResult, setCleanResult] = useState<{ movies: number; series: number; total: number } | null>(null);
   const [typeFilter, setTypeFilter] = useState<"all" | "movie" | "series">("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive" | "pending">("all");
-  const stopRef = useRef(false);
+  const [error, setError] = useState("");
+  const eventSourceRef = useRef<EventSource | null>(null);
 
-  const loadCatalog = useCallback(async () => {
-    setLoadingCatalog(true);
-    try {
-      const [movies, series] = await Promise.all([getMovies(), getSeries()]);
-      const items: ScanRow[] = [
-        ...movies.filter((m: Movie) => m.imdb_id).map((m: Movie) => ({
-          imdb_id: m.imdb_id!, title: m.title, type: "movie" as const, status: "pending" as RowStatus,
-        })),
-        ...series.filter((s: Series) => s.imdb_id).map((s: Series) => ({
-          imdb_id: s.imdb_id!, title: s.title, type: "series" as const, status: "pending" as RowStatus,
-        })),
-      ];
-      setRows(items);
-    } finally {
-      setLoadingCatalog(false);
+  // Load catalog on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const [movies, series] = await Promise.all([getMovies(), getSeries()]);
+        const items: ScanRow[] = [
+          ...movies.filter((m: Movie) => m.imdb_id).map((m: Movie) => ({
+            imdb_id: m.imdb_id!, title: m.title, type: "movie" as const,
+            status: (m.vidsrc_status === "active" ? "active" : "pending") as RowStatus,
+          })),
+          ...series.filter((s: Series) => s.imdb_id).map((s: Series) => ({
+            imdb_id: s.imdb_id!, title: s.title, type: "series" as const,
+            status: (s.vidsrc_status === "active" ? "active" : "pending") as RowStatus,
+          })),
+        ];
+        setRows(items);
+      } catch {
+        // ignore
+      } finally {
+        setLoadingCatalog(false);
+      }
+    })();
+  }, []);
+
+  const cleanup = useCallback(() => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
     }
   }, []);
 
-  useEffect(() => { loadCatalog(); }, [loadCatalog]);
+  const startScan = useCallback(() => {
+    cleanup();
+    setError("");
+    setPhase("downloading");
+    setCounts({ active: 0, inactive: 0, moviesActive: 0, moviesInactive: 0, seriesActive: 0, seriesInactive: 0 });
+    setProgress({ pagesLoaded: { movie: 0, series: 0 }, totalPages: { movie: 0, series: 0 }, matched: 0, total: 0 });
 
-  // Descarga la lista completa de vidsrc.me en rangos de 50 páginas
-  // 3 rangos en paralelo, con reintentos en caso de fallo
-  const fetchVidsrcMovSet = async (type: "movie" | "series"): Promise<Set<string>> => {
-    const available = new Set<string>();
-    const RANGE = 50;
-    const PARALLEL = 3;
-    const RETRIES = 2;
+    const token = getToken();
+    const url = `${BASE_URL}/api/admin/vidsrc-scan-stream${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+    const es = new EventSource(url);
+    eventSourceRef.current = es;
 
-    const fetchRange = async (from: number, to: number): Promise<string[]> => {
-      for (let attempt = 0; attempt <= RETRIES; attempt++) {
+    es.addEventListener("start", (e: MessageEvent) => {
+      const data = JSON.parse(e.data) as { totalItems: number };
+      setProgress(prev => ({ ...prev, total: data.totalItems }));
+    });
+
+    es.addEventListener("phase", (e: MessageEvent) => {
+      const data = JSON.parse(e.data) as { phase: Phase };
+      setPhase(data.phase);
+    });
+
+    es.addEventListener("page_progress", (e: MessageEvent) => {
+      const data = JSON.parse(e.data) as PageProgress;
+      setProgress(prev => ({
+        ...prev,
+        pagesLoaded: { ...prev.pagesLoaded, [data.type]: data.pagesLoaded },
+        totalPages: { ...prev.totalPages, [data.type]: data.totalPages },
+      }));
+    });
+
+    es.addEventListener("match_progress", (e: MessageEvent) => {
+      const data = JSON.parse(e.data) as MatchProgress;
+      setProgress(prev => ({ ...prev, matched: data.matched, total: data.total }));
+    });
+
+    es.addEventListener("done", (e: MessageEvent) => {
+      const data = JSON.parse(e.data) as DonePayload;
+      setCounts({
+        active: data.active,
+        inactive: data.inactive,
+        moviesActive: data.moviesActive,
+        moviesInactive: data.moviesInactive,
+        seriesActive: data.seriesActive,
+        seriesInactive: data.seriesInactive,
+      });
+      setProgress(prev => ({ ...prev, matched: data.total, total: data.total }));
+      setPhase("done");
+      es.close();
+      eventSourceRef.current = null;
+
+      // Reload catalog from API to get updated vidsrc_status
+      (async () => {
         try {
-          const data = await fetchVidsrcRange(type, from, to);
-          return data.imdb_ids ?? [];
-        } catch { /* reintento */ }
+          const [movies, series] = await Promise.all([getMovies(), getSeries()]);
+          const updatedItems: ScanRow[] = [
+            ...movies.filter((m: Movie) => m.imdb_id).map((m: Movie) => ({
+              imdb_id: m.imdb_id!, title: m.title, type: "movie" as const,
+              status: (m.vidsrc_status === "active" ? "active" : "inactive") as RowStatus,
+            })),
+            ...series.filter((s: Series) => s.imdb_id).map((s: Series) => ({
+              imdb_id: s.imdb_id!, title: s.title, type: "series" as const,
+              status: (s.vidsrc_status === "active" ? "active" : "inactive") as RowStatus,
+            })),
+          ];
+          setRows(updatedItems);
+        } catch { /* keep previous rows */ }
+      })();
+    });
+
+    es.addEventListener("error", (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data) as { message: string };
+        setError(data.message);
+      } catch {
+        setError("Error en la conexión SSE");
       }
-      return [];
+      setPhase("idle");
+      es.close();
+      eventSourceRef.current = null;
+    });
+
+    es.onerror = () => {
+      setPhase(prev => {
+        if (prev === "done") return prev;
+        setError("Error de conexión con el servidor");
+        return "idle";
+      });
+      es.close();
+      eventSourceRef.current = null;
     };
+  }, [cleanup]);
 
-    let totalPages = RANGE;
-    try {
-      const data = await fetchVidsrcRange(type, 1, RANGE);
-      totalPages = data.totalPages ?? RANGE;
-      for (const id of data.imdb_ids ?? []) available.add(id);
-      setProgress(p => ({ ...p, pagesLoaded: p.pagesLoaded + Math.min(RANGE, totalPages), totalPages: p.totalPages || totalPages }));
-    } catch (e) { console.error("[vidsrc-range] catch:", e); return available; }
+  const stopScan = useCallback(() => {
+    cleanup();
+    setPhase("idle");
+  }, [cleanup]);
 
-    // Resto de rangos en grupos de PARALLEL en paralelo
-    const allRanges: [number, number][] = [];
-    for (let from = RANGE + 1; from <= totalPages; from += RANGE) {
-      allRanges.push([from, Math.min(from + RANGE - 1, totalPages)]);
-    }
-
-    for (let i = 0; i < allRanges.length; i += PARALLEL) {
-      if (stopRef.current) break;
-      const batch = allRanges.slice(i, i + PARALLEL);
-      const results = await Promise.all(batch.map(([from, to]) => fetchRange(from, to)));
-      for (const ids of results) {
-        for (const id of ids) available.add(id);
-      }
-      setProgress(p => ({ ...p, pagesLoaded: p.pagesLoaded + batch.reduce((s, [f, t]) => s + (t - f + 1), 0) }));
-    }
-    return available;
-  };
+  // Cleanup on unmount
+  useEffect(() => cleanup, [cleanup]);
 
   const handleCleanup = async () => {
     if (!confirm(`¿Eliminar los ${counts.inactive} títulos sin video? Esta acción no se puede deshacer.`)) return;
@@ -95,69 +192,14 @@ export default function VidsrcScanner() {
     try {
       const res = await cleanupNoVidsrc();
       setCleanResult(res.summary);
-      // Remove deleted rows from table
       setRows(prev => prev.filter(r => r.status !== "inactive"));
-      setCounts(prev => ({ ...prev, inactive: 0 }));
+      setCounts(prev => ({ ...prev, inactive: 0, moviesInactive: 0, seriesInactive: 0 }));
     } catch {
       alert("Error al eliminar los títulos.");
     } finally {
       setCleaning(false);
     }
   };
-
-  const startScan = async () => {
-    stopRef.current = false;
-    setPhase("downloading");
-    setCounts({ active: 0, inactive: 0 });
-
-    // IMPORTANTE: guardar snapshot del catálogo ANTES de resetear el estado
-    // porque dentro del closure async, "rows" no se actualiza con setRows()
-    const catalog = rows.map(r => ({ ...r, status: "pending" as RowStatus }));
-    setRows(catalog);
-    setProgress({ pagesLoaded: 0, totalPages: 0, matched: 0, total: catalog.length });
-
-    try {
-      // Descargar listas de vidsrc.me en paralelo
-      const [movieSet, tvSet] = await Promise.all([
-        fetchVidsrcMovSet("movie"),
-        fetchVidsrcMovSet("series"),
-      ]);
-
-      if (stopRef.current) { setPhase("idle"); return; }
-
-      setPhase("matching");
-      const total = catalog.length;
-      let matched = 0, active = 0, inactive = 0;
-      const toSave: { imdb_id: string; type: "movie" | "series"; available: boolean }[] = [];
-
-      // Usar catalog (snapshot local) en vez de rows (estado React desactualizado)
-      const updatedRows = catalog.map(row => {
-        const isAvailable = row.type === "movie"
-          ? movieSet.has(row.imdb_id)
-          : tvSet.has(row.imdb_id);
-        const status: RowStatus = isAvailable ? "active" : "inactive";
-        if (isAvailable) active++; else inactive++;
-        matched++;
-        toSave.push({ imdb_id: row.imdb_id, type: row.type, available: isAvailable });
-        return { ...row, status };
-      });
-
-      setRows(updatedRows);
-      setProgress({ pagesLoaded: 0, totalPages: 0, matched, total });
-      setCounts({ active, inactive });
-
-      // Guardar en BD en lotes de 100
-      for (let i = 0; i < toSave.length; i += 100) {
-        await saveVidsrcResults(toSave.slice(i, i + 100)).catch(() => {});
-      }
-
-      setPhase("done");
-    } catch {
-      setPhase("idle");
-    }
-  };
-
-  const stopScan = () => { stopRef.current = true; };
 
   const filtered = rows.filter(r => {
     if (typeFilter !== "all" && r.type !== typeFilter) return false;
@@ -168,10 +210,45 @@ export default function VidsrcScanner() {
   });
 
   const pendingCount = rows.filter(r => r.status === "pending").length;
-  const isScanning = phase === "downloading" || phase === "matching";
-  const pct = progress.total > 0
-    ? Math.round((phase === "matching" ? progress.matched : progress.pagesLoaded) / Math.max(progress.total, 1) * 100)
-    : 0;
+  const isScanning = phase === "downloading" || phase === "matching" || phase === "saving";
+
+  const phaseLabel = () => {
+    switch (phase) {
+      case "downloading":
+        const moviePages = progress.pagesLoaded.movie;
+        const seriesPages = progress.pagesLoaded.series;
+        const movieTotal = progress.totalPages.movie;
+        const seriesTotal = progress.totalPages.series;
+        if (movieTotal > 0 && seriesTotal === 0) return `Descargando películas: ${moviePages}/${movieTotal} páginas`;
+        if (seriesTotal > 0 && movieTotal === 0) return `Descargando series: ${seriesPages}/${seriesTotal} páginas`;
+        if (movieTotal > 0 && seriesTotal > 0) return `Descargando: películas ${moviePages}/${movieTotal} · series ${seriesPages}/${seriesTotal}`;
+        return "Descargando listas de vidsrc.me...";
+      case "matching":
+        return `Cruzando catálogo: ${progress.matched} de ${progress.total} títulos`;
+      case "saving":
+        return "Guardando resultados en la base de datos...";
+      case "done":
+        return `Completado: ${counts.active} activos · ${counts.inactive} sin video`;
+      default:
+        return "";
+    }
+  };
+
+  const downloadPct = () => {
+    const totalPages = progress.totalPages.movie + progress.totalPages.series;
+    if (totalPages === 0) return 0;
+    const loadedPages = progress.pagesLoaded.movie + progress.pagesLoaded.series;
+    return Math.round((loadedPages / totalPages) * 55);
+  };
+
+  const matchPct = () => {
+    if (progress.total === 0) return 0;
+    return 55 + Math.round((progress.matched / progress.total) * 40);
+  };
+
+  const progressPct = isScanning
+    ? phase === "downloading" ? Math.max(downloadPct(), 1) : Math.min(matchPct(), 95)
+    : phase === "done" ? 100 : 0;
 
   return (
     <AdminLayout>
@@ -179,7 +256,8 @@ export default function VidsrcScanner() {
         <div>
           <h1 className="text-2xl font-black text-white">Escáner VIDSRC</h1>
           <p className="text-gray-500 text-sm mt-0.5">
-            Descarga la lista completa de vidsrc.me y cruza con tu catálogo. Sin iframes — rápido y preciso.
+            Descarga la lista completa de vidsrc.me en paralelo y cruza con tu catálogo de {rows.length} títulos.
+            Sin iframes — rápido y preciso.
           </p>
         </div>
 
@@ -222,24 +300,29 @@ export default function VidsrcScanner() {
             </div>
           </div>
 
+          {/* Error */}
+          {error && (
+            <div className="mt-4 flex items-center gap-2 bg-red-900/20 border border-red-800/40 rounded-lg px-4 py-3 text-red-400 text-sm">
+              <span>⚠️</span> {error}
+            </div>
+          )}
+
           {/* Progress */}
-          {(isScanning || phase === "done") && (
+          {(isScanning || phase === "done") && !error && (
             <div className="mt-4 space-y-2">
               <div className="flex justify-between text-xs text-gray-400">
-                <span>
-                  {phase === "downloading" && `Descargando lista de vidsrc.me... ${progress.pagesLoaded} páginas descargadas`}
-                  {phase === "matching" && `Cruzando catálogo: ${progress.matched} de ${progress.total} títulos`}
-                  {phase === "done" && `Completado: ${progress.total} títulos verificados`}
-                </span>
-                <span className="text-gray-500">
-                  {phase === "done" && `${counts.active} activos · ${counts.inactive} sin video`}
-                </span>
+                <span>{phaseLabel()}</span>
+                {phase === "done" && (
+                  <span className="text-gray-500">
+                    {counts.moviesActive + (counts.seriesActive ?? 0)} activos · {counts.moviesInactive + (counts.seriesInactive ?? 0)} sin video
+                  </span>
+                )}
               </div>
               <div className="w-full bg-brand-border rounded-full h-2">
-                <div className={`h-2 rounded-full transition-all duration-500 ${phase === "done" ? "bg-green-500" : "bg-brand-red"}`}
-                  style={{ width: phase === "done" ? "100%" : phase === "downloading" ? "33%" : `${Math.min(pct, 99)}%` }} />
+                <div className={`h-2 rounded-full transition-all duration-500 ${phase === "done" ? "bg-green-500" : phase === "saving" ? "bg-yellow-500" : "bg-brand-red"}`}
+                  style={{ width: `${progressPct}%` }} />
               </div>
-              {(phase === "matching" || phase === "done") && (
+              {(phase === "matching" || phase === "saving" || phase === "done") && (
                 <div className="flex flex-wrap items-center gap-4 pt-0.5">
                   <span className="text-green-400 text-xs">✅ {counts.active} con video en vidsrc.me</span>
                   <span className="text-red-400 text-xs">❌ {counts.inactive} sin video</span>
@@ -266,9 +349,10 @@ export default function VidsrcScanner() {
             </div>
           )}
 
-          {phase === "idle" && rows.length > 0 && (
+          {phase === "idle" && rows.length > 0 && !error && (
             <p className="mt-3 text-xs text-gray-600">
-              El escáner descarga la lista pública de vidsrc.me y la cruza con tus {rows.length} títulos. No usa iframes.
+              El escáner descarga la lista pública de vidsrc.me y la cruza con tus {rows.length} títulos.
+              Descarga en paralelo — mucho más rápido que antes.
             </p>
           )}
         </div>

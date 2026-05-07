@@ -621,5 +621,201 @@ router.get("/admin/vidsrc-test", async (_req, res) => {
 
 
 
+// ── VIDSRC Scanner (SSE) ───────────────────────────────────────────────────────
+// GET /api/admin/vidsrc-scan-stream
+// Descarga la lista completa de vidsrc.me en paralelo y cruza con el catálogo local.
+// Transmite progreso vía SSE.
+router.get("/admin/vidsrc-scan-stream", async (req, res) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders();
+
+  const send = (event: string, data: unknown) => {
+    if (req.destroyed) return;
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  try {
+    // 1. Cargar catálogo local
+    const [movieRows, seriesRows] = await Promise.all([
+      pool.query("SELECT imdb_id, title FROM movies WHERE imdb_id IS NOT NULL"),
+      pool.query("SELECT imdb_id, title FROM cv_series WHERE imdb_id IS NOT NULL"),
+    ]);
+    const localMovies = movieRows.rows as { imdb_id: string; title: string }[];
+    const localSeries = seriesRows.rows as { imdb_id: string; title: string }[];
+    const totalItems = localMovies.length + localSeries.length;
+
+    send("start", { totalMovies: localMovies.length, totalSeries: localSeries.length, totalItems });
+
+    // 2. Descargar lista de vidsrc.me
+    const buildVidsrcSet = async (type: "movie" | "series"): Promise<Set<string>> => {
+      const pathType = type === "series" ? "tvshows" : "movies";
+      const available = new Set<string>();
+      const CONCURRENCY = 10;
+      const RETRIES = 2;
+
+      // Página 1 para obtener totalPages
+      let totalPages = 0;
+      try {
+        const r1 = await fetch(`https://vidsrc.me/${pathType}/latest/page-1.json`, {
+          headers: { "User-Agent": "Mozilla/5.0", Accept: "application/json" },
+          signal: AbortSignal.timeout(15_000),
+        });
+        if (!r1.ok) return available;
+        const d1 = await r1.json() as { result?: { imdb_id?: string }[]; pages?: number };
+        totalPages = d1.pages ?? 0;
+        for (const item of d1.result ?? []) {
+          if (item.imdb_id) available.add(item.imdb_id);
+        }
+      } catch {
+        send("error", { message: `Error al obtener página 1 de ${type}` });
+        return available;
+      }
+
+      send("page_progress", { type, pagesLoaded: 1, totalPages });
+
+      // Descargar páginas restantes en paralelo (CONCURRENCY a la vez)
+      const pages = Array.from({ length: totalPages - 1 }, (_, i) => i + 2);
+      for (let i = 0; i < pages.length; i += CONCURRENCY) {
+        if (req.destroyed) break;
+        const batch = pages.slice(i, i + CONCURRENCY);
+        const results = await Promise.allSettled(
+          batch.map(async (page) => {
+            for (let attempt = 0; attempt <= RETRIES; attempt++) {
+              try {
+                const r = await fetch(`https://vidsrc.me/${pathType}/latest/page-${page}.json`, {
+                  headers: { "User-Agent": "Mozilla/5.0", Accept: "application/json" },
+                  signal: AbortSignal.timeout(15_000),
+                });
+                if (!r.ok) {
+                  if (attempt < RETRIES) await new Promise(r => setTimeout(r, 1000));
+                  continue;
+                }
+                const data = await r.json() as { result?: { imdb_id?: string }[] };
+                const ids = (data.result ?? []).map(item => item.imdb_id).filter(Boolean) as string[];
+                return ids;
+              } catch {
+                if (attempt < RETRIES) await new Promise(r => setTimeout(r, 1000));
+              }
+            }
+            return [] as string[];
+          })
+        );
+
+        for (const result of results) {
+          if (result.status === "fulfilled") {
+            for (const id of result.value) available.add(id);
+          }
+        }
+
+        send("page_progress", {
+          type,
+          pagesLoaded: 1 + Math.min(i + CONCURRENCY, totalPages - 1),
+          totalPages,
+        });
+      }
+
+      return available;
+    };
+
+    send("phase", { phase: "downloading" });
+
+    // Descargar ambas listas en paralelo
+    const [movieVidsrcSet, seriesVidsrcSet] = await Promise.all([
+      buildVidsrcSet("movie"),
+      buildVidsrcSet("series"),
+    ]);
+
+    if (req.destroyed) { res.end(); return; }
+
+    // 3. Cruzar catálogos
+    send("phase", { phase: "matching" });
+
+    type BatchItem = { imdb_id: string; title?: string; type: "movie" | "series" };
+    let matchedCount = 0;
+    const activeItems: BatchItem[] = [];
+    const inactiveItems: BatchItem[] = [];
+    const MOVIE_BATCH_SIZE = 100;
+
+    // Películas
+    for (const row of localMovies) {
+      if (req.destroyed) break;
+      const available = movieVidsrcSet.has(row.imdb_id);
+      if (available) activeItems.push({ imdb_id: row.imdb_id, type: "movie" });
+      else inactiveItems.push({ imdb_id: row.imdb_id, type: "movie" });
+      matchedCount++;
+      if (matchedCount % MOVIE_BATCH_SIZE === 0) {
+        send("match_progress", { matched: matchedCount, total: totalItems });
+      }
+    }
+
+    // Series
+    for (const row of localSeries) {
+      if (req.destroyed) break;
+      const available = seriesVidsrcSet.has(row.imdb_id);
+      if (available) activeItems.push({ imdb_id: row.imdb_id, type: "series" });
+      else inactiveItems.push({ imdb_id: row.imdb_id, type: "series" });
+      matchedCount++;
+      if (matchedCount % 100 === 0) {
+        send("match_progress", { matched: matchedCount, total: totalItems });
+      }
+    }
+
+    // Reporte final de matching
+    send("match_progress", { matched: matchedCount, total: totalItems });
+
+    // 4. Guardar en BD
+    if (!req.destroyed) {
+      send("phase", { phase: "saving" });
+
+      const saveResults = async (
+        items: BatchItem[],
+        available: boolean
+      ) => {
+        const movieIds = items.filter(i => i.type === "movie").map(i => i.imdb_id);
+        const seriesIds = items.filter(i => i.type === "series").map(i => i.imdb_id);
+        const status = available ? "active" : "inactive";
+
+        const ops: Promise<unknown>[] = [];
+        if (movieIds.length > 0) {
+          ops.push(pool.query(`UPDATE movies SET vidsrc_status = '${status}' WHERE imdb_id = ANY($1)`, [movieIds]));
+        }
+        if (seriesIds.length > 0) {
+          ops.push(pool.query(`UPDATE cv_series SET vidsrc_status = '${status}' WHERE imdb_id = ANY($1)`, [seriesIds]));
+        }
+        await Promise.all(ops);
+      };
+
+      // Guardar activos e inactivos en paralelo
+      await Promise.all([
+        saveResults(activeItems, true),
+        saveResults(inactiveItems, false),
+      ]);
+    }
+
+    // 5. Done
+    if (!req.destroyed) {
+      send("done", {
+        active: activeItems.length,
+        inactive: inactiveItems.length,
+        total: totalItems,
+        moviesActive: activeItems.filter(i => i.type === "movie").length,
+        moviesInactive: inactiveItems.filter(i => i.type === "movie").length,
+        seriesActive: activeItems.filter(i => i.type === "series").length,
+        seriesInactive: inactiveItems.filter(i => i.type === "series").length,
+      });
+    }
+
+    res.end();
+  } catch (e) {
+    if (!req.destroyed) {
+      send("error", { message: String(e) });
+      res.end();
+    }
+  }
+});
+
 export default router;
 

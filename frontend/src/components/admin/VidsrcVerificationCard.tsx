@@ -65,9 +65,7 @@ export default function VidsrcVerificationCard() {
     setCounts({ active: 0, inactive: 0 });
     setCleanResult(null);
     try {
-      let pagesLoaded = 0;
       const updatePages = (p: number) => {
-        pagesLoaded = p;
         setProgress({ checked: p, total: 0 });
       };
 
@@ -154,8 +152,11 @@ export default function VidsrcVerificationCard() {
             Verificar disponibilidad en VIDSRC
           </h2>
           <p className="text-gray-500 text-sm">
-            Comprueba si cada título tiene video disponible en VIDSRC. Los títulos sin video
-            pueden eliminarse automáticamente.
+            Comprueba si cada título tiene video disponible en VIDSRC. Para escaneos
+            grandes usa el{" "}
+            <a href="/admin/vidsrc-scanner" className="text-brand-red hover:underline">
+              Escáner VIDSRC
+            </a>.
           </p>
         </div>
       </div>
@@ -198,51 +199,50 @@ export default function VidsrcVerificationCard() {
         <div className="mb-4 flex flex-wrap gap-4 bg-brand-surface border border-brand-border rounded-xl px-5 py-4">
           <div className="text-center">
             <p className="text-2xl font-black text-green-400">{counts.active}</p>
-            <p className="text-xs text-gray-400 mt-0.5">con video</p>
+            <p className="text-gray-500 text-xs mt-0.5">Activos</p>
           </div>
           <div className="text-center">
             <p className="text-2xl font-black text-red-400">{counts.inactive}</p>
-            <p className="text-xs text-gray-400 mt-0.5">sin video</p>
+            <p className="text-gray-500 text-xs mt-0.5">Sin video</p>
           </div>
         </div>
       )}
 
-      {/* Cleanup result */}
-      {cleanResult && (
-        <div className="mb-4 bg-green-900/15 border border-green-800/30 rounded-xl px-5 py-4 text-sm text-green-400">
-          Eliminados: {cleanResult.movies} películas y {cleanResult.series} series (
-          {cleanResult.total} en total).
-        </div>
-      )}
-
+      {/* Actions */}
       <div className="flex flex-wrap gap-3">
         <button
           onClick={handleVerify}
-          disabled={phase !== "idle" && phase !== "done"}
-          className="flex items-center gap-2 bg-brand-surface border border-brand-border hover:border-gray-500 text-gray-200 hover:text-white text-sm font-semibold py-2 px-4 rounded-lg transition-colors disabled:opacity-50"
+          disabled={phase === "fetching" || phase === "verifying"}
+          className="flex items-center gap-2 bg-brand-red hover:bg-red-700 disabled:bg-brand-surface disabled:text-gray-600 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
         >
-          {phase === "fetching" || phase === "verifying" ? (
-            <>
-              <span className="w-3.5 h-3.5 rounded-full border-2 border-gray-500 border-t-white animate-spin" />
-              Verificando...
-            </>
-          ) : (
-            <>
-              <WifiIcon />
-              {phase === "done" ? "Verificar de nuevo" : "Verificar catálogo"}
-            </>
-          )}
+          <WifiIcon />
+          {phase === "fetching" || phase === "verifying"
+            ? "Verificando..."
+            : phase === "done"
+              ? "Volver a verificar"
+              : "Verificar disponibilidad"}
         </button>
 
         {phase === "done" && counts.inactive > 0 && (
           <button
             onClick={handleCleanup}
             disabled={cleaning}
-            className="flex items-center gap-2 bg-red-900/20 border border-red-800/40 hover:bg-red-900/30 text-red-400 text-sm font-semibold py-2 px-4 rounded-lg transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 bg-red-900/20 border border-red-800/40 hover:bg-red-900/30 text-red-400 text-sm font-semibold px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
           >
-            <TrashIcon />
+            {cleaning ? (
+              <span className="w-4 h-4 rounded-full border-2 border-red-500 border-t-white animate-spin" />
+            ) : (
+              <TrashIcon />
+            )}
             Eliminar {counts.inactive} sin video
           </button>
+        )}
+
+        {cleanResult && (
+          <p className="text-xs text-green-400 mt-2 w-full">
+            ✅ Eliminados: {cleanResult.movies} películas y {cleanResult.series} series (
+            {cleanResult.total} en total)
+          </p>
         )}
       </div>
     </div>
