@@ -10,21 +10,36 @@ const TMDB_IMG = "https://image.tmdb.org/t/p";
  * Sourced from TMDB: /collection/{id}
  */
 const CURATED_COLLECTION_IDS = [
-  1771,  // Marvel Cinematic Universe
-  1241,  // Harry Potter
-  9485,  // Fast & Furious
-  119,   // The Lord of the Rings
-  10,    // Star Wars
-  415,   // Batman (1989-1997, incluye algunas)
-  645,   // James Bond
-  87359, // Jurassic Park / Jurassic World
-  2344,  // The Matrix
-  8960,  // Mission: Impossible
-  239,   // Indiana Jones
-  1022790, // Pirates of the Caribbean
-  539,   // Toy Story
+  1771,   // Marvel Cinematic Universe
+  1241,   // Harry Potter
+  9485,   // Fast & Furious
+  119,    // The Lord of the Rings
+  10,     // Star Wars
+  415,    // Batman (1989-1997, incluye algunas)
+  645,    // James Bond
+  87359,  // Jurassic Park / Jurassic World
+  2344,   // The Matrix
+  8960,   // Mission: Impossible
+  239,    // Indiana Jones
+  1022790,// Pirates of the Caribbean
+  539,    // Toy Story
   111451, // Ice Age
-  557,   // Shrek
+  557,    // Shrek
+  263,    // The Dark Knight Trilogy
+  121938, // The Hobbit
+  412,    // Spider-Man (Raimi)
+  131292, // The Hunger Games
+  1570,   // Transformers
+  78,     // Back to the Future
+  153,    // Rocky / Creed
+  300,    // Terminator
+  8091,   // Alien
+  1579,   // Die Hard
+  1223848,// John Wick
+  916,    // X-Men
+  180,    // Star Trek (TOS)
+  8945,   // Madagascar
+  84852,  // Kung Fu Panda
 ];
 
 interface TmdbCollectionPart {
