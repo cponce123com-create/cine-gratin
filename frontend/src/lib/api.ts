@@ -3,8 +3,7 @@ import type { Movie, Series } from "./types";
 import type { AutoImportStatus, VidsrcResult, RunImportResult, AdminStats } from "./types";
 
 export const BASE_URL =
-  (import.meta.env["VITE_API_URL"] as string | undefined) ||
-  "https://cine-gratin.onrender.com";
+  (import.meta.env["VITE_API_URL"] as string | undefined) || "https://cine-gratin.onrender.com";
 
 // ── Generic helpers ───────────────────────────────────────────────────────────
 
@@ -43,9 +42,11 @@ export async function adminFetch<T>(path: string, options: RequestInit = {}): Pr
   if (!res.ok) {
     let msg = `Error ${res.status}`;
     try {
-      const body = await res.json() as { error?: string; hint?: string };
+      const body = (await res.json()) as { error?: string; hint?: string };
       if (body.error) msg = body.hint ? `${body.error}\n\n${body.hint}` : body.error;
-    } catch { /* keep default message */ }
+    } catch {
+      /* keep default message */
+    }
     throw new Error(msg);
   }
   return res.json() as Promise<T>;
@@ -91,10 +92,8 @@ export const searchMovies = (q: string, limit = 6): Promise<Movie[]> =>
 export const searchSeries = (q: string, limit = 4): Promise<Series[]> =>
   apiFetch(`/api/series/search?q=${encodeURIComponent(q)}&limit=${limit}`);
 
-export const trackMovieView = (id: string | number): Promise<void> =>
-  apiPatch(`/api/movies/${id}/view`);
-export const trackSeriesView = (id: string | number): Promise<void> =>
-  apiPatch(`/api/series/${id}/view`);
+export const trackMovieView = (id: string | number): Promise<void> => apiPatch(`/api/movies/${id}/view`);
+export const trackSeriesView = (id: string | number): Promise<void> => apiPatch(`/api/series/${id}/view`);
 
 // ── Sagas ─────────────────────────────────────────────────────────────────────
 
@@ -116,6 +115,9 @@ export interface SagaPart {
   year: number | null;
   vote_average: number;
   overview: string;
+  tmdb_id: number;
+  local_id: string | null;
+  is_imported: boolean;
 }
 
 export interface SagaDetail {
@@ -127,11 +129,9 @@ export interface SagaDetail {
   parts: SagaPart[];
 }
 
-export const fetchSagas = (): Promise<SagaItem[]> =>
-  apiFetch("/api/sagas");
+export const fetchSagas = (): Promise<SagaItem[]> => apiFetch("/api/sagas");
 
-export const fetchSagaById = (id: number): Promise<SagaDetail> =>
-  apiFetch(`/api/sagas/${id}`);
+export const fetchSagaById = (id: number): Promise<SagaDetail> => apiFetch(`/api/sagas/${id}`);
 
 // ── Admin endpoints ───────────────────────────────────────────────────────────
 
@@ -156,51 +156,44 @@ export interface ImportByIdsResponse {
   summary: { imported: number; existed: number; not_found: number; error: number };
 }
 
-export const importByIds = (
-  imdb_ids: string[],
-  type: "movie" | "series"
-): Promise<ImportByIdsResponse> =>
+export const importByIds = (imdb_ids: string[], type: "movie" | "series"): Promise<ImportByIdsResponse> =>
   adminPost("/api/admin/import-by-ids", { imdb_ids, type });
 
 export const saveVidsrcResults = (
-  results: { imdb_id: string; type: "movie" | "series"; available: boolean }[]
-): Promise<VidsrcResult[]> =>
-  adminPost("/api/admin/verify-vidsrc", { results });
+  results: { imdb_id: string; type: "movie" | "series"; available: boolean }[],
+): Promise<VidsrcResult[]> => adminPost("/api/admin/verify-vidsrc", { results });
 
 // verifyVidsrc: verifica disponibilidad de IDs específicos descargando la
 // lista completa de vidsrc.me desde el navegador (para la función "Verificar
 // seleccionados" en ManageMovies/ManageSeries).
 // Prefiere usar el Escáner VIDSRC (página dedicada) para escaneos grandes.
-export const verifyVidsrc = async (
-  imdb_ids: string[],
-  type: "movie" | "series"
-): Promise<VidsrcResult[]> => {
+export const verifyVidsrc = async (imdb_ids: string[], type: "movie" | "series"): Promise<VidsrcResult[]> => {
   const available = new Set<string>();
-  const base = type === "series"
-    ? "https://vidsrc.me/tvshows/latest/page-"
-    : "https://vidsrc.me/movies/latest/page-";
+  const base =
+    type === "series" ? "https://vidsrc.me/tvshows/latest/page-" : "https://vidsrc.me/movies/latest/page-";
   for (let page = 1; page <= 999; page++) {
     try {
       const res = await fetch(`${base}${page}.json`, { credentials: "omit" });
       if (!res.ok) break;
-      const data = await res.json() as { imdb_id?: string }[];
+      const data = (await res.json()) as { imdb_id?: string }[];
       if (!Array.isArray(data) || data.length === 0) break;
-      for (const item of data) { if (item.imdb_id) available.add(item.imdb_id); }
-    } catch { break; }
+      for (const item of data) {
+        if (item.imdb_id) available.add(item.imdb_id);
+      }
+    } catch {
+      break;
+    }
   }
   const payload = imdb_ids.map((id) => ({ imdb_id: id, type, available: available.has(id) }));
   await saveVidsrcResults(payload).catch(() => {});
   return payload.map(({ imdb_id, available: av }) => ({ imdb_id, available: av }));
 };
 
-export const getAdminStats = (): Promise<AdminStats> =>
-  adminFetch("/api/admin/stats");
+export const getAdminStats = (): Promise<AdminStats> => adminFetch("/api/admin/stats");
 
-export const deleteMovie = (id: string | number): Promise<void> =>
-  adminDelete(`/api/admin/movies/${id}`);
+export const deleteMovie = (id: string | number): Promise<void> => adminDelete(`/api/admin/movies/${id}`);
 
-export const deleteSeries = (id: string | number): Promise<void> =>
-  adminDelete(`/api/admin/series/${id}`);
+export const deleteSeries = (id: string | number): Promise<void> => adminDelete(`/api/admin/series/${id}`);
 
 export const saveMovie = (movie: Partial<Movie>): Promise<Movie> =>
   adminPost(`/api/admin/movies${movie.id ? `/${movie.id}` : ""}`, movie);
@@ -223,12 +216,8 @@ export interface ScanNetworksResponse {
   summary: { updated: number; no_change: number; error: number };
 }
 
-export const scanNetworks = (
-  type: "movie" | "series",
-  limit?: number
-): Promise<ScanNetworksResponse> =>
+export const scanNetworks = (type: "movie" | "series", limit?: number): Promise<ScanNetworksResponse> =>
   adminPost("/api/admin/scan-networks", { type, limit });
-
 
 export interface CleanupResponse {
   ok: boolean;
@@ -238,8 +227,7 @@ export interface CleanupResponse {
 export const cleanupMissingImages = (type: "movie" | "series" | "all" = "all"): Promise<CleanupResponse> =>
   adminPost("/api/admin/cleanup-missing-images", { type });
 
-export const cleanupNoVidsrc = (): Promise<CleanupResponse> =>
-  adminPost("/api/admin/cleanup-no-vidsrc", {});
+export const cleanupNoVidsrc = (): Promise<CleanupResponse> => adminPost("/api/admin/cleanup-no-vidsrc", {});
 
 // ── TMDB Explorer ─────────────────────────────────────────────────────────────
 
@@ -279,13 +267,10 @@ export const tmdbDiscover = (params: {
   min_votes?: number;
   page?: number;
   count?: number;
-}): Promise<TmdbDiscoverResult> =>
-  adminPost("/api/admin/tmdb-discover", params);
+}): Promise<TmdbDiscoverResult> => adminPost("/api/admin/tmdb-discover", params);
 
 export const importByTmdbIds = (
   tmdb_ids: number[],
-  type: "movie" | "series"
+  type: "movie" | "series",
 ): Promise<{ ok: boolean; summary: { imported: number; existed_or_error: number; total: number } }> =>
   adminPost("/api/admin/import-by-tmdb-ids", { tmdb_ids, type });
-
-

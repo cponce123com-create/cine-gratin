@@ -32,21 +32,41 @@ export async function importMovie(tmdbId: number): Promise<boolean> {
     const slug = makeSlug(data.title as string, data.year as number);
 
     await pool.query(
-      `INSERT INTO movies (id, imdb_id, title, year, rating, runtime, genres, language, synopsis,
+      `INSERT INTO movies (id, imdb_id, tmdb_id, title, year, rating, runtime, genres, language, synopsis,
         director, cast_list, cast_full, networks, poster_url, background_url, yt_trailer_code, videos, reviews,
         mpa_rating, slug, featured, video_sources, torrents, views, date_added, auto_imported)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29)
        ON CONFLICT (id) DO UPDATE SET
          cast_full = EXCLUDED.cast_full`,
       [
-        id, data.imdb_id, data.title, data.year, data.rating, data.runtime,
-        data.genres, data.language, data.synopsis, data.director, data.cast_list,
+        id,
+        data.imdb_id,
+        tmdbId,
+        data.title,
+        data.year,
+        data.rating,
+        data.runtime,
+        data.genres,
+        data.language,
+        data.synopsis,
+        data.director,
+        data.cast_list,
         JSON.stringify(data.cast_full ?? []),
         data.networks ?? [],
-        data.poster_url, data.background_url, data.yt_trailer_code,
-        JSON.stringify(data.videos ?? []), JSON.stringify(data.reviews ?? []),
-        data.mpa_rating, slug, false, "[]", "[]", 0, new Date().toISOString(), true
-      ]
+        data.poster_url,
+        data.background_url,
+        data.yt_trailer_code,
+        JSON.stringify(data.videos ?? []),
+        JSON.stringify(data.reviews ?? []),
+        data.mpa_rating,
+        slug,
+        false,
+        "[]",
+        "[]",
+        0,
+        new Date().toISOString(),
+        true,
+      ],
     );
     return true;
   } catch (err) {
@@ -74,17 +94,34 @@ export async function importSeries(tmdbId: number): Promise<boolean> {
        ON CONFLICT (id) DO UPDATE SET
          cast_full = EXCLUDED.cast_full`,
       [
-        id, data.imdb_id, data.tmdb_id, data.title, data.year, data.end_year || null,
-        data.rating, data.genres, data.language, data.synopsis,
-        data.creators, data.cast_list,
+        id,
+        data.imdb_id,
+        data.tmdb_id,
+        data.title,
+        data.year,
+        data.end_year || null,
+        data.rating,
+        data.genres,
+        data.language,
+        data.synopsis,
+        data.creators,
+        data.cast_list,
         JSON.stringify(data.cast_full ?? []),
         data.networks ?? [],
-        data.poster_url, data.background_url, data.yt_trailer_code,
-        JSON.stringify(data.videos ?? []), JSON.stringify(data.reviews ?? []),
-        data.status, data.total_seasons,
-        JSON.stringify(data.seasons_data || []), "[]",
-        false, 0, new Date().toISOString(), true
-      ]
+        data.poster_url,
+        data.background_url,
+        data.yt_trailer_code,
+        JSON.stringify(data.videos ?? []),
+        JSON.stringify(data.reviews ?? []),
+        data.status,
+        data.total_seasons,
+        JSON.stringify(data.seasons_data || []),
+        "[]",
+        false,
+        0,
+        new Date().toISOString(),
+        true,
+      ],
     );
     return true;
   } catch (err) {
@@ -103,10 +140,7 @@ export interface IdImportResult {
   error?: string;
 }
 
-export async function importByImdbId(
-  imdbId: string,
-  type: "movie" | "series"
-): Promise<IdImportResult> {
+export async function importByImdbId(imdbId: string, type: "movie" | "series"): Promise<IdImportResult> {
   const apiKey = process.env["TMDB_API_KEY"];
   if (!apiKey) {
     return { imdb_id: imdbId, title: null, status: "error", error: "TMDB_API_KEY not configured" };
@@ -121,26 +155,51 @@ export async function importByImdbId(
       if (exists) {
         return { imdb_id: imdbId, title: "Evento Deportivo", status: "existed" };
       }
-      
+
       // Create a placeholder entry for custom IDs
       const id = `custom_${imdbId}`;
       const title = `Evento ${imdbId}`;
       const slug = makeSlug(title, new Date().getFullYear());
-      
+
       if (type === "movie") {
         await pool.query(
           `INSERT INTO movies (id, imdb_id, title, year, genres, slug, auto_imported, networks, video_sources, torrents, videos, reviews)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) ON CONFLICT (id) DO NOTHING`,
-          [id, imdbId, title, new Date().getFullYear(), ["Fútbol"], slug, true, ["Deportes"], "[]", "[]", "[]", "[]"]
+          [
+            id,
+            imdbId,
+            title,
+            new Date().getFullYear(),
+            ["Fútbol"],
+            slug,
+            true,
+            ["Deportes"],
+            "[]",
+            "[]",
+            "[]",
+            "[]",
+          ],
         );
       } else {
         await pool.query(
           `INSERT INTO cv_series (id, imdb_id, title, year, genres, auto_imported, networks, video_sources, seasons_data, videos, reviews)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) ON CONFLICT (id) DO NOTHING`,
-          [id, imdbId, title, new Date().getFullYear(), ["Fútbol"], true, ["Deportes"], "[]", "[]", "[]", "[]"]
+          [
+            id,
+            imdbId,
+            title,
+            new Date().getFullYear(),
+            ["Fútbol"],
+            true,
+            ["Deportes"],
+            "[]",
+            "[]",
+            "[]",
+            "[]",
+          ],
         );
       }
-      
+
       return { imdb_id: imdbId, title, status: "imported" };
     }
 
@@ -150,7 +209,7 @@ export async function importByImdbId(
       return { imdb_id: imdbId, title: null, status: "not_found" };
     }
 
-    const findData = await findRes.json() as {
+    const findData = (await findRes.json()) as {
       movie_results: Array<{ id: number; title?: string; release_date?: string }>;
       tv_results: Array<{ id: number; name?: string; first_air_date?: string }>;
     };
@@ -164,11 +223,11 @@ export async function importByImdbId(
 
     const tmdbId = results[0].id;
     const rawTitle = isMovie
-      ? (results[0] as { title?: string }).title ?? null
-      : (results[0] as { name?: string }).name ?? null;
+      ? ((results[0] as { title?: string }).title ?? null)
+      : ((results[0] as { name?: string }).name ?? null);
     const rawDate = isMovie
-      ? (results[0] as { release_date?: string }).release_date ?? ""
-      : (results[0] as { first_air_date?: string }).first_air_date ?? "";
+      ? ((results[0] as { release_date?: string }).release_date ?? "")
+      : ((results[0] as { first_air_date?: string }).first_air_date ?? "");
     const year = rawDate ? Number(rawDate.slice(0, 4)) : null;
 
     // Check if already in DB
@@ -191,7 +250,9 @@ export async function importByImdbId(
   }
 }
 
-export async function runAutoImport(sources?: string[]): Promise<{ moviesImported: number; seriesImported: number; totalChecked: number }> {
+export async function runAutoImport(
+  sources?: string[],
+): Promise<{ moviesImported: number; seriesImported: number; totalChecked: number }> {
   const apiKey = process.env["TMDB_API_KEY"];
   if (!apiKey) {
     logger.warn("TMDB_API_KEY not set, skipping auto-import");
@@ -212,14 +273,16 @@ export async function runAutoImport(sources?: string[]): Promise<{ moviesImporte
     "/movie/top_rated?language=es-MX",
     "/tv/top_rated?language=es-MX",
     "/movie/popular?language=es-MX",
-    "/tv/popular?language=es-MX"
+    "/tv/popular?language=es-MX",
   ];
 
   const activeSources = sources && sources.length > 0 ? sources : ALL_SOURCES;
 
   try {
-    const responses = await Promise.all(activeSources.map(s => tmdbFetch(s)));
-    const data = await Promise.all(responses.map(r => r.ok ? r.json() : { results: [] })) as { results: TmdbListItem[] }[];
+    const responses = await Promise.all(activeSources.map((s) => tmdbFetch(s)));
+    const data = (await Promise.all(responses.map((r) => (r.ok ? r.json() : { results: [] })))) as {
+      results: TmdbListItem[];
+    }[];
 
     const movieIds = new Set<number>();
     const seriesIds = new Set<number>();
@@ -227,8 +290,8 @@ export async function runAutoImport(sources?: string[]): Promise<{ moviesImporte
     activeSources.forEach((source, index) => {
       const results = data[index].results || [];
       const isTv = source.includes("/tv/");
-      
-      results.forEach(item => {
+
+      results.forEach((item) => {
         if (isTv) {
           seriesIds.add(item.id);
         } else {
@@ -252,7 +315,7 @@ export async function runAutoImport(sources?: string[]): Promise<{ moviesImporte
     await pool.query(
       `INSERT INTO cv_auto_import_log (movies_imported, series_imported, total_checked, status)
        VALUES ($1, $2, $3, 'success')`,
-      [moviesImported, seriesImported, totalChecked]
+      [moviesImported, seriesImported, totalChecked],
     );
 
     logger.info({ moviesImported, seriesImported, totalChecked }, "Auto-import: completed");
@@ -263,7 +326,7 @@ export async function runAutoImport(sources?: string[]): Promise<{ moviesImporte
     await pool.query(
       `INSERT INTO cv_auto_import_log (movies_imported, series_imported, total_checked, status, error_message)
        VALUES ($1, $2, $3, 'error', $4)`,
-      [moviesImported, seriesImported, totalChecked, msg]
+      [moviesImported, seriesImported, totalChecked, msg],
     );
     return { moviesImported, seriesImported, totalChecked };
   }
