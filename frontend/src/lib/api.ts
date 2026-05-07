@@ -129,6 +129,18 @@ export interface SagaDetail {
   parts: SagaPart[];
 }
 
+export interface CvSagaRow {
+  id: number;
+  collection_id: number;
+  name: string;
+  poster_path: string | null;
+  backdrop_path: string | null;
+  overview: string | null;
+  part_count: number;
+  is_curated: boolean;
+  created_at: string;
+}
+
 export const fetchSagas = (): Promise<SagaItem[]> => apiFetch("/api/sagas");
 
 export const fetchSagaById = (id: number): Promise<SagaDetail> => apiFetch(`/api/sagas/${id}`);
@@ -139,6 +151,12 @@ export interface RefreshSagaResponse extends SagaDetail {
 
 export const refreshSaga = (id: number, autoImport = false): Promise<RefreshSagaResponse> =>
   adminPost(`/api/admin/sagas/${id}/refresh`, { autoImport });
+
+export const adminFetchSagas = (): Promise<CvSagaRow[]> => adminFetch("/api/admin/sagas");
+export const adminAddSaga = (collection_id: number): Promise<CvSagaRow> =>
+  adminPost("/api/admin/sagas", { collection_id });
+export const adminDeleteSaga = (collection_id: number): Promise<{ ok: boolean }> =>
+  adminFetch("/api/admin/sagas/" + collection_id, { method: "DELETE" });
 
 // ── Admin endpoints ───────────────────────────────────────────────────────────
 

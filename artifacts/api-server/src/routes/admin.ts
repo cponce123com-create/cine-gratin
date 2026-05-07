@@ -456,28 +456,6 @@ router.post("/admin/tmdb-discover", async (req, res) => {
   }
 });
 
-// POST /api/admin/import-by-tmdb-ids — import content directly by TMDB IDs
-router.post("/admin/import-by-tmdb-ids", async (req, res) => {
-  const { tmdb_ids, type = "movie" } = req.body as { tmdb_ids: number[]; type?: "movie" | "series" };
-
-  if (!Array.isArray(tmdb_ids) || tmdb_ids.length === 0) {
-    return res.status(400).json({ error: "Se requiere un array tmdb_ids" });
-  }
-
-  let imported = 0, existed = 0;
-  for (const tmdbId of tmdb_ids.slice(0, 2000)) {
-    try {
-      const ok = type === "movie" ? await importMovie(tmdbId) : await importSeries(tmdbId);
-      if (ok) imported++; else existed++;
-    } catch {
-      existed++;
-    }
-  }
-
-  res.json({ ok: true, summary: { imported, existed_or_error: existed, total: Math.min(tmdb_ids.length, 2000) } });
-});
-
-
 // POST /api/admin/cleanup-no-vidsrc — delete movies/series where vidsrc_status = 'inactive'
 router.post("/admin/cleanup-no-vidsrc", async (_req, res) => {
   try {

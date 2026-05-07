@@ -7,7 +7,7 @@ import seriesRouter from "./series";
 import adminRouter from "./admin";
 import sportsRouter, { initSportsTables } from "./sports";
 import eventsRouter, { initEventsTables } from "./events";
-import sagasRouter from "./sagas";
+import sagasRouter, { initSagasTable } from "./sagas";
 
 const router: IRouter = Router();
 
@@ -21,5 +21,5 @@ router.use(sportsRouter);
 router.use(eventsRouter);
 router.use(sagasRouter);
 
-export { initSportsTables, initEventsTables };
+export { initSportsTables, initEventsTables, initSagasTable };
 export default router;

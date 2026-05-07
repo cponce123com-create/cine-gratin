@@ -85,6 +85,51 @@ export interface SagaPart {
   is_imported: boolean;
 }
 
+export interface CvSagaRow {
+  id: number;
+  collection_id: number;
+  name: string;
+  poster_path: string | null;
+  backdrop_path: string | null;
+  overview: string | null;
+  part_count: number;
+  is_curated: boolean;
+  created_at: string;
+}
+
+/**
+ * Create the cv_sagas table if it doesn't exist and seed with curated collections.
+ */
+export async function initSagasTable(): Promise<void> {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS cv_sagas (
+        id SERIAL PRIMARY KEY,
+        collection_id INTEGER NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        poster_path TEXT,
+        backdrop_path TEXT,
+        overview TEXT,
+        part_count INTEGER DEFAULT 0,
+        is_curated BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    // Seed curated collections — insert placeholder rows that will be enriched on first GET /api/sagas
+    for (const cid of CURATED_COLLECTION_IDS) {
+      await pool.query(
+        `INSERT INTO cv_sagas (collection_id, name, is_curated)
+         VALUES ($1, $2, TRUE)
+         ON CONFLICT (collection_id) DO NOTHING`,
+        [cid, `Collection ${cid}`],
+      );
+    }
+  } catch (e) {
+    console.error("Failed to init cv_sagas table:", e);
+  }
+}
+
 async function fetchCollection(id: number): Promise<TmdbCollectionResponse | null> {
   try {
     const res = await tmdbFetch(`/collection/${id}?language=es-MX`);
@@ -121,16 +166,27 @@ async function findLocalMoviesByTmdbIds(tmdbIds: number[]): Promise<Map<number, 
   }
 }
 
-// GET /api/sagas — curated list of top sagas, sorted by part_count descending
+// GET /api/sagas — list all sagas from cv_sagas, enriched with live TMDB data
 router.get("/sagas", async (_req: Request, res: Response) => {
   try {
+    // Get all collection IDs from DB
+    const dbResult = await pool.query(
+      "SELECT collection_id FROM cv_sagas ORDER BY part_count DESC",
+    );
+    const collectionIds: number[] = dbResult.rows.map((r) => r.collection_id);
+
+    if (collectionIds.length === 0) {
+      res.json([]);
+      return;
+    }
+
     // Process in batches of 5 with 300ms delay to avoid TMDB rate limits
     const BATCH_SIZE = 5;
     const BATCH_DELAY_MS = 300;
     const sagas: SagaItem[] = [];
 
-    for (let i = 0; i < CURATED_COLLECTION_IDS.length; i += BATCH_SIZE) {
-      const batch = CURATED_COLLECTION_IDS.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < collectionIds.length; i += BATCH_SIZE) {
+      const batch = collectionIds.slice(i, i + BATCH_SIZE);
       const results = await Promise.allSettled(batch.map((id) => fetchCollection(id)));
 
       for (const result of results) {
@@ -144,11 +200,28 @@ router.get("/sagas", async (_req: Request, res: Response) => {
             part_count: col.parts.length,
             overview: col.overview || "",
           });
+
+          // Update DB row with live data
+          try {
+            await pool.query(
+              `UPDATE cv_sagas SET name = $1, poster_path = $2, backdrop_path = $3, overview = $4, part_count = $5 WHERE collection_id = $6`,
+              [
+                col.name,
+                col.poster_path ? `${TMDB_IMG}/w500${col.poster_path}` : null,
+                col.backdrop_path ? `${TMDB_IMG}/w1280${col.backdrop_path}` : null,
+                col.overview || "",
+                col.parts.length,
+                col.id,
+              ],
+            );
+          } catch {
+            // non-critical
+          }
         }
       }
 
       // Delay between batches (skip after last batch)
-      if (i + BATCH_SIZE < CURATED_COLLECTION_IDS.length) {
+      if (i + BATCH_SIZE < collectionIds.length) {
         await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
       }
     }
@@ -219,6 +292,97 @@ router.get("/sagas/:id", async (req: Request, res: Response) => {
 
     res.setHeader("Cache-Control", "public, max-age=3600, stale-while-revalidate=86400");
     res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// ── Admin endpoints ─────────────────────────────────────────────────────────────
+
+// GET /api/admin/sagas — list all rows from cv_sagas
+router.get("/admin/sagas", async (_req: Request, res: Response) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM cv_sagas ORDER BY part_count DESC",
+    );
+    res.json(result.rows);
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// POST /api/admin/sagas — add a custom saga by collection_id
+router.post("/admin/sagas", async (req: Request, res: Response) => {
+  const { collection_id } = req.body as { collection_id: number };
+
+  if (!collection_id || isNaN(Number(collection_id))) {
+    res.status(400).json({ error: "Se requiere un collection_id válido" });
+    return;
+  }
+
+  try {
+    // Check if already exists
+    const existing = await pool.query(
+      "SELECT * FROM cv_sagas WHERE collection_id = $1",
+      [collection_id],
+    );
+    if (existing.rows.length > 0) {
+      res.status(409).json({ error: "Esta saga ya existe en la base de datos" });
+      return;
+    }
+
+    // Fetch collection from TMDB
+    const collection = await fetchCollection(collection_id);
+    if (!collection) {
+      res.status(404).json({ error: "Colección no encontrada en TMDB. Verifica el collection_id." });
+      return;
+    }
+
+    const name = collection.name;
+    const poster_path = collection.poster_path ? `${TMDB_IMG}/w500${collection.poster_path}` : null;
+    const backdrop_path = collection.backdrop_path ? `${TMDB_IMG}/w1280${collection.backdrop_path}` : null;
+    const overview = collection.overview || "";
+    const part_count = collection.parts.length;
+
+    const insertResult = await pool.query(
+      `INSERT INTO cv_sagas (collection_id, name, poster_path, backdrop_path, overview, part_count, is_curated)
+       VALUES ($1, $2, $3, $4, $5, $6, FALSE)
+       RETURNING *`,
+      [collection_id, name, poster_path, backdrop_path, overview, part_count],
+    );
+
+    res.json(insertResult.rows[0]);
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// DELETE /api/admin/sagas/:collection_id — delete a custom saga
+router.delete("/admin/sagas/:collection_id", async (req: Request, res: Response) => {
+  const collectionId = Number(req.params.collection_id);
+  if (!collectionId || isNaN(collectionId)) {
+    res.status(400).json({ error: "ID de colección inválido" });
+    return;
+  }
+
+  try {
+    const row = await pool.query(
+      "SELECT is_curated FROM cv_sagas WHERE collection_id = $1",
+      [collectionId],
+    );
+
+    if (row.rows.length === 0) {
+      res.status(404).json({ error: "Saga no encontrada" });
+      return;
+    }
+
+    if (row.rows[0].is_curated) {
+      res.status(403).json({ error: "No se puede eliminar una saga predefinida" });
+      return;
+    }
+
+    await pool.query("DELETE FROM cv_sagas WHERE collection_id = $1", [collectionId]);
+    res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: String(e) });
   }
