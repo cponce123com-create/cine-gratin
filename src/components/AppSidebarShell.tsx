@@ -126,77 +126,41 @@ export function AppSidebarShell() {
           </Tooltip>
         </div>
 
-        {/* ── Nav (only this section scrolls) ───────────── */}
-        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-2 py-2 space-y-0.5">
-          {!collapsed && (
-            <p className="px-3 pt-1 pb-1 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-              Main
-            </p>
-          )}
+        {/* ── Nav ───────────────────────────────────────── */}
+        <nav className="flex-1 overflow-y-auto py-3 px-2 flex flex-col gap-0.5">
           {NAV_ITEMS.map(item => (
             <NavItem key={item.href} item={item} collapsed={collapsed} />
           ))}
-        </div>
+        </nav>
 
-        {/* ── Footer (always pinned to bottom) ──────────── */}
+        {/* ── Footer ────────────────────────────────────── */}
         <div
           className={cn(
-            'shrink-0 border-t border-border',
-            collapsed ? 'flex flex-col items-center gap-1 p-2' : 'p-3 space-y-1'
+            'shrink-0 border-t border-border p-2 flex items-center gap-2',
+            collapsed && 'justify-center'
           )}
         >
-          {/* User row */}
-          {collapsed ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button className="flex items-center justify-center h-8 w-8 rounded-md hover:bg-accent transition-colors cursor-pointer">
-                  <Avatar className="h-6 w-6 shrink-0">
-                    <AvatarFallback className="text-[10px] bg-muted">U</AvatarFallback>
-                  </Avatar>
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="right">User · user@example.com</TooltipContent>
-            </Tooltip>
-          ) : (
-            <button className="flex items-center gap-2 rounded-md hover:bg-accent transition-colors cursor-pointer w-full px-2 py-1.5">
-              <Avatar className="h-6 w-6 shrink-0">
-                <AvatarFallback className="text-[10px] bg-muted">U</AvatarFallback>
-              </Avatar>
-              <div className="flex-1 min-w-0 text-left">
-                <p className="text-xs font-medium leading-tight truncate">User</p>
-                <p className="text-[10px] text-muted-foreground leading-tight truncate">
-                  user@example.com
-                </p>
-              </div>
-            </button>
+          <Avatar className="h-7 w-7 shrink-0">
+            <AvatarFallback className="text-xs">U</AvatarFallback>
+          </Avatar>
+          {!collapsed && (
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium truncate">User</p>
+              <p className="text-xs text-muted-foreground truncate">user@example.com</p>
+            </div>
           )}
-
-          {/* Sign out */}
-          {collapsed ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-                >
-                  <LogOut className="h-4 w-4 shrink-0" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="right">Sign out</TooltipContent>
-            </Tooltip>
-          ) : (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="w-full justify-start px-2 gap-2 text-muted-foreground hover:text-foreground"
-            >
-              <LogOut className="h-4 w-4 shrink-0" />
-              Sign out
-            </Button>
-          )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0 shrink-0 text-muted-foreground hover:text-foreground"
+              >
+                <LogOut className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="right">Sign out</TooltipContent>
+          </Tooltip>
         </div>
       </div>
     </TooltipProvider>
