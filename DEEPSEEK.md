@@ -166,3 +166,30 @@ The scanner lives at `/admin/vidsrc-scanner` (`VidsrcScanner.tsx`) and uses **SS
 - Carousel scroll containers have `scroll-padding-left` (1rem/1.5rem/2rem responsive) so the first item doesn't snap flush to the left edge
 - `<ScrollRestoration />` from react-router-dom is used in App.tsx to restore scroll position on browser back/forward navigation
 - Home.tsx content wrapper uses `mx-auto max-w-7xl` to constrain layout proportionally on large screens
+
+## Saga System — Admin Endpoints
+
+`AdminSagas.tsx` calls two backend endpoints:
+1. `POST /api/admin/sagas/:id/refresh` — refreshes saga from TMDB, optionally auto-imports missing movies (existed in admin.ts)
+2. `POST /api/admin/import-by-tmdb-ids` — imports movies/series directly by TMDB IDs (added 2026-05-07 via `importMovie`/`importSeries` from auto-import.ts)
+Both are in `artifacts/api-server/src/routes/admin.ts`.
+
+## Saga System — Bug Fix
+
+## Saga Movies Showing "No disponible"
+
+### Root Cause
+Movies imported via `importByImdbId` (IMDB-based importer) were stored without a `tmdb_id` (NULL). The saga detail endpoint's `findLocalMoviesByTmdbIds` only searched by `tmdb_id`, so it never found these movies — they existed in the DB but were invisible to saga lookup.
+
+### Fix (2026-05-07)
+
+**File 1: `artifacts/api-server/src/jobs/auto-import.ts`**
+- `importMovie()` ON CONFLICT clause expanded to also backfill `poster_url` and `background_url` (in addition to existing `cast_full` and `tmdb_id`):
+  - `poster_url = COALESCE(NULLIF(movies.poster_url, ''), EXCLUDED.poster_url)`
+  - `background_url = COALESCE(NULLIF(movies.background_url, ''), EXCLUDED.background_url)`
+
+**File 2: `artifacts/api-server/src/routes/sagas.ts`**
+- `findLocalMoviesByTmdbIds` replaced with two-step lookup:
+  1. Direct `tmdb_id` match in `movies` table
+  2. For unmatched IDs: fetch `imdb_id` from TMDB `/movie/{id}/external_ids`, then query `movies` by `id = auto_{imdb_id}` as fallback
+- Added `POST /api/admin/sagas/backfill-tmdb-ids` — one-time endpoint that queries TMDB `/find/{imdb_id}` for movies with NULL `tmdb_id` and retroactively populates it. Run once after deploy.

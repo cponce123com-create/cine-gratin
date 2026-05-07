@@ -147,23 +147,54 @@ async function fetchCollection(id: number): Promise<TmdbCollectionResponse | nul
 
 /**
  * Find all local movie IDs (from the movies table) that match the given tmdb_ids.
+ * Performs a two-step lookup: first by tmdb_id directly, then by imdb_id as fallback
+ * for movies imported without a tmdb_id (e.g. via importByImdbId).
  * Returns a Map<tmdb_id, local_id>.
  */
 async function findLocalMoviesByTmdbIds(tmdbIds: number[]): Promise<Map<number, string>> {
   if (tmdbIds.length === 0) return new Map();
+  const map = new Map<number, string>();
   try {
-    const result = await pool.query(
+    // Step 1: direct tmdb_id match
+    const { rows } = await pool.query(
       `SELECT tmdb_id, id FROM movies WHERE tmdb_id = ANY($1::int[]) AND tmdb_id IS NOT NULL`,
       [tmdbIds],
     );
-    const map = new Map<number, string>();
-    for (const row of result.rows) {
-      map.set(Number(row.tmdb_id), row.id);
+    for (const row of rows) map.set(Number(row.tmdb_id), row.id);
+
+    // Step 2: for unmatched tmdb_ids, try matching by imdb_id (auto_ttXXXXXX format)
+    const unmatched = tmdbIds.filter(id => !map.has(id));
+    if (unmatched.length > 0) {
+      // Fetch imdb_ids from TMDB for unmatched
+      const imdbLookups = await Promise.allSettled(
+        unmatched.map(async (tmdbId) => {
+          const res = await tmdbFetch(`/movie/${tmdbId}/external_ids`);
+          if (!res.ok) return null;
+          const data = await res.json() as { imdb_id?: string };
+          return data.imdb_id ? { tmdbId, imdbId: data.imdb_id } : null;
+        }),
+      );
+      const pairs = imdbLookups
+        .filter((r): r is PromiseFulfilledResult<{ tmdbId: number; imdbId: string } | null> => r.status === 'fulfilled' && r.value !== null)
+        .map(r => r.value!);
+
+      if (pairs.length > 0) {
+        const imdbIds = pairs.map(p => `auto_${p.imdbId}`);
+        const { rows: imdbRows } = await pool.query(
+          `SELECT id FROM movies WHERE id = ANY($1)`,
+          [imdbIds],
+        );
+        const foundIds = new Set(imdbRows.map((r: { id: string }) => r.id));
+        for (const { tmdbId, imdbId } of pairs) {
+          const localId = `auto_${imdbId}`;
+          if (foundIds.has(localId)) map.set(tmdbId, localId);
+        }
+      }
     }
-    return map;
   } catch {
-    return new Map();
+    // return partial map on error
   }
+  return map;
 }
 
 // GET /api/sagas — list all sagas from cv_sagas, enriched with live TMDB data
@@ -350,6 +381,32 @@ router.post("/admin/sagas", async (req: Request, res: Response) => {
     );
 
     res.json(insertResult.rows[0]);
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// POST /api/admin/sagas/backfill-tmdb-ids — one-time fix: populate tmdb_id for movies that have it NULL
+router.post("/admin/sagas/backfill-tmdb-ids", async (_req, res) => {
+  try {
+    // Get all movies with NULL tmdb_id that have an imdb_id
+    const { rows } = await pool.query(
+      `SELECT id, imdb_id FROM movies WHERE tmdb_id IS NULL AND imdb_id IS NOT NULL LIMIT 500`,
+    );
+    let updated = 0;
+    for (const row of rows) {
+      try {
+        const r = await tmdbFetch(`/find/${row.imdb_id}?external_source=imdb_id`);
+        if (!r.ok) continue;
+        const data = await r.json() as { movie_results?: { id: number }[] };
+        const tmdbId = data.movie_results?.[0]?.id;
+        if (tmdbId) {
+          await pool.query(`UPDATE movies SET tmdb_id = $1 WHERE id = $2`, [tmdbId, row.id]);
+          updated++;
+        }
+      } catch { continue; }
+    }
+    res.json({ ok: true, updated, total: rows.length });
   } catch (e) {
     res.status(500).json({ error: String(e) });
   }

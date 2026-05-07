@@ -38,7 +38,9 @@ export async function importMovie(tmdbId: number): Promise<boolean> {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
        ON CONFLICT (id) DO UPDATE SET
          cast_full = EXCLUDED.cast_full,
-         tmdb_id = COALESCE(movies.tmdb_id, EXCLUDED.tmdb_id)`,
+         tmdb_id = COALESCE(movies.tmdb_id, EXCLUDED.tmdb_id),
+         poster_url = COALESCE(NULLIF(movies.poster_url, ''), EXCLUDED.poster_url),
+         background_url = COALESCE(NULLIF(movies.background_url, ''), EXCLUDED.background_url)`,
       [
         id,
         data.imdb_id,
