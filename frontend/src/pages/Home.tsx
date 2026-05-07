@@ -6,6 +6,7 @@ import GenreCarousel, { type MixedItem } from "@/components/GenreCarousel";
 import HeroCarousel from "@/components/HeroCarousel";
 import { SkeletonHero } from "@/components/SkeletonCard";
 import TmdbTrailersSection from "@/components/home/TmdbTrailersSection";
+import SagasSection from "@/components/home/SagasSection";
 import SectionSkeleton from "@/components/home/SectionSkeleton";
 import { GENRE_SECTIONS, PLATFORM_SECTIONS, CUSTOM_SECTIONS } from "@/lib/homeConfig";
 import { useContinueWatching } from "@/hooks/useContinueWatching";
@@ -223,6 +224,8 @@ export default function Home() {
         )}
 
         <TmdbTrailersSection />
+
+        <SagasSection />
 
         {isLoading ? (
           <>

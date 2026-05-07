@@ -19,6 +19,7 @@ const Search = lazy(() => import("@/pages/Search"));
 const Player = lazy(() => import("@/pages/Player"));
 const MoviePlayer = lazy(() => import("@/pages/player/MoviePlayer"));
 const SeriesPlayer = lazy(() => import("@/pages/player/SeriesPlayer"));
+const SagaDetail = lazy(() => import("@/pages/SagaDetail"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 const AdminLogin = lazy(() => import("@/pages/admin/Login"));
 const AdminDashboard = lazy(() => import("@/pages/admin/Dashboard"));
@@ -134,6 +135,7 @@ export default function App() {
           <Route path="/pelicula/:id" element={<MovieDetail />} />
           <Route path="/serie/:id" element={<SeriesDetail />} />
           <Route path="/search/:query" element={<Search />} />
+          <Route path="/saga/:id" element={<SagaDetail />} />
           <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>

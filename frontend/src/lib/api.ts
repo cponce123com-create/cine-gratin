@@ -96,6 +96,43 @@ export const trackMovieView = (id: string | number): Promise<void> =>
 export const trackSeriesView = (id: string | number): Promise<void> =>
   apiPatch(`/api/series/${id}/view`);
 
+// ── Sagas ─────────────────────────────────────────────────────────────────────
+
+export interface SagaItem {
+  id: number;
+  name: string;
+  poster_path: string | null;
+  backdrop_path: string | null;
+  part_count: number;
+  overview: string;
+}
+
+export interface SagaPart {
+  id: number;
+  title: string;
+  poster_url: string | null;
+  backdrop_url: string | null;
+  release_date: string;
+  year: number | null;
+  vote_average: number;
+  overview: string;
+}
+
+export interface SagaDetail {
+  id: number;
+  name: string;
+  poster_path: string | null;
+  backdrop_path: string | null;
+  overview: string;
+  parts: SagaPart[];
+}
+
+export const fetchSagas = (): Promise<SagaItem[]> =>
+  apiFetch("/api/sagas");
+
+export const fetchSagaById = (id: number): Promise<SagaDetail> =>
+  apiFetch(`/api/sagas/${id}`);
+
 // ── Admin endpoints ───────────────────────────────────────────────────────────
 
 export const getAutoImportStatus = (): Promise<AutoImportStatus> =>

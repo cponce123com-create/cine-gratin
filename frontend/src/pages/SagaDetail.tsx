@@ -1,0 +1,160 @@
+import { useParams, Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { Helmet } from "react-helmet-async";
+import { fetchSagaById, type SagaDetail as SagaDetailType } from "@/lib/api";
+
+const FALLBACK_BG =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1280' height='720' viewBox='0 0 1280 720'%3E%3Crect width='1280' height='720' fill='%231a1a1a'/%3E%3C/svg%3E";
+
+export default function SagaDetail() {
+  const { id } = useParams<{ id: string }>();
+  const sagaId = Number(id);
+
+  const { data: saga, isLoading, error } = useQuery<SagaDetailType>({
+    queryKey: ["saga", sagaId],
+    queryFn: () => fetchSagaById(sagaId),
+    enabled: !isNaN(sagaId),
+    staleTime: 30 * 60 * 1000,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-brand-dark flex items-center justify-center pt-16">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 rounded-full border-2 border-brand-red border-t-transparent animate-spin" />
+          <p className="text-gray-400 text-sm">Cargando saga...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !saga) {
+    return (
+      <div className="min-h-screen bg-brand-dark flex items-center justify-center pt-16">
+        <div className="text-center">
+          <p className="text-red-400 text-lg">No se pudo cargar la saga.</p>
+          <Link to="/" className="mt-4 inline-block text-brand-red hover:text-red-400 underline">
+            Volver al inicio
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-brand-dark">
+      <Helmet>
+        <title>{saga.name} — Cine Gratín</title>
+        <meta name="description" content={saga.overview?.slice(0, 160) ?? ""} />
+        <meta property="og:title" content={`${saga.name} — Cine Gratín`} />
+        <meta property="og:description" content={saga.overview?.slice(0, 200) ?? ""} />
+        {saga.backdrop_path && <meta property="og:image" content={saga.backdrop_path} />}
+      </Helmet>
+
+      {/* Backdrop */}
+      <div className="relative w-full h-[50vh] min-h-[320px] overflow-hidden">
+        <img
+          src={saga.backdrop_path || saga.poster_path || FALLBACK_BG}
+          alt={saga.name}
+          className="w-full h-full object-cover object-top"
+          onError={(e) => { (e.currentTarget as HTMLImageElement).src = FALLBACK_BG; }}
+        />
+        <div className="absolute inset-0 hero-gradient" />
+        <div className="absolute inset-x-0 bottom-0 h-40 hero-gradient-bottom" />
+        <Link
+          to="/"
+          className="absolute top-20 left-6 flex items-center gap-2 text-gray-300 hover:text-white text-sm transition-colors"
+        >
+          ← Volver
+        </Link>
+      </div>
+
+      {/* Content */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 -mt-24 relative z-10 pb-16">
+        <div className="flex flex-col sm:flex-row gap-8 mb-12">
+          {/* Poster */}
+          <div className="flex-shrink-0 w-36 sm:w-48 md:w-56">
+            <img
+              src={saga.poster_path || FALLBACK_BG}
+              alt={saga.name}
+              className="w-full aspect-[2/3] object-cover rounded-xl shadow-2xl border border-brand-border"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).src = FALLBACK_BG; }}
+            />
+          </div>
+
+          {/* Info */}
+          <div className="flex-1 pt-2 sm:pt-12">
+            <h1 className="text-2xl sm:text-4xl font-black text-white mb-2 leading-tight">
+              {saga.name}
+            </h1>
+            <p className="text-gray-400 text-sm mb-4">
+              {saga.parts.length} {saga.parts.length === 1 ? "película" : "películas"}
+            </p>
+            {saga.overview && (
+              <p className="text-gray-300 text-sm sm:text-base leading-relaxed max-w-2xl">
+                {saga.overview}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Movies grid */}
+        <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-3">
+          <span className="w-2 h-7 bg-brand-red rounded-full" />
+          Películas de la saga
+        </h2>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+          {saga.parts.map((part) => (
+            <a
+              key={part.id}
+              href={`https://www.themoviedb.org/movie/${part.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group block"
+            >
+              <div className="relative overflow-hidden rounded-lg bg-brand-surface card-hover">
+                <div className="aspect-[2/3] w-full relative">
+                  {part.poster_url ? (
+                    <img
+                      src={part.poster_url}
+                      alt={part.title}
+                      loading="lazy"
+                      className="w-full h-full object-cover transition-opacity duration-300"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-brand-surface">
+                      <span className="text-gray-500 text-xs px-2 text-center">{part.title}</span>
+                    </div>
+                  )}
+                  {part.vote_average > 0 && (
+                    <div className="absolute top-1.5 right-1.5 bg-black/70 backdrop-blur-sm rounded-md px-1.5 py-0.5 flex items-center gap-0.5">
+                      <span className="text-brand-gold text-[10px] leading-none">★</span>
+                      <span className="text-white text-[10px] font-bold leading-none">
+                        {part.vote_average.toFixed(1)}
+                      </span>
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-3">
+                    <p className="text-white text-xs font-semibold line-clamp-2 leading-snug">
+                      {part.title}
+                    </p>
+                    {part.year && (
+                      <span className="text-gray-400 text-xs mt-0.5">{part.year}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <p className="mt-2 text-xs text-gray-400 truncate px-0.5 group-hover:text-gray-200 transition-colors">
+                {part.title}
+              </p>
+              {part.year && (
+                <p className="text-[10px] text-gray-600 px-0.5">{part.year}</p>
+              )}
+            </a>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
