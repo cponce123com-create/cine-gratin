@@ -1,5 +1,5 @@
 import { lazy, Suspense, type ReactNode } from "react";
-import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Outlet, ScrollRestoration } from "react-router-dom";
 import { Toaster } from "sonner";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -78,6 +78,7 @@ function PublicLayout() {
 export default function App() {
   return (
     <BrowserRouter>
+      <ScrollRestoration />
       <Toaster richColors position="top-right" />
       <Routes>
         {/* Standalone routes (no layout) */}
@@ -115,14 +116,70 @@ export default function App() {
         />
 
         {/* Protected admin routes */}
-        <Route path="/admin" element={<AdminPage><AdminDashboard /></AdminPage>} />
-        <Route path="/admin/import" element={<AdminPage><AdminImport /></AdminPage>} />
-        <Route path="/admin/movies" element={<AdminPage><ManageMovies /></AdminPage>} />
-        <Route path="/admin/series" element={<AdminPage><ManageSeries /></AdminPage>} />
-        <Route path="/admin/tmdb" element={<AdminPage><TmdbScraper /></AdminPage>} />
-        <Route path="/admin/vidsrc-scanner" element={<AdminPage><VidsrcScanner /></AdminPage>} />
-        <Route path="/admin/sport-channels" element={<AdminPage><SportChannels /></AdminPage>} />
-        <Route path="/admin/event-channels" element={<AdminPage><EventChannels /></AdminPage>} />
+        <Route
+          path="/admin"
+          element={
+            <AdminPage>
+              <AdminDashboard />
+            </AdminPage>
+          }
+        />
+        <Route
+          path="/admin/import"
+          element={
+            <AdminPage>
+              <AdminImport />
+            </AdminPage>
+          }
+        />
+        <Route
+          path="/admin/movies"
+          element={
+            <AdminPage>
+              <ManageMovies />
+            </AdminPage>
+          }
+        />
+        <Route
+          path="/admin/series"
+          element={
+            <AdminPage>
+              <ManageSeries />
+            </AdminPage>
+          }
+        />
+        <Route
+          path="/admin/tmdb"
+          element={
+            <AdminPage>
+              <TmdbScraper />
+            </AdminPage>
+          }
+        />
+        <Route
+          path="/admin/vidsrc-scanner"
+          element={
+            <AdminPage>
+              <VidsrcScanner />
+            </AdminPage>
+          }
+        />
+        <Route
+          path="/admin/sport-channels"
+          element={
+            <AdminPage>
+              <SportChannels />
+            </AdminPage>
+          }
+        />
+        <Route
+          path="/admin/event-channels"
+          element={
+            <AdminPage>
+              <EventChannels />
+            </AdminPage>
+          }
+        />
 
         {/* Public routes with Navbar/Footer */}
         <Route element={<PublicLayout />}>

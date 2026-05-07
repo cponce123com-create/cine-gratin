@@ -46,6 +46,19 @@
     scroll-snap-type: x mandatory;
     scroll-behavior: smooth;
     -webkit-overflow-scrolling: touch;
+    scroll-padding-left: 1rem;
+  }
+
+  @media (min-width: 640px) {
+    .carousel-scroll {
+      scroll-padding-left: 1.5rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .carousel-scroll {
+      scroll-padding-left: 2rem;
+    }
   }
 
   .carousel-scroll::-webkit-scrollbar {
@@ -67,16 +80,13 @@
   }
 
   .hero-gradient-bottom {
-    background: linear-gradient(
-      to top,
-      rgba(10, 10, 10, 1) 0%,
-      rgba(10, 10, 10, 0.6) 40%,
-      transparent 100%
-    );
+    background: linear-gradient(to top, rgba(10, 10, 10, 1) 0%, rgba(10, 10, 10, 0.6) 40%, transparent 100%);
   }
 
   .card-hover {
-    transition: transform 0.25s ease, box-shadow 0.25s ease;
+    transition:
+      transform 0.25s ease,
+      box-shadow 0.25s ease;
   }
 
   .card-hover:hover {

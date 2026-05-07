@@ -16,8 +16,7 @@ import { matchesKeywords, matchesNetworks, buildMixed, MIN_ITEMS_TO_SHOW } from 
 import type { TmdbTrendingItem } from "@/components/home/types";
 
 const BASE_URL =
-  (import.meta.env["VITE_API_URL"] as string | undefined) ||
-  "https://cine-gratin.onrender.com";
+  (import.meta.env["VITE_API_URL"] as string | undefined) || "https://cine-gratin.onrender.com";
 
 async function fetchTmdbTrending(window: "day" | "week"): Promise<TmdbTrendingItem[]> {
   const res = await fetch(`${BASE_URL}/api/tmdb/trending?window=${window}`);
@@ -79,12 +78,22 @@ export default function Home() {
   }, [continueWatching]);
 
   const mostViewed = useMemo(() => {
-    const mixed = buildMixed(allMovies, allSeries, () => true, () => true);
+    const mixed = buildMixed(
+      allMovies,
+      allSeries,
+      () => true,
+      () => true,
+    );
     return mixed.sort((a, b) => (Number(b.item.views) || 0) - (Number(a.item.views) || 0));
   }, [allMovies, allSeries]);
 
   const recentlyAdded = useMemo(() => {
-    const mixed = buildMixed(allMovies, allSeries, () => true, () => true);
+    const mixed = buildMixed(
+      allMovies,
+      allSeries,
+      () => true,
+      () => true,
+    );
     return mixed.sort((a, b) => {
       const dateA = a.item.date_added ? new Date(a.item.date_added).getTime() : 0;
       const dateB = b.item.date_added ? new Date(b.item.date_added).getTime() : 0;
@@ -97,22 +106,22 @@ export default function Home() {
     const result: import("@/components/GenreCarousel").MixedItem[] = [];
     tmdbTrending.forEach((tmdbItem) => {
       if (tmdbItem.media_type === "movie") {
-        const found = allMovies.find(m => m.tmdb_id === tmdbItem.tmdb_id);
+        const found = allMovies.find((m) => m.tmdb_id === tmdbItem.tmdb_id);
         if (found) result.push({ item: found, type: "movie" });
       } else if (tmdbItem.media_type === "tv") {
-        const found = allSeries.find(s => s.tmdb_id === tmdbItem.tmdb_id);
+        const found = allSeries.find((s) => s.tmdb_id === tmdbItem.tmdb_id);
         if (found) result.push({ item: found, type: "series" });
       }
     });
     return result;
   }, [allMovies, allSeries, tmdbTrending]);
 
-  const popularMovies = useMemo(() =>
-    [...allMovies].sort((a, b) => (Number(b.views) || 0) - (Number(a.views) || 0)),
+  const popularMovies = useMemo(
+    () => [...allMovies].sort((a, b) => (Number(b.views) || 0) - (Number(a.views) || 0)),
     [allMovies],
   );
-  const popularSeries = useMemo(() =>
-    [...allSeries].sort((a, b) => (Number(b.views) || 0) - (Number(a.views) || 0)),
+  const popularSeries = useMemo(
+    () => [...allSeries].sort((a, b) => (Number(b.views) || 0) - (Number(a.views) || 0)),
     [allSeries],
   );
 
@@ -121,20 +130,23 @@ export default function Home() {
       let items: import("@/components/GenreCarousel").MixedItem[] = [];
       if (sec.type === "classics") {
         items = buildMixed(
-          allMovies, allSeries,
+          allMovies,
+          allSeries,
           (m) => (Number(m.year) || 0) <= 2000,
           (s) => (Number(s.year) || 0) <= 2000,
         ).sort((a, b) => (Number(b.item.views) || 0) - (Number(a.item.views) || 0));
       } else if (sec.type === "old-animation") {
         items = buildMixed(
-          allMovies, allSeries,
+          allMovies,
+          allSeries,
           (m) => (Number(m.year) || 0) <= 1990 && matchesKeywords(m.genres, ["animación", "animation"]),
           (s) => (Number(s.year) || 0) <= 1990 && matchesKeywords(s.genres, ["animación", "animation"]),
         ).sort((a, b) => (Number(b.item.views) || 0) - (Number(a.item.views) || 0));
       } else if (sec.type === "estrenos") {
         const currentYear = new Date().getFullYear();
         items = buildMixed(
-          allMovies, allSeries,
+          allMovies,
+          allSeries,
           (m) => (Number(m.year) || 0) >= currentYear - 1,
           (s) => (Number(s.year) || 0) >= currentYear - 1,
         ).sort((a, b) => {
@@ -144,81 +156,88 @@ export default function Home() {
         });
       }
       return { ...sec, items };
-    }).filter(s => s.items.length >= MIN_ITEMS_TO_SHOW);
+    }).filter((s) => s.items.length >= MIN_ITEMS_TO_SHOW);
   }, [allMovies, allSeries]);
 
-  const genreCarousels = useMemo(
-    () => {
-      if (!genreVisible) return [];
-      return GENRE_SECTIONS.map((sec) => ({
-        ...sec,
-        items: buildMixed(
-          allMovies, allSeries,
-          (m) => matchesKeywords(m.genres, sec.keywords),
-          (s) => matchesKeywords(s.genres, sec.keywords),
-        ),
-      })).filter((s) => s.items.length >= MIN_ITEMS_TO_SHOW);
-    },
-    [allMovies, allSeries, genreVisible],
-  );
+  const genreCarousels = useMemo(() => {
+    if (!genreVisible) return [];
+    return GENRE_SECTIONS.map((sec) => ({
+      ...sec,
+      items: buildMixed(
+        allMovies,
+        allSeries,
+        (m) => matchesKeywords(m.genres, sec.keywords),
+        (s) => matchesKeywords(s.genres, sec.keywords),
+      ),
+    })).filter((s) => s.items.length >= MIN_ITEMS_TO_SHOW);
+  }, [allMovies, allSeries, genreVisible]);
 
-  const platformCarousels = useMemo(
-    () => {
-      if (!platformVisible) return [];
-      return PLATFORM_SECTIONS.map((sec) => ({
-        ...sec,
-        items: buildMixed(
-          allMovies, allSeries,
-          (m) => matchesNetworks(m.networks, sec.networks),
-          (s) => matchesNetworks(s.networks, sec.networks),
-        ),
-      })).filter((s) => s.items.length >= MIN_ITEMS_TO_SHOW);
-    },
-    [allMovies, allSeries, platformVisible],
-  );
+  const platformCarousels = useMemo(() => {
+    if (!platformVisible) return [];
+    return PLATFORM_SECTIONS.map((sec) => ({
+      ...sec,
+      items: buildMixed(
+        allMovies,
+        allSeries,
+        (m) => matchesNetworks(m.networks, sec.networks),
+        (s) => matchesNetworks(s.networks, sec.networks),
+      ),
+    })).filter((s) => s.items.length >= MIN_ITEMS_TO_SHOW);
+  }, [allMovies, allSeries, platformVisible]);
 
   const isLoading = loadingMovies || loadingSeries;
 
-  const visibleGenres = filterMode === "genre" && activeGenre
-    ? genreCarousels.filter((s) => s.id === activeGenre)
-    : genreCarousels;
+  const visibleGenres =
+    filterMode === "genre" && activeGenre
+      ? genreCarousels.filter((s) => s.id === activeGenre)
+      : genreCarousels;
 
-  const visiblePlatforms = filterMode === "platform" && activePlatform
-    ? platformCarousels.filter((s) => s.id === activePlatform)
-    : platformCarousels;
+  const visiblePlatforms =
+    filterMode === "platform" && activePlatform
+      ? platformCarousels.filter((s) => s.id === activePlatform)
+      : platformCarousels;
 
   const selectGenre = (id: string) => {
     if (filterMode === "genre" && activeGenre === id) {
-      setFilterMode(null); setActiveGenre(null);
+      setFilterMode(null);
+      setActiveGenre(null);
     } else {
-      setFilterMode("genre"); setActiveGenre(id); setActivePlatform(null);
+      setFilterMode("genre");
+      setActiveGenre(id);
+      setActivePlatform(null);
     }
   };
 
   const selectPlatform = (id: string) => {
     if (filterMode === "platform" && activePlatform === id) {
-      setFilterMode(null); setActivePlatform(null);
+      setFilterMode(null);
+      setActivePlatform(null);
     } else {
-      setFilterMode("platform"); setActivePlatform(id); setActiveGenre(null);
+      setFilterMode("platform");
+      setActivePlatform(id);
+      setActiveGenre(null);
     }
   };
 
-  const clearFilter = () => { setFilterMode(null); setActiveGenre(null); setActivePlatform(null); };
+  const clearFilter = () => {
+    setFilterMode(null);
+    setActiveGenre(null);
+    setActivePlatform(null);
+  };
 
   return (
     <div className="min-h-screen bg-brand-dark">
       <Helmet>
         <title>Cine Gratín — Tu plataforma de streaming</title>
-        <meta name="description" content="Disfruta las mejores películas y series en Cine Gratín. Streaming gratuito, sin registro." />
+        <meta
+          name="description"
+          content="Disfruta las mejores películas y series en Cine Gratín. Streaming gratuito, sin registro."
+        />
       </Helmet>
 
-      {isLoading ? (
-        <SkeletonHero />
-      ) : heroItems.length > 0 ? (
-        <HeroCarousel items={heroItems} />
-      ) : null}
+      {isLoading ? <SkeletonHero /> : heroItems.length > 0 ? <HeroCarousel items={heroItems} /> : null}
 
-      <div className="pt-8 pb-16">
+      <div className="mx-auto max-w-7xl pt-8 pb-16">
         {continueWatchingItems.length > 0 && (
           <GenreCarousel title="Seguir viendo" items={continueWatchingItems} />
         )}
@@ -238,12 +257,8 @@ export default function Home() {
             {recentlyAdded.length > 0 && (
               <GenreCarousel title="Añadidas recientemente" items={recentlyAdded} />
             )}
-            {mostViewed.length > 0 && (
-              <GenreCarousel title="Las más vistas" items={mostViewed} />
-            )}
-            {trending.length > 0 && (
-              <GenreCarousel title="Tendencias" items={trending} />
-            )}
+            {mostViewed.length > 0 && <GenreCarousel title="Las más vistas" items={mostViewed} />}
+            {trending.length > 0 && <GenreCarousel title="Tendencias" items={trending} />}
             {customCarousels.map((sec) => (
               <GenreCarousel key={sec.id} title={sec.label} items={sec.items} pageSize={30} />
             ))}
@@ -276,7 +291,7 @@ export default function Home() {
           <div className="mt-12">
             <SectionSkeleton title="Explorar" />
           </div>
-        ) : (genreCarousels.length > 0 || platformCarousels.length > 0) ? (
+        ) : genreCarousels.length > 0 || platformCarousels.length > 0 ? (
           <>
             <div className="px-4 sm:px-6 lg:px-8 mb-5 mt-2">
               <div className="flex items-center gap-3">
