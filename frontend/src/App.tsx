@@ -1,5 +1,5 @@
 import { lazy, Suspense, type ReactNode } from "react";
-import { BrowserRouter, Routes, Route, Outlet, ScrollRestoration } from "react-router-dom";
+import { createBrowserRouter, RouterProvider, Outlet, type RouteObject } from "react-router-dom";
 import { Toaster } from "sonner";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -75,127 +75,133 @@ function PublicLayout() {
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
+const routes: RouteObject[] = [
+  // Standalone routes (no layout)
+  {
+    path: "/player/movie/:imdbId",
+    element: (
+      <Suspense fallback={<PageFallback />}>
+        <MoviePlayer />
+      </Suspense>
+    ),
+  },
+  {
+    path: "/player/series/:imdbId",
+    element: (
+      <Suspense fallback={<PageFallback />}>
+        <SeriesPlayer />
+      </Suspense>
+    ),
+  },
+  {
+    path: "/player",
+    element: (
+      <Suspense fallback={<PageFallback />}>
+        <Player />
+      </Suspense>
+    ),
+  },
+  {
+    path: "/admin/login",
+    element: (
+      <Suspense fallback={<PageFallback />}>
+        <AdminLogin />
+      </Suspense>
+    ),
+  },
+
+  // Protected admin routes
+  {
+    path: "/admin",
+    element: (
+      <AdminPage>
+        <AdminDashboard />
+      </AdminPage>
+    ),
+  },
+  {
+    path: "/admin/import",
+    element: (
+      <AdminPage>
+        <AdminImport />
+      </AdminPage>
+    ),
+  },
+  {
+    path: "/admin/movies",
+    element: (
+      <AdminPage>
+        <ManageMovies />
+      </AdminPage>
+    ),
+  },
+  {
+    path: "/admin/series",
+    element: (
+      <AdminPage>
+        <ManageSeries />
+      </AdminPage>
+    ),
+  },
+  {
+    path: "/admin/tmdb",
+    element: (
+      <AdminPage>
+        <TmdbScraper />
+      </AdminPage>
+    ),
+  },
+  {
+    path: "/admin/vidsrc-scanner",
+    element: (
+      <AdminPage>
+        <VidsrcScanner />
+      </AdminPage>
+    ),
+  },
+  {
+    path: "/admin/sport-channels",
+    element: (
+      <AdminPage>
+        <SportChannels />
+      </AdminPage>
+    ),
+  },
+  {
+    path: "/admin/event-channels",
+    element: (
+      <AdminPage>
+        <EventChannels />
+      </AdminPage>
+    ),
+  },
+
+  // Public routes with Navbar/Footer
+  {
+    element: <PublicLayout />,
+    children: [
+      { path: "/", element: <Home /> },
+      { path: "/peliculas", element: <Movies /> },
+      { path: "/series", element: <SeriesList /> },
+      { path: "/deportes", element: <Sports /> },
+      { path: "/eventos", element: <Events /> },
+      { path: "/tv-en-vivo", element: <TvLive /> },
+      { path: "/pelicula/:id", element: <MovieDetail /> },
+      { path: "/serie/:id", element: <SeriesDetail /> },
+      { path: "/search/:query", element: <Search /> },
+      { path: "/saga/:id", element: <SagaDetail /> },
+      { path: "*", element: <NotFound /> },
+    ],
+  },
+];
+
+const router = createBrowserRouter(routes);
+
 export default function App() {
   return (
-    <BrowserRouter>
-      <ScrollRestoration />
+    <>
+      <RouterProvider router={router} />
       <Toaster richColors position="top-right" />
-      <Routes>
-        {/* Standalone routes (no layout) */}
-        <Route
-          path="/player/movie/:imdbId"
-          element={
-            <Suspense fallback={<PageFallback />}>
-              <MoviePlayer />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/player/series/:imdbId"
-          element={
-            <Suspense fallback={<PageFallback />}>
-              <SeriesPlayer />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/player"
-          element={
-            <Suspense fallback={<PageFallback />}>
-              <Player />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/admin/login"
-          element={
-            <Suspense fallback={<PageFallback />}>
-              <AdminLogin />
-            </Suspense>
-          }
-        />
-
-        {/* Protected admin routes */}
-        <Route
-          path="/admin"
-          element={
-            <AdminPage>
-              <AdminDashboard />
-            </AdminPage>
-          }
-        />
-        <Route
-          path="/admin/import"
-          element={
-            <AdminPage>
-              <AdminImport />
-            </AdminPage>
-          }
-        />
-        <Route
-          path="/admin/movies"
-          element={
-            <AdminPage>
-              <ManageMovies />
-            </AdminPage>
-          }
-        />
-        <Route
-          path="/admin/series"
-          element={
-            <AdminPage>
-              <ManageSeries />
-            </AdminPage>
-          }
-        />
-        <Route
-          path="/admin/tmdb"
-          element={
-            <AdminPage>
-              <TmdbScraper />
-            </AdminPage>
-          }
-        />
-        <Route
-          path="/admin/vidsrc-scanner"
-          element={
-            <AdminPage>
-              <VidsrcScanner />
-            </AdminPage>
-          }
-        />
-        <Route
-          path="/admin/sport-channels"
-          element={
-            <AdminPage>
-              <SportChannels />
-            </AdminPage>
-          }
-        />
-        <Route
-          path="/admin/event-channels"
-          element={
-            <AdminPage>
-              <EventChannels />
-            </AdminPage>
-          }
-        />
-
-        {/* Public routes with Navbar/Footer */}
-        <Route element={<PublicLayout />}>
-          <Route path="/" element={<Home />} />
-          <Route path="/peliculas" element={<Movies />} />
-          <Route path="/series" element={<SeriesList />} />
-          <Route path="/deportes" element={<Sports />} />
-          <Route path="/eventos" element={<Events />} />
-          <Route path="/tv-en-vivo" element={<TvLive />} />
-          <Route path="/pelicula/:id" element={<MovieDetail />} />
-          <Route path="/serie/:id" element={<SeriesDetail />} />
-          <Route path="/search/:query" element={<Search />} />
-          <Route path="/saga/:id" element={<SagaDetail />} />
-          <Route path="*" element={<NotFound />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    </>
   );
 }
