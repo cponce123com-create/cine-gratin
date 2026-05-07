@@ -193,3 +193,29 @@ Movies imported via `importByImdbId` (IMDB-based importer) were stored without a
   1. Direct `tmdb_id` match in `movies` table
   2. For unmatched IDs: fetch `imdb_id` from TMDB `/movie/{id}/external_ids`, then query `movies` by `id = auto_{imdb_id}` as fallback
 - Added `POST /api/admin/sagas/backfill-tmdb-ids` — one-time endpoint that queries TMDB `/find/{imdb_id}` for movies with NULL `tmdb_id` and retroactively populates it. Run once after deploy.
+
+## Repo Cleanup
+
+2026-05-07: Remoção massiva de código morto.
+
+Arquivos/diretórios removidos:
+- `src/` — Blink skeleton app inteiro (não usado, o real é frontend/)
+- `index.html`, `vite.config.ts`, `postcss.config.cjs`, `tailwind.config.cjs` raiz — configs do Blink app
+- `lib/db/` — pacote drizzle com schema vazio, não importado por nada
+- `lib/api-client-react/` — generated React Query hooks, não importado
+- `lib/api-spec/` — OpenAPI spec + orval config, não usado
+- `attached_assets/` — pastas de prompts antigos do Replit
+- `public/` raiz — SPA redirects duplicados (frontend/public é o real)
+- `scripts/src/hello.ts` — hello world inútil
+- `tsconfig.node.json` — referenciava vite.config.ts deletado
+- `frontend/src/components/GenreCarousel.tsx,text:` — arquivo corrompido (1 byte)
+
+Configs atualizadas:
+- `pnpm-workspace.yaml`: remove `lib/integrations/*` (inexistente)
+- `tsconfig.json`: remove referências a lib/db e lib/api-client-react
+- `.replit`: remove mockup-sandbox artifact, atualiza workflow frontend para `cd frontend && pnpm run dev` (porta 5173)
+- `scripts/post-merge.sh`: remove `pnpm --filter db push` (lib/db deletado)
+- `scripts/package.json`: remove script hello
+- `.gitignore`: adiciona `.deepseek/logs/`
+
+Os únicos artifacts restantes são `api-server` (backend Express) e nenhum mockup-sandbox ou cinevault antigo.
