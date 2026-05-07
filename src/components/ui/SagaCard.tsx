@@ -13,7 +13,7 @@ interface SagaCardProps {
 export function SagaCard({ collectionId, name, coverUrl, itemCount, className }: SagaCardProps) {
   return (
     <Link
-      to={`/collection/${collectionId}`}
+      href={`/collection/${collectionId}`}
       className={cn(
         "group relative flex flex-col gap-2 overflow-hidden rounded-xl bg-card p-2 transition-all hover:bg-accent/50",
         className
