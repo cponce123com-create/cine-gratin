@@ -133,6 +133,13 @@ export const fetchSagas = (): Promise<SagaItem[]> => apiFetch("/api/sagas");
 
 export const fetchSagaById = (id: number): Promise<SagaDetail> => apiFetch(`/api/sagas/${id}`);
 
+export interface RefreshSagaResponse extends SagaDetail {
+  imported: number;
+}
+
+export const refreshSaga = (id: number, autoImport = false): Promise<RefreshSagaResponse> =>
+  adminPost(`/api/admin/sagas/${id}/refresh`, { autoImport });
+
 // ── Admin endpoints ───────────────────────────────────────────────────────────
 
 export const getAutoImportStatus = (): Promise<AutoImportStatus> =>

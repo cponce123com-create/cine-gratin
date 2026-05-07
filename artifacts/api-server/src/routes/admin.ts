@@ -817,5 +817,106 @@ router.get("/admin/vidsrc-scan-stream", async (req, res) => {
   }
 });
 
+// POST /api/admin/sagas/:id/refresh — refresh saga data from TMDB, optionally import missing
+router.post("/admin/sagas/:id/refresh", async (req, res) => {
+  const collectionId = Number(req.params.id);
+  if (!collectionId || isNaN(collectionId)) {
+    return res.status(400).json({ error: "Invalid collection ID" });
+  }
+
+  const { autoImport = false } = req.body as { autoImport?: boolean };
+
+  try {
+    // Fetch collection from TMDB
+    const tmdbRes = await tmdbFetch(`/collection/${collectionId}?language=es-MX`);
+    if (!tmdbRes.ok) {
+      return res.status(404).json({ error: "Collection not found on TMDB" });
+    }
+    const collection = await tmdbRes.json() as {
+      id: number; name: string; overview: string;
+      poster_path: string | null; backdrop_path: string | null;
+      parts: Array<{ id: number; title: string; poster_path: string | null; backdrop_path: string | null; release_date: string; vote_average: number; overview: string }>;
+    };
+
+    const TMDB_IMG = "https://image.tmdb.org/t/p";
+    const parts = collection.parts
+      .filter((p: any) => p.title)
+      .sort((a: any, b: any) => {
+        const yearA = a.release_date ? Number(a.release_date.slice(0, 4)) : 0;
+        const yearB = b.release_date ? Number(b.release_date.slice(0, 4)) : 0;
+        return yearA - yearB;
+      });
+
+    const tmdbIds = parts.map((p: any) => p.id);
+
+    // Find which movies exist locally
+    const localResult = await pool.query(
+      `SELECT tmdb_id, id FROM movies WHERE tmdb_id = ANY($1) AND tmdb_id IS NOT NULL`,
+      [tmdbIds],
+    );
+    const localMap = new Map<number, string>();
+    for (const row of localResult.rows) {
+      localMap.set(Number(row.tmdb_id), row.id);
+    }
+
+    const enrichedParts = parts.map((p: any) => {
+      const localId = localMap.get(p.id) || null;
+      return {
+        id: p.id,
+        title: p.title,
+        poster_url: p.poster_path ? `${TMDB_IMG}/w500${p.poster_path}` : null,
+        backdrop_url: p.backdrop_path ? `${TMDB_IMG}/w1280${p.backdrop_path}` : null,
+        release_date: p.release_date,
+        year: p.release_date ? Number(p.release_date.slice(0, 4)) : null,
+        vote_average: p.vote_average,
+        overview: p.overview || "",
+        tmdb_id: p.id,
+        local_id: localId,
+        is_imported: localId !== null,
+      };
+    });
+
+    // Auto-import missing movies if requested
+    let imported = 0;
+    if (autoImport) {
+      const missingTmdbIds = enrichedParts
+        .filter((p) => !p.is_imported)
+        .map((p) => p.tmdb_id);
+      for (const tmdbId of missingTmdbIds) {
+        try {
+          const ok = await importMovie(tmdbId);
+          if (ok) imported++;
+          // Update local_id after import
+          const r = await pool.query(
+            `SELECT id FROM movies WHERE tmdb_id = $1 LIMIT 1`,
+            [tmdbId],
+          );
+          if (r.rows.length > 0) {
+            const part = enrichedParts.find((p) => p.tmdb_id === tmdbId);
+            if (part) {
+              part.local_id = r.rows[0].id;
+              part.is_imported = true;
+            }
+          }
+        } catch {
+          // skip
+        }
+      }
+    }
+
+    res.json({
+      id: collection.id,
+      name: collection.name,
+      poster_path: collection.poster_path ? `${TMDB_IMG}/w500${collection.poster_path}` : null,
+      backdrop_path: collection.backdrop_path ? `${TMDB_IMG}/w1280${collection.backdrop_path}` : null,
+      overview: collection.overview || "",
+      parts: enrichedParts,
+      imported,
+    });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
 export default router;
 

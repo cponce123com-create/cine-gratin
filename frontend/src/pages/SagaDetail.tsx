@@ -1,9 +1,7 @@
-import { useState } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Helmet } from "react-helmet-async";
-import { fetchSagaById, importByTmdbIds, type SagaDetail as SagaDetailType } from "@/lib/api";
-import { getToken } from "@/lib/auth";
+import { fetchSagaById, type SagaDetail as SagaDetailType } from "@/lib/api";
 
 const FALLBACK_BG =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1280' height='720' viewBox='0 0 1280 720'%3E%3Crect width='1280' height='720' fill='%231a1a1a'/%3E%3C/svg%3E";
@@ -16,78 +14,21 @@ function PlayIcon() {
   );
 }
 
-function ImportIcon() {
-  return (
-    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" strokeLinecap="round" strokeLinejoin="round" />
-      <polyline points="17 8 12 3 7 8" strokeLinecap="round" strokeLinejoin="round" />
-      <line x1="12" y1="3" x2="12" y2="15" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function Spinner() {
-  return <div className="w-5 h-5 rounded-full border-2 border-brand-red border-t-transparent animate-spin" />;
-}
-
 export default function SagaDetail() {
   const { id } = useParams<{ id: string }>();
   const sagaId = Number(id);
   const navigate = useNavigate();
 
-  const [importingParts, setImportingParts] = useState<Set<number>>(new Set());
-  const [bulkImporting, setBulkImporting] = useState(false);
-
   const {
     data: saga,
     isLoading,
     error,
-    refetch,
   } = useQuery<SagaDetailType>({
     queryKey: ["saga", sagaId],
     queryFn: () => fetchSagaById(sagaId),
     enabled: !isNaN(sagaId),
     staleTime: 30 * 60 * 1000,
   });
-
-  const hasAdminToken = !!getToken();
-
-  const importPart = async (tmdbId: number) => {
-    if (importingParts.has(tmdbId)) return;
-    setImportingParts((prev) => new Set(prev).add(tmdbId));
-    try {
-      await importByTmdbIds([tmdbId], "movie");
-      await refetch();
-    } catch {
-      // ignore
-    } finally {
-      setImportingParts((prev) => {
-        const next = new Set(prev);
-        next.delete(tmdbId);
-        return next;
-      });
-    }
-  };
-
-  const importAllMissing = async () => {
-    if (!saga || bulkImporting) return;
-    const missing = saga.parts.filter((p) => !p.is_imported);
-    if (missing.length === 0) return;
-
-    setBulkImporting(true);
-    const tmdbIds = missing.map((p) => p.tmdb_id);
-    // Import in batches of 5 to avoid overwhelming the API
-    for (let i = 0; i < tmdbIds.length; i += 5) {
-      const batch = tmdbIds.slice(i, i + 5);
-      try {
-        await importByTmdbIds(batch, "movie");
-      } catch {
-        // continue with next batch
-      }
-    }
-    await refetch();
-    setBulkImporting(false);
-  };
 
   if (isLoading) {
     return (
@@ -168,35 +109,17 @@ export default function SagaDetail() {
               {saga.parts.length} {saga.parts.length === 1 ? "película" : "películas"}
               {importedCount > 0 && (
                 <span className="text-green-400 ml-2">
-                  · {importedCount} importada{importedCount !== 1 ? "s" : ""}
+                  · {importedCount} disponible{importedCount !== 1 ? "s" : ""}
                 </span>
               )}
               {missingCount > 0 && (
                 <span className="text-yellow-400 ml-2">
-                  · {missingCount} pendiente{missingCount !== 1 ? "s" : ""}
+                  · {missingCount} no disponible{missingCount !== 1 ? "s" : ""}
                 </span>
               )}
             </p>
             {saga.overview && (
               <p className="text-gray-300 text-sm sm:text-base leading-relaxed max-w-2xl">{saga.overview}</p>
-            )}
-
-            {/* Bulk import banner */}
-            {hasAdminToken && missingCount > 0 && (
-              <div className="mt-4 flex flex-wrap items-center gap-3 p-3 rounded-lg bg-yellow-900/30 border border-yellow-700/50">
-                <p className="text-yellow-300 text-sm flex-1">
-                  {missingCount} película{missingCount !== 1 ? "s" : ""} no importada
-                  {missingCount !== 1 ? "s" : ""}
-                </p>
-                <button
-                  onClick={importAllMissing}
-                  disabled={bulkImporting}
-                  className="flex items-center gap-2 bg-yellow-600 hover:bg-yellow-500 disabled:opacity-50 text-white text-sm font-semibold py-2 px-4 rounded-lg transition-colors"
-                >
-                  {bulkImporting ? <Spinner /> : <ImportIcon />}
-                  Importar {missingCount === 1 ? "todas" : "todo"}
-                </button>
-              </div>
             )}
           </div>
         </div>
@@ -209,8 +132,6 @@ export default function SagaDetail() {
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
           {saga.parts.map((part) => {
-            const isImporting = importingParts.has(part.tmdb_id);
-
             if (part.is_imported && part.local_id) {
               // Movie exists locally → link to local player page
               return (
@@ -259,7 +180,7 @@ export default function SagaDetail() {
               );
             }
 
-            // Movie not imported
+            // Movie not imported — show as unavailable
             return (
               <div key={part.id} className="group block relative">
                 <div className="relative overflow-hidden rounded-lg bg-brand-surface">
@@ -288,29 +209,9 @@ export default function SagaDetail() {
                       </div>
                     )}
 
-                    {/* Import button in the center */}
-                    {hasAdminToken ? (
-                      <button
-                        onClick={() => importPart(part.tmdb_id)}
-                        disabled={isImporting}
-                        className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/30 hover:bg-black/50 transition-colors cursor-pointer"
-                      >
-                        {isImporting ? (
-                          <Spinner />
-                        ) : (
-                          <>
-                            <div className="w-10 h-10 rounded-full bg-brand-red flex items-center justify-center">
-                              <ImportIcon />
-                            </div>
-                            <span className="text-white text-xs font-semibold">Importar</span>
-                          </>
-                        )}
-                      </button>
-                    ) : (
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="text-gray-500 text-xs">No disponible</span>
-                      </div>
-                    )}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-gray-500 text-xs">No disponible</span>
+                    </div>
                   </div>
                 </div>
                 <p className="mt-2 text-xs text-gray-500 truncate px-0.5">{part.title}</p>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { trackMovieView, getMovieByImdbId } from "@/lib/api";
@@ -16,6 +16,8 @@ const SERVERS: Server[] = [
   { label: "Servidor 4", url: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1` },
 ];
 
+const CONTROLS_HIDE_DELAY = 3000; // hide controls after 3s of inactivity in fullscreen
+
 export default function MoviePlayer() {
   const { imdbId } = useParams<{ imdbId: string }>();
   const [searchParams] = useSearchParams();
@@ -25,10 +27,64 @@ export default function MoviePlayer() {
   const [activeServer, setActiveServer] = useState(0);
   const { saveItem } = useContinueWatching();
 
+  // ── Fullscreen / controls visibility ─────────────────────────────────
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Track browser fullscreen changes
+  useEffect(() => {
+    const handleFSChange = () => {
+      const fs = !!document.fullscreenElement;
+      setIsFullscreen(fs);
+      setControlsVisible(!fs); // show controls immediately when exiting FS
+    };
+    document.addEventListener("fullscreenchange", handleFSChange);
+    return () => document.removeEventListener("fullscreenchange", handleFSChange);
+  }, []);
+
+  // Schedule auto-hide of controls in fullscreen
+  const scheduleHide = useCallback(() => {
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    if (!isFullscreen) return;
+    hideTimerRef.current = setTimeout(() => {
+      setControlsVisible(false);
+    }, CONTROLS_HIDE_DELAY);
+  }, [isFullscreen]);
+
+  // Show controls on mouse move or click, then schedule hide
+  const revealControls = useCallback(() => {
+    if (!isFullscreen) return;
+    setControlsVisible(true);
+    scheduleHide();
+  }, [isFullscreen, scheduleHide]);
+
+  useEffect(() => {
+    if (isFullscreen) {
+      scheduleHide();
+    }
+    return () => {
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    };
+  }, [isFullscreen, scheduleHide]);
+
+  // Keyboard: ESC to exit fullscreen
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isFullscreen) {
+        void document.exitFullscreen();
+      }
+    };
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [isFullscreen]);
+
+  // ── Continue watching ────────────────────────────────────────────────
   useEffect(() => {
     if (imdbId) {
       trackMovieView(imdbId).catch(() => {});
-      
+
       // Get full movie data to have the poster and internal ID
       getMovieByImdbId(imdbId)
         .then((movie) => {
@@ -55,13 +111,27 @@ export default function MoviePlayer() {
   const src = SERVERS[activeServer].url(imdbId!);
 
   return (
-    <div className="fixed inset-0 bg-black flex flex-col">
+    <div
+      ref={containerRef}
+      className="fixed inset-0 bg-black flex flex-col"
+      onMouseMove={revealControls}
+      onClick={revealControls}
+    >
       <Helmet>
         <title>{title} — Cine Gratín</title>
       </Helmet>
 
-      {/* Controls bar — always on top, never overlaps the iframe */}
-      <div className="flex-shrink-0 bg-black border-b border-white/10 px-3 pt-3 pb-2.5 space-y-2">
+      {/* Transparent overlay when controls are hidden in fullscreen — captures mouse so mousemove works */}
+      {isFullscreen && !controlsVisible && (
+        <div className="absolute inset-0 z-10" />
+      )}
+
+      {/* Controls bar — hidden in fullscreen after inactivity */}
+      <div
+        className={`flex-shrink-0 bg-black border-b border-white/10 px-3 pt-3 pb-2.5 space-y-2 transition-opacity duration-300 ${
+          isFullscreen && !controlsVisible ? "opacity-0 pointer-events-none" : ""
+        }`}
+      >
         {/* Row 1: back + title */}
         <div className="flex items-center gap-3">
           <button
@@ -109,12 +179,10 @@ export default function MoviePlayer() {
             </button>
           </div>
         </div>
-
-
       </div>
 
-      {/* Iframe area — below controls, no overlap */}
-      <div className="relative flex-1">
+      {/* Iframe area — fills remaining space, or full viewport in fullscreen */}
+      <div className={`relative flex-1 ${isFullscreen ? "absolute inset-0" : ""}`}>
         <iframe
           key={`${src}-${activeServer}`}
           src={src}
@@ -134,14 +202,6 @@ function BackIcon() {
     <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
       <path d="M19 12H5" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M12 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function ChevronRightIcon() {
-  return (
-    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-      <path d="M9 18l6-6-6-6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

@@ -104,3 +104,65 @@ Frontend:
 - AdminLayout, EditMediaModal, Import: referencias a sagas eliminadas
 
 Regla de importación: las películas deben tener runtime >= 30 minutos para ser importadas (en importMovie de auto-import.ts). No aplica a series.
+
+## Auditoría y Correcciones
+
+## Correcciones de Seguridad (2026-05-06)
+
+- `.gitignore`: agregado `.env`, `.env.local`, `.env.*.local` para prevenir filtrado de secretos
+- `db.ts`: eliminada contraseña hardcodeada `admin123` del schema cv_auth
+- `set-superadmin.sql`: convertido a usar variables psql (`:'username'`, `:'password'`) en vez de credenciales hardcodeadas
+- `movies.ts`: login ya no fallbackea a `admin123` — si no hay fila en cv_auth, devuelve error
+- `events.ts` / `sports.ts`: agregada función `requireAuth()` inline a todos los endpoints POST/DELETE (settings, channels, sync, delete). El GET settings aún es público (expone YouTube API key — pendiente de encriptación)
+
+## Correcciones de Estabilidad (2026-05-06)
+
+- `app.ts`: corregido wildcard Express 5 de `*splat` a `(.*)` para SPA catch-all
+- `SeriesDetail.tsx`: corregidas props de SeasonData (`season_number` → `season`, `poster_url` → `poster`, `episode_count` → `episodes`)
+- `Import.tsx`: eliminado bug runtime donde se hacía spread (`[...n]`) de números (movies_imported/series_imported son number, no array)
+- `VidsrcScanner.tsx`: reemplazado `fetch('/api/admin/...')` relativo por `fetchVidsrcRange()` de `api.ts` (usa BASE_URL + auth headers)
+- `vite.config.ts` raíz: eliminado `allowedHosts: true`, reemplazado `import.meta.dirname` por `fileURLToPath` compatible con Node 18+
+- `api.ts`: agregada función `fetchVidsrcRange()` y tipo `VidsrcRangeResponse`
+
+## Sagas System
+
+## Sagas System
+
+- Added 2026-05-07: Sagas are TMDB movie collections shown on the home page and via /saga/:id detail page.
+- Backend: `artifacts/api-server/src/routes/sagas.ts` — two endpoints:
+  - `GET /api/sagas` — returns curated list of 15 well-known TMDB collections (Marvel, Harry Potter, Fast & Furious, etc.) sorted by part_count descending. Uses `tmdbFetch` from tmdb-client.
+  - `GET /api/sagas/:id` — returns full collection detail with all parts sorted chronologically.
+  - Registered in `routes/index.ts` as `router.use(sagasRouter)`.
+- Frontend API: `frontend/src/lib/api.ts` — `fetchSagas()`, `fetchSagaById()`, types `SagaItem`, `SagaPart`, `SagaDetail`.
+- Home section: `frontend/src/components/home/SagasSection.tsx` — horizontal scrollable row of saga cards (poster, name, film count badge). Shows after TmdbTrailersSection.
+- Detail page: `frontend/src/pages/SagaDetail.tsx` — backdrop hero, poster, overview, responsive grid of movie cards linking to themoviedb.org.
+- Route: `/saga/:id` registered in `App.tsx` inside PublicLayout before catch-all.
+
+## Vidsrc Scanner
+
+## Vidsrc Scanner
+
+The scanner lives at `/admin/vidsrc-scanner` (`VidsrcScanner.tsx`) and uses **SSE streaming** for real-time progress.
+
+**Backend endpoint**: `GET /api/admin/vidsrc-scan-stream` (in `admin.ts`)
+- Downloads ALL vidsrc.me pages in parallel (10 concurrent, no artificial delay)
+- Cross-references IMDb IDs against the local DB
+- Updates `vidsrc_status` in both `movies` and `cv_series` tables
+- Streams events: `start`, `phase`, `page_progress`, `match_progress`, `saving`, `done`, `error`
+
+**Legacy code preserved** (backward compatibility):
+- `GET /api/admin/vidsrc-range` — sequential page download (old approach)
+- `GET /api/admin/vidsrc-list` — single page fetch
+- `saveVidsrcResults` + `verifyVidsrc` — used by `ManageMovies`/`ManageSeries` for per-selection verification
+
+**Frontend details** (`VidsrcScanner.tsx`):
+- Uses `EventSource` with `?token=` query param for auth
+- Three progress phases: downloading (0-55%) → matching (55-95%) → saving (95-100%)
+- After `done` event, reloads catalog from API to populate per-item `vidsrc_status`
+- Dashboard card (`VidsrcVerificationCard.tsx`) links to the full scanner page
+
+## Layout & UX
+
+- Carousel scroll containers have `scroll-padding-left` (1rem/1.5rem/2rem responsive) so the first item doesn't snap flush to the left edge
+- `<ScrollRestoration />` from react-router-dom is used in App.tsx to restore scroll position on browser back/forward navigation
+- Home.tsx content wrapper uses `mx-auto max-w-7xl` to constrain layout proportionally on large screens

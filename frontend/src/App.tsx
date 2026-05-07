@@ -30,6 +30,7 @@ const SportChannels = lazy(() => import("@/pages/admin/SportChannels"));
 const EventChannels = lazy(() => import("@/pages/admin/EventChannels"));
 const TmdbScraper = lazy(() => import("@/pages/admin/TmdbScraper"));
 const VidsrcScanner = lazy(() => import("@/pages/admin/VidsrcScanner"));
+const AdminSagas = lazy(() => import("@/pages/admin/AdminSagas"));
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -172,6 +173,14 @@ const routes: RouteObject[] = [
     element: (
       <AdminPage>
         <EventChannels />
+      </AdminPage>
+    ),
+  },
+  {
+    path: "/admin/sagas",
+    element: (
+      <AdminPage>
+        <AdminSagas />
       </AdminPage>
     ),
   },
