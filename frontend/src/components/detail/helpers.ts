@@ -1,7 +1,5 @@
 import type { TmdbVideo } from "@/lib/types";
-
-const BASE_URL =
-  (import.meta.env["VITE_API_URL"] as string | undefined) || "https://cine-gratin.onrender.com";
+import { BASE_URL } from "@/lib/api";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
