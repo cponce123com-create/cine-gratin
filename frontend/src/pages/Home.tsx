@@ -154,6 +154,13 @@ export default function Home() {
           const dateB = b.item.date_added ? new Date(b.item.date_added).getTime() : 0;
           return dateB - dateA;
         });
+      } else if (sec.type === "indian") {
+        items = buildMixed(
+          allMovies,
+          allSeries,
+          (m) => matchesKeywords(m.genres, ["bollywood", "india", "hindi"]),
+          (s) => matchesKeywords(s.genres, ["bollywood", "india", "hindi"]),
+        ).sort((a, b) => (Number(b.item.views) || 0) - (Number(a.item.views) || 0));
       }
       return { ...sec, items };
     }).filter((s) => s.items.length >= MIN_ITEMS_TO_SHOW);

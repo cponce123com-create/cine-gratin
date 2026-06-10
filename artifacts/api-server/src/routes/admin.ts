@@ -758,10 +758,10 @@ router.get("/admin/vidsrc-scan-stream", async (req, res) => {
 
         const ops: Promise<unknown>[] = [];
         if (movieIds.length > 0) {
-          ops.push(pool.query(`UPDATE movies SET vidsrc_status = '${status}' WHERE imdb_id = ANY($1)`, [movieIds]));
+          ops.push(pool.query("UPDATE movies SET vidsrc_status = $1 WHERE imdb_id = ANY($2)", [status, movieIds]));
         }
         if (seriesIds.length > 0) {
-          ops.push(pool.query(`UPDATE cv_series SET vidsrc_status = '${status}' WHERE imdb_id = ANY($1)`, [seriesIds]));
+          ops.push(pool.query("UPDATE cv_series SET vidsrc_status = $1 WHERE imdb_id = ANY($2)", [status, seriesIds]));
         }
         await Promise.all(ops);
       };

@@ -31,6 +31,7 @@ const movieLimit = rateLimit({
 const toMovie = (row: Record<string, unknown>) => ({
   id: row.id,
   imdb_id: row.imdb_id,
+  tmdb_id: row.tmdb_id ? Number(row.tmdb_id) : null,
   title: row.title,
   year: Number(row.year),
   rating: Number(row.rating),

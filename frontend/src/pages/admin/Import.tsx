@@ -236,7 +236,6 @@ export default function ImportPage() {
       setInput("");
     } catch (err: any) {
       setError(err.message || "Error desconocido al importar.");
-    } finally {
       setPhase(null);
     }
   };
@@ -258,8 +257,22 @@ export default function ImportPage() {
       });
     } catch (err: any) {
       setError(err.message || "Error al ejecutar auto-import.");
-    } finally {
       setPhase(null);
+    }
+  };
+
+  const [scanningNetworks, setScanningNetworks] = useState(false);
+  const [scanNetworkError, setScanNetworkError] = useState<string | null>(null);
+
+  const handleScanNetworks = async () => {
+    setScanningNetworks(true);
+    setScanNetworkError(null);
+    try {
+      await scanNetworks("movie");
+    } catch (err: any) {
+      setScanNetworkError(err.message || "Error al escanear productoras.");
+    } finally {
+      setScanningNetworks(false);
     }
   };
 
@@ -552,15 +565,22 @@ export default function ImportPage() {
 
               <div className="space-y-2">
                 <button
-                  onClick={() => scanNetworks("movie")}
-                  className="w-full text-left px-4 py-3 rounded-xl bg-brand-surface border border-brand-border hover:border-brand-red/50 transition-all group"
+                  onClick={handleScanNetworks}
+                  disabled={scanningNetworks}
+                  className="w-full text-left px-4 py-3 rounded-xl bg-brand-surface border border-brand-border hover:border-brand-red/50 transition-all group disabled:opacity-50"
                 >
-                  <p className="text-white text-sm font-bold group-hover:text-brand-red">
-                    Escanear Productoras
+                  <p className="text-white text-sm font-bold group-hover:text-brand-red flex items-center gap-2">
+                    {scanningNetworks && (
+                      <span className="w-4 h-4 border-2 border-brand-red border-t-transparent rounded-full animate-spin" />
+                    )}
+                    {scanningNetworks ? "Escaneando..." : "Escanear Productoras"}
                   </p>
                   <p className="text-gray-500 text-xs mt-0.5">
                     Busca Netflix, HBO, etc. en TMDB para las películas actuales.
                   </p>
+                  {scanNetworkError && (
+                    <p className="text-red-400 text-xs mt-1">{scanNetworkError}</p>
+                  )}
                 </button>
               </div>
             </div>
