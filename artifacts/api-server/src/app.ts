@@ -30,7 +30,15 @@ app.use(
     },
   }),
 );
-app.use(compression());
+app.use(compression({
+  filter: (req, res) => {
+    // Don't compress SSE (Server-Sent Events) — flushHeaders doesn't work with compression
+    if (req.url?.includes("/vidsrc-scan-stream") || req.url?.includes("/scan-networks-stream")) {
+      return false;
+    }
+    return compression.filter(req, res);
+  },
+}));
 
 // CORS: allow known origins in production, all origins in dev
 const allowedOrigins = process.env["CORS_ORIGINS"]
