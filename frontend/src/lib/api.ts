@@ -64,7 +64,10 @@ export async function adminDelete(path: string): Promise<void> {
     method: "DELETE",
     headers: authHeaders(),
   });
-  if (!res.ok) throw new Error(`API error ${res.status}: ${path}`);
+  if (!res.ok) {
+    const msg = await res.json().catch(() => ({ error: "Error desconocido" }));
+    throw new Error(msg.error || `API error ${res.status}: ${path}`);
+  }
 }
 
 // ── Public endpoints ──────────────────────────────────────────────────────────

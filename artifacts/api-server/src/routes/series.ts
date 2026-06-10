@@ -150,10 +150,13 @@ router.post(["/admin/series", "/admin/series/:id"], async (req, res) => {
 // DELETE /api/admin/series/:id
 router.delete("/admin/series/:id", async (req, res) => {
   try {
-    await pool.query("DELETE FROM cv_series WHERE id = $1", [req.params.id]);
-    res.json({ ok: true });
+    const result = await pool.query("DELETE FROM cv_series WHERE id = $1", [req.params.id]);
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Serie no encontrada" });
+    }
+    return res.json({ ok: true, deleted: result.rowCount });
   } catch (e) {
-    res.status(500).json({ error: String(e) });
+    return res.status(500).json({ error: String(e) });
   }
 });
 

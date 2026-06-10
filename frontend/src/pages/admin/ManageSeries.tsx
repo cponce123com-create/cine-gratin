@@ -93,6 +93,7 @@ export default function ManageSeries() {
     if (missingFilter === "Sin sinopsis") list = list.filter((s) => !s.synopsis);
     if (missingFilter === "Sin géneros") list = list.filter((s) => !s.genres || s.genres.length === 0);
     if (missingFilter === "Sin año") list = list.filter((s) => !s.year);
+    if (missingFilter === "Sin video") list = list.filter((s) => s.vidsrc_status === "inactive" || s.vidsrc_status === "unknown");
 
     list.sort((a, b) => {
       let cmp = 0;
@@ -150,6 +151,7 @@ export default function ManageSeries() {
       const results = await verifyVidsrc(imdbIds, "series");
       const active = results.filter((r) => r.available).length;
       toast.success(`Verificación: ${active} activos de ${results.length}`);
+      load(); // Recargar para reflejar vidsrc_status actualizado
     } catch {
       toast.error("Error al verificar disponibilidad");
     }
@@ -283,6 +285,7 @@ export default function ManageSeries() {
                 <option value="Sin sinopsis">Sin sinopsis</option>
                 <option value="Sin géneros">Sin géneros</option>
                 <option value="Sin año">Sin año</option>
+                <option value="Sin video">Sin video (inactivo)</option>
               </select>
             </div>
           </div>
@@ -328,6 +331,7 @@ export default function ManageSeries() {
                       ))}
                   </th>
                   <th className="px-4 py-3 text-gray-500 font-medium uppercase text-xs">Temp.</th>
+                  <th className="px-4 py-3 text-gray-500 font-medium uppercase text-xs text-center">VidSrc</th>
                   <th className="px-4 py-3 text-gray-500 font-medium uppercase text-xs text-right">
                     Acciones
                   </th>
@@ -336,13 +340,13 @@ export default function ManageSeries() {
               <tbody className="divide-y divide-brand-border">
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-10 text-center text-gray-500">
+                    <td colSpan={7} className="px-4 py-10 text-center text-gray-500">
                       Cargando...
                     </td>
                   </tr>
                 ) : paginated.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-10 text-center text-gray-500">
+                    <td colSpan={7} className="px-4 py-10 text-center text-gray-500">
                       No se encontraron series
                     </td>
                   </tr>
@@ -380,6 +384,21 @@ export default function ManageSeries() {
                       </td>
                       <td className="px-4 py-3 text-gray-400">{s.year}</td>
                       <td className="px-4 py-3 text-gray-400">{s.total_seasons || 0}</td>
+                      <td className="px-4 py-3 text-center">
+                        {s.vidsrc_status === "active" ? (
+                          <span className="inline-flex items-center gap-1 text-xs text-green-400 bg-green-400/10 px-2 py-0.5 rounded-full">
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                            Activo
+                          </span>
+                        ) : s.vidsrc_status === "inactive" ? (
+                          <span className="inline-flex items-center gap-1 text-xs text-red-400 bg-red-400/10 px-2 py-0.5 rounded-full">
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                            Inactivo
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-600">—</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
                           <button

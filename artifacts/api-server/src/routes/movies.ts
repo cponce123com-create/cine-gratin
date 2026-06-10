@@ -192,10 +192,13 @@ router.post(["/admin/movies", "/admin/movies/:id"], async (req, res) => {
 // DELETE /api/admin/movies/:id
 router.delete("/admin/movies/:id", async (req, res) => {
   try {
-    await pool.query("DELETE FROM movies WHERE id = $1", [req.params.id]);
-    res.json({ ok: true });
+    const result = await pool.query("DELETE FROM movies WHERE id = $1", [req.params.id]);
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Película no encontrada" });
+    }
+    return res.json({ ok: true, deleted: result.rowCount });
   } catch (e) {
-    res.status(500).json({ error: String(e) });
+    return res.status(500).json({ error: String(e) });
   }
 });
 
