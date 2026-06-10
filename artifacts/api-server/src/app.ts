@@ -18,11 +18,29 @@ app.use(
       directives: {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'", "'unsafe-inline'", "https://www.youtube.com", "https://s.ytimg.com"],
-        frameSrc: ["'self'", "https://www.youtube.com", "https://vidsrc.me", "https://2embed.org", "https://vidembed.io"],
-        imgSrc: ["'self'", "data:", "https://image.tmdb.org", "https://i.ytimg.com", "https://*.ytimg.com"],
+        frameSrc: [
+          "'self'",
+          "https://www.youtube.com",
+          "https://vidsrc.me",
+          "https://vidsrc.xyz",
+          "https://vidsrc.to",
+          "https://vidsrc.mov",
+          "https://2embed.org",
+          "https://www.2embed.cc",
+          "https://vidembed.io",
+          "https://multiembed.mov",
+        ],
+        imgSrc: [
+          "'self'",
+          "data:",
+          "https://image.tmdb.org",
+          "https://i.ytimg.com",
+          "https://*.ytimg.com",
+        ],
         connectSrc: ["'self'", "https://www.googleapis.com", "https://vidsrc.me"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         fontSrc: ["'self'"],
+        mediaSrc: ["'self'", "https:", "data:", "blob:"],
       },
     },
     crossOriginEmbedderPolicy: false,
@@ -38,9 +56,6 @@ if (corsOrigins) {
   if (origins.includes("*") && process.env["NODE_ENV"] === "production") {
     throw new Error("CORS_ORIGINS wildcard (*) is not allowed in production. Specify explicit origins.");
   }
-  app.use(cors({ origin: origins, credentials: true }));
-} else {
-  app.use(cors());
 }
 
 app.use(
