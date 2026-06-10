@@ -2,6 +2,7 @@ import { memo, useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Helmet } from "react-helmet-async";
 import { SkeletonGrid } from "@/components/SkeletonCard";
+import { SearchIcon, PlayIcon } from "@/components/icons";
 import type { ChannelItem } from "@/lib/channels-api";
 
 const FALLBACK_THUMBNAIL =
@@ -185,22 +186,5 @@ const YouTubeEventGrid = memo(function YouTubeEventGrid({
     </div>
   );
 });
-
-function SearchIcon() {
-  return (
-    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <circle cx="11" cy="11" r="8" />
-      <path d="m21 21-4.35-4.35" />
-    </svg>
-  );
-}
-
-function PlayIcon() {
-  return (
-    <svg className="w-6 h-6 text-white ml-1" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M8 5v14l11-7z" />
-    </svg>
-  );
-}
 
 export default YouTubeEventGrid;

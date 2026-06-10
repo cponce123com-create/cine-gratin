@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { searchMovies, searchSeries } from "@/lib/api";
+import { SearchIcon } from "@/components/icons";
 import type { Movie, Series } from "@/lib/types";
 
 const FALLBACK_POSTER =
@@ -356,14 +357,5 @@ export default function Navbar() {
         )}
       </div>
     </header>
-  );
-}
-
-function SearchIcon() {
-  return (
-    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <circle cx="11" cy="11" r="8" />
-      <path d="m21 21-4.35-4.35" />
-    </svg>
   );
 }

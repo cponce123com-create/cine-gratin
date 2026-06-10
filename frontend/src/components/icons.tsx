@@ -55,3 +55,19 @@ export function CheckIcon({ size = 16, className, ...props }: IconProps) {
     </svg>
   );
 }
+
+// Triangle play icon (used by VidsrcScanner)
+export function PlayTriangleIcon({ size = 16, className, ...props }: IconProps) {
+  return (
+    <svg
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      {...props}
+    >
+      <polygon points="5 3 19 12 5 21 5 3" />
+    </svg>
+  );
+}

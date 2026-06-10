@@ -3,6 +3,7 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import { getMovies, getSeries, cleanupNoVidsrc } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 import { BASE_URL } from "@/lib/api";
+import { PlayTriangleIcon } from "@/components/icons";
 import type { Movie, Series } from "@/lib/types";
 
 type RowStatus = "pending" | "active" | "inactive";
@@ -351,7 +352,7 @@ export default function VidsrcScanner() {
                   disabled={loadingCatalog || rows.length === 0}
                   className="flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
                 >
-                  <PlayIcon />{" "}
+                  <PlayTriangleIcon size={16} />{" "}
                   {phase === "done" ? "Volver a escanear" : `Iniciar escaneo (${rows.length} títulos)`}
                 </button>
               ) : (
@@ -519,13 +520,6 @@ export default function VidsrcScanner() {
   );
 }
 
-function PlayIcon() {
-  return (
-    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-      <polygon points="5 3 19 12 5 21 5 3" />
-    </svg>
-  );
-}
 function TrashIcon() {
   return (
     <svg
