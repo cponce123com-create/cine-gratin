@@ -14,13 +14,7 @@ function formatDate(iso: string) {
   }
 }
 
-export default function ImportLogsTable({
-  logs,
-  loading,
-}: {
-  logs: AutoImportLog[];
-  loading: boolean;
-}) {
+export default function ImportLogsTable({ logs, loading }: { logs: AutoImportLog[]; loading: boolean }) {
   return (
     <div className="bg-brand-card border border-brand-border rounded-2xl overflow-hidden">
       <div className="px-6 py-4 border-b border-brand-border">

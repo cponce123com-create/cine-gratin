@@ -15,11 +15,7 @@ interface YouTubeEventGridProps {
   /** React Query key */
   queryKey: string[];
   /** Fetch function (must respect { limit } param) */
-  fetchFn: (params?: {
-    q?: string;
-    limit?: number;
-    offset?: number;
-  }) => Promise<ChannelItem[]>;
+  fetchFn: (params?: { q?: string; limit?: number; offset?: number }) => Promise<ChannelItem[]>;
   /** Shown when items list is empty after a successful load */
   emptyMessage?: string;
   /** Shown on fetch error */
@@ -34,7 +30,11 @@ const YouTubeEventGrid = memo(function YouTubeEventGrid({
   emptyMessage = "No hay eventos disponibles.",
   errorMessage = "No se pudieron cargar los eventos.",
 }: YouTubeEventGridProps) {
-  const { data: items, isLoading: loading, error } = useQuery({
+  const {
+    data: items,
+    isLoading: loading,
+    error,
+  } = useQuery({
     queryKey,
     queryFn: () => fetchFn({ limit: 100 }),
     staleTime: 5 * 60 * 1000,
@@ -52,10 +52,7 @@ const YouTubeEventGrid = memo(function YouTubeEventGrid({
     return list;
   }, [items, search]);
 
-  const selectedItem = useMemo(
-    () => items?.find((e) => e.yt_id === selectedId),
-    [items, selectedId],
-  );
+  const selectedItem = useMemo(() => items?.find((e) => e.yt_id === selectedId), [items, selectedId]);
 
   return (
     <div className="min-h-screen bg-brand-dark pt-20 pb-16">
@@ -67,9 +64,7 @@ const YouTubeEventGrid = memo(function YouTubeEventGrid({
         <div className="mb-8">
           <h1 className="text-3xl font-black text-white mb-2">{heading}</h1>
           <p className="text-gray-400 text-sm">
-            {items
-              ? `${filtered.length} eventos disponibles`
-              : "Cargando..."}
+            {items ? `${filtered.length} eventos disponibles` : "Cargando..."}
           </p>
         </div>
 
@@ -109,9 +104,7 @@ const YouTubeEventGrid = memo(function YouTubeEventGrid({
               />
             </div>
             <div className="p-4 bg-brand-surface/50 flex justify-between items-center">
-              <h2 className="text-lg font-bold text-white">
-                {selectedItem.title}
-              </h2>
+              <h2 className="text-lg font-bold text-white">{selectedItem.title}</h2>
               <button
                 onClick={() => setSelectedId(null)}
                 className="text-gray-400 hover:text-white text-sm font-medium"
@@ -161,8 +154,7 @@ const YouTubeEventGrid = memo(function YouTubeEventGrid({
                     alt={item.title}
                     loading="lazy"
                     onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).src =
-                        FALLBACK_THUMBNAIL;
+                      (e.currentTarget as HTMLImageElement).src = FALLBACK_THUMBNAIL;
                     }}
                     className="w-full h-full object-cover"
                   />
@@ -177,9 +169,7 @@ const YouTubeEventGrid = memo(function YouTubeEventGrid({
                     {item.title}
                   </p>
                   <div className="flex items-center gap-2 mt-1">
-                    <span className="text-xs text-gray-500 font-medium">
-                      {item.channel_name}
-                    </span>
+                    <span className="text-xs text-gray-500 font-medium">{item.channel_name}</span>
                     {item.published_at && (
                       <span className="text-[10px] text-gray-600">
                         • {new Date(item.published_at).toLocaleDateString()}
@@ -198,13 +188,7 @@ const YouTubeEventGrid = memo(function YouTubeEventGrid({
 
 function SearchIcon() {
   return (
-    <svg
-      className="w-4 h-4"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-    >
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <circle cx="11" cy="11" r="8" />
       <path d="m21 21-4.35-4.35" />
     </svg>

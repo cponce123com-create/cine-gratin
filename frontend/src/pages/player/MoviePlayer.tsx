@@ -122,9 +122,7 @@ export default function MoviePlayer() {
       </Helmet>
 
       {/* Transparent overlay when controls are hidden in fullscreen — captures mouse so mousemove works */}
-      {isFullscreen && !controlsVisible && (
-        <div className="absolute inset-0 z-10" />
-      )}
+      {isFullscreen && !controlsVisible && <div className="absolute inset-0 z-10" />}
 
       {/* Controls bar — hidden in fullscreen after inactivity */}
       <div
@@ -140,9 +138,7 @@ export default function MoviePlayer() {
           >
             <BackIcon /> Volver
           </button>
-          <h1 className="text-white/90 font-bold text-sm sm:text-base truncate flex-1 min-w-0">
-            {title}
-          </h1>
+          <h1 className="text-white/90 font-bold text-sm sm:text-base truncate flex-1 min-w-0">{title}</h1>
         </div>
 
         {/* Row 2: servers + utility buttons */}
@@ -199,7 +195,13 @@ export default function MoviePlayer() {
 
 function BackIcon() {
   return (
-    <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+    <svg
+      className="w-4 h-4 flex-shrink-0"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+    >
       <path d="M19 12H5" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M12 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
@@ -208,7 +210,13 @@ function BackIcon() {
 
 function FullscreenIcon() {
   return (
-    <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <svg
+      className="w-3.5 h-3.5 flex-shrink-0"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
       <path d="M8 3H5a2 2 0 0 0-2 2v3" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M21 8V5a2 2 0 0 0-2-2h-3" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M3 16v3a2 2 0 0 0 2 2h3" strokeLinecap="round" strokeLinejoin="round" />
@@ -219,8 +227,18 @@ function FullscreenIcon() {
 
 function ExternalLinkIcon() {
   return (
-    <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" strokeLinecap="round" strokeLinejoin="round" />
+    <svg
+      className="w-3.5 h-3.5 flex-shrink-0"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
+      <path
+        d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
       <polyline points="15 3 21 3 21 9" strokeLinecap="round" strokeLinejoin="round" />
       <line x1="10" y1="14" x2="21" y2="3" strokeLinecap="round" strokeLinejoin="round" />
     </svg>

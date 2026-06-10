@@ -24,7 +24,12 @@ const MediaCard = memo(function MediaCard({ item, type, size = "md" }: MediaCard
   const posterSize = size === "sm" ? "small" : size === "lg" ? "large" : "medium";
   const posterUrl = optimizeImageUrl(item.poster_url, posterSize);
   const posterSrcSet = tmdbSrcSet(item.poster_url);
-  const posterSizes = size === "sm" ? "128px" : size === "lg" ? "(max-width:640px) 176px, 208px" : "(max-width:640px) 144px, 176px";
+  const posterSizes =
+    size === "sm"
+      ? "128px"
+      : size === "lg"
+        ? "(max-width:640px) 176px, 208px"
+        : "(max-width:640px) 144px, 176px";
 
   const hasRating = item.rating !== undefined && item.rating !== null && Number(item.rating) > 0;
 
@@ -60,12 +65,8 @@ const MediaCard = memo(function MediaCard({ item, type, size = "md" }: MediaCard
 
         {/* Hover overlay */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-3">
-          <p className="text-white text-xs font-semibold line-clamp-2 leading-snug">
-            {item.title}
-          </p>
-          {item.year && (
-            <span className="text-gray-400 text-xs mt-0.5">{item.year}</span>
-          )}
+          <p className="text-white text-xs font-semibold line-clamp-2 leading-snug">{item.title}</p>
+          {item.year && <span className="text-gray-400 text-xs mt-0.5">{item.year}</span>}
         </div>
       </div>
       <p className="mt-2 text-xs text-gray-400 truncate px-0.5 group-hover:text-gray-200 transition-colors">

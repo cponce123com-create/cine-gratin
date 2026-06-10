@@ -31,7 +31,20 @@ app.use(
   }),
 );
 app.use(compression());
-app.use(cors());
+
+// CORS: allow known origins in production, all origins in dev
+const allowedOrigins = process.env["CORS_ORIGINS"]
+  ? process.env["CORS_ORIGINS"].split(",")
+  : ["http://localhost:5173", "http://localhost:4173"];
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (non-browser, curl, etc.)
+    if (!origin || allowedOrigins.includes("*")) return callback(null, true);
+    if (allowedOrigins.some((o) => origin.startsWith(o))) return callback(null, true);
+    callback(null, false);
+  },
+  credentials: true,
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

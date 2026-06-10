@@ -94,7 +94,12 @@ export default function AdminDashboard() {
   };
 
   const handleCleanup = async () => {
-    if (!confirm("¿Estás seguro de eliminar todas las películas y series que no tengan póster? Esta acción no se puede deshacer.")) return;
+    if (
+      !confirm(
+        "¿Estás seguro de eliminar todas las películas y series que no tengan póster? Esta acción no se puede deshacer.",
+      )
+    )
+      return;
     setCleaning(true);
     try {
       const res = await cleanupMissingImages("all");
@@ -215,8 +220,12 @@ export default function AdminDashboard() {
             <div className="flex flex-wrap items-center gap-4">
               {/* Status badge */}
               <div className="flex items-center gap-2">
-                <div className={`w-2.5 h-2.5 rounded-full ${status?.enabled ? "bg-green-400" : "bg-gray-600"}`} />
-                <span className={`text-sm font-semibold ${status?.enabled ? "text-green-400" : "text-gray-500"}`}>
+                <div
+                  className={`w-2.5 h-2.5 rounded-full ${status?.enabled ? "bg-green-400" : "bg-gray-600"}`}
+                />
+                <span
+                  className={`text-sm font-semibold ${status?.enabled ? "text-green-400" : "text-gray-500"}`}
+                >
                   {status?.enabled ? "Activado" : "Desactivado"}
                 </span>
               </div>

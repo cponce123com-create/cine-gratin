@@ -11,7 +11,10 @@ interface Server {
 }
 
 const SERVERS: Server[] = [
-  { label: "Servidor 1", url: (id, s, e) => `https://vidsrc.xyz/embed/tv?imdb=${id}&season=${s}&episode=${e}` },
+  {
+    label: "Servidor 1",
+    url: (id, s, e) => `https://vidsrc.xyz/embed/tv?imdb=${id}&season=${s}&episode=${e}`,
+  },
   { label: "Servidor 2", url: (id, s, e) => `https://vidsrc.to/embed/tv/${id}/${s}/${e}` },
   { label: "Servidor 3", url: (id, s, e) => `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}` },
   { label: "Servidor 4", url: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}` },
@@ -20,7 +23,11 @@ const SERVERS: Server[] = [
 function parseSeasons(raw: unknown): SeasonData[] {
   if (!raw) return [];
   if (typeof raw === "string") {
-    try { return JSON.parse(raw) as SeasonData[]; } catch { return []; }
+    try {
+      return JSON.parse(raw) as SeasonData[];
+    } catch {
+      return [];
+    }
   }
   return Array.isArray(raw) ? (raw as SeasonData[]) : [];
 }
@@ -55,7 +62,7 @@ export default function SeriesPlayer() {
         const parsed = parseSeasons(s.seasons_data);
         setSeasonsData(parsed);
         setTotalSeasons(s.total_seasons ?? parsed.length ?? 1);
-        
+
         // Save to continue watching
         saveItem({
           id: s.id,
@@ -88,20 +95,33 @@ export default function SeriesPlayer() {
   const seasonOptions = Array.from({ length: resolvedTotalSeasons }, (_, i) => i + 1);
   const episodeOptions = Array.from({ length: episodesInSeason }, (_, i) => i + 1);
 
-  const handleSeasonChange = (s: number) => { setSeason(s); setEpisode(1); };
+  const handleSeasonChange = (s: number) => {
+    setSeason(s);
+    setEpisode(1);
+  };
 
   const handlePrev = () => {
-    if (episode > 1) { setEpisode((e) => e - 1); return; }
+    if (episode > 1) {
+      setEpisode((e) => e - 1);
+      return;
+    }
     if (season > 1) {
       const prev = season - 1;
       const prevEps = seasonsData.find((s) => s.season === prev)?.episodes ?? 1;
-      setSeason(prev); setEpisode(prevEps);
+      setSeason(prev);
+      setEpisode(prevEps);
     }
   };
 
   const handleNext = () => {
-    if (episode < episodesInSeason) { setEpisode((e) => e + 1); return; }
-    if (season < resolvedTotalSeasons) { setSeason((s) => s + 1); setEpisode(1); }
+    if (episode < episodesInSeason) {
+      setEpisode((e) => e + 1);
+      return;
+    }
+    if (season < resolvedTotalSeasons) {
+      setSeason((s) => s + 1);
+      setEpisode(1);
+    }
   };
 
   const isFirst = season === 1 && episode <= 1;
@@ -110,7 +130,11 @@ export default function SeriesPlayer() {
   return (
     <div className="fixed inset-0 bg-black flex flex-col">
       <Helmet>
-        <title>{title && title.trim() ? `${title} T${season}E${episode} — Cine Gratín` : `Cine Gratín - T${season}E${episode}`}</title>
+        <title>
+          {title && title.trim()
+            ? `${title} T${season}E${episode} — Cine Gratín`
+            : `Cine Gratín - T${season}E${episode}`}
+        </title>
       </Helmet>
 
       {/* Controls bar — always on top, never overlaps the iframe */}
@@ -125,7 +149,9 @@ export default function SeriesPlayer() {
           </button>
           <h1 className="text-white/90 font-bold text-sm sm:text-base truncate flex-1 min-w-0">
             {title}
-            <span className="text-white/50 font-normal ml-2 text-xs">T{season} · E{episode}</span>
+            <span className="text-white/50 font-normal ml-2 text-xs">
+              T{season} · E{episode}
+            </span>
           </h1>
           <button
             onClick={() => setShowSelectors((v) => !v)}
@@ -170,8 +196,6 @@ export default function SeriesPlayer() {
           </div>
         </div>
 
-
-
         {/* Episode selector panel */}
         {showSelectors && (
           <div className="bg-black/90 border border-white/10 rounded-xl p-4">
@@ -179,7 +203,9 @@ export default function SeriesPlayer() {
               <div>
                 <label className="block text-white/50 text-xs font-medium mb-1.5 uppercase tracking-wider">
                   Temporada
-                  {totalSeasons === null && <span className="ml-1 text-white/30 normal-case tracking-normal">cargando...</span>}
+                  {totalSeasons === null && (
+                    <span className="ml-1 text-white/30 normal-case tracking-normal">cargando...</span>
+                  )}
                 </label>
                 <select
                   value={season}
@@ -208,7 +234,9 @@ export default function SeriesPlayer() {
                   className="bg-white/10 border border-white/10 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-white/30"
                 >
                   {episodeOptions.map((ep) => (
-                    <option key={ep} value={ep} className="bg-gray-900">Episodio {ep}</option>
+                    <option key={ep} value={ep} className="bg-gray-900">
+                      Episodio {ep}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -262,7 +290,13 @@ export default function SeriesPlayer() {
 
 function BackIcon() {
   return (
-    <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+    <svg
+      className="w-4 h-4 flex-shrink-0"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+    >
       <path d="M19 12H5" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M12 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
@@ -300,7 +334,13 @@ function ChevronRightIcon() {
 
 function FullscreenIcon() {
   return (
-    <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <svg
+      className="w-3.5 h-3.5 flex-shrink-0"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
       <path d="M8 3H5a2 2 0 0 0-2 2v3" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M21 8V5a2 2 0 0 0-2-2h-3" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M3 16v3a2 2 0 0 0 2 2h3" strokeLinecap="round" strokeLinejoin="round" />
@@ -311,8 +351,18 @@ function FullscreenIcon() {
 
 function ExternalLinkIcon() {
   return (
-    <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" strokeLinecap="round" strokeLinejoin="round" />
+    <svg
+      className="w-3.5 h-3.5 flex-shrink-0"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
+      <path
+        d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
       <polyline points="15 3 21 3 21 9" strokeLinecap="round" strokeLinejoin="round" />
       <line x1="10" y1="14" x2="21" y2="3" strokeLinecap="round" strokeLinejoin="round" />
     </svg>

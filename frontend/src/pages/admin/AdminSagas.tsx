@@ -40,30 +40,27 @@ function SagaPartCard({
   onImport: () => void;
 }) {
   return (
-    <div className={`rounded-lg overflow-hidden border transition-colors ${
-      part.is_imported
-        ? "border-green-800/40 bg-brand-surface"
-        : "border-yellow-800/30 bg-brand-surface/80 opacity-85"
-    }`}>
+    <div
+      className={`rounded-lg overflow-hidden border transition-colors ${
+        part.is_imported
+          ? "border-green-800/40 bg-brand-surface"
+          : "border-yellow-800/30 bg-brand-surface/80 opacity-85"
+      }`}
+    >
       <div className="aspect-[2/3] relative bg-brand-dark">
         {part.poster_url ? (
-          <img
-            src={part.poster_url}
-            alt={part.title}
-            className="w-full h-full object-cover"
-            loading="lazy"
-          />
+          <img src={part.poster_url} alt={part.title} className="w-full h-full object-cover" loading="lazy" />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <span className="text-gray-600 text-xs px-2 text-center">{part.title}</span>
           </div>
         )}
 
-        <div className={`absolute top-1.5 right-1.5 rounded-md px-1.5 py-0.5 text-[10px] font-bold ${
-          part.is_imported
-            ? "bg-green-700/80 text-white"
-            : "bg-yellow-700/80 text-white"
-        }`}>
+        <div
+          className={`absolute top-1.5 right-1.5 rounded-md px-1.5 py-0.5 text-[10px] font-bold ${
+            part.is_imported ? "bg-green-700/80 text-white" : "bg-yellow-700/80 text-white"
+          }`}
+        >
           {part.is_imported ? "Importada" : "Pendiente"}
         </div>
 
@@ -98,9 +95,7 @@ function SagaPartCard({
         <p className="text-xs font-medium text-white truncate">{part.title}</p>
         <div className="flex items-center justify-between mt-1">
           {part.year && <span className="text-[10px] text-gray-500">{part.year}</span>}
-          {part.is_imported && (
-            <span className="text-[10px] text-green-400 font-medium">✓ Local</span>
-          )}
+          {part.is_imported && <span className="text-[10px] text-green-400 font-medium">✓ Local</span>}
         </div>
       </div>
     </div>
@@ -227,9 +222,10 @@ export default function AdminSagas() {
       const result = await refreshSaga(selectedId, autoImport);
       await refetchDetail();
       queryClient.invalidateQueries({ queryKey: ["sagas"] });
-      toast.success(autoImport
-        ? `Saga sincronizada. ${result.imported} películas importadas.`
-        : "Saga sincronizada correctamente"
+      toast.success(
+        autoImport
+          ? `Saga sincronizada. ${result.imported} películas importadas.`
+          : "Saga sincronizada correctamente",
       );
     } catch (err: any) {
       toast.error(err.message || "Error al sincronizar saga");
@@ -365,7 +361,9 @@ export default function AdminSagas() {
                       <span className="text-sm font-medium truncate">{saga.name}</span>
                       {isCurated && <Lock size={11} className="text-gray-500 flex-shrink-0" />}
                     </div>
-                    <span className="text-xs text-gray-500">{saga.part_count} {saga.part_count === 1 ? "película" : "películas"}</span>
+                    <span className="text-xs text-gray-500">
+                      {saga.part_count} {saga.part_count === 1 ? "película" : "películas"}
+                    </span>
                   </div>
 
                   {/* Status dot */}
@@ -522,7 +520,8 @@ export default function AdminSagas() {
               <div className="mb-4 flex items-center gap-3 p-3 rounded-lg bg-yellow-900/30 border border-yellow-700/50">
                 <AlertCircle size={16} className="text-yellow-400 flex-shrink-0" />
                 <p className="text-yellow-300 text-sm flex-1">
-                  {missingCount} película{missingCount !== 1 ? "s" : ""} pendiente{missingCount !== 1 ? "s" : ""} de importar
+                  {missingCount} película{missingCount !== 1 ? "s" : ""} pendiente
+                  {missingCount !== 1 ? "s" : ""} de importar
                 </p>
               </div>
             ) : (

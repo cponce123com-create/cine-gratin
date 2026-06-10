@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Helmet } from "react-helmet-async";
@@ -11,14 +11,20 @@ import { ReviewCard } from "@/components/detail/ReviewCard";
 
 function PlayIcon() {
   return (
-    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M8 5v14l11-7z" />
+    </svg>
   );
 }
 
 function parseSeasons(raw: unknown): SeasonData[] {
   if (!raw) return [];
   if (typeof raw === "string") {
-    try { return JSON.parse(raw) as SeasonData[]; } catch { return []; }
+    try {
+      return JSON.parse(raw) as SeasonData[];
+    } catch {
+      return [];
+    }
   }
   return Array.isArray(raw) ? (raw as SeasonData[]) : [];
 }
@@ -27,7 +33,11 @@ export default function SeriesDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
-  const { data: series, isLoading: loading, error } = useQuery({
+  const {
+    data: series,
+    isLoading: loading,
+    error,
+  } = useQuery({
     queryKey: ["series", id],
     queryFn: () => getSeriesById(id!),
     enabled: !!id,
@@ -58,7 +68,9 @@ export default function SeriesDetail() {
       <div className="min-h-screen bg-brand-dark flex items-center justify-center pt-16">
         <div className="text-center">
           <p className="text-red-400 text-lg">No se pudo cargar la serie.</p>
-          <Link to="/series" className="mt-4 inline-block text-brand-red hover:text-red-400 underline">Volver a series</Link>
+          <Link to="/series" className="mt-4 inline-block text-brand-red hover:text-red-400 underline">
+            Volver a series
+          </Link>
         </div>
       </div>
     );
@@ -67,7 +79,10 @@ export default function SeriesDetail() {
   return (
     <div className="min-h-screen bg-brand-dark">
       <Helmet>
-        <title>{series.title}{showYear ? ` (${series.year})` : ""} — Cine Gratín</title>
+        <title>
+          {series.title}
+          {showYear ? ` (${series.year})` : ""} — Cine Gratín
+        </title>
         <meta name="description" content={series.synopsis?.slice(0, 160) ?? ""} />
         <meta property="og:title" content={`${series.title} — Cine Gratín`} />
         <meta property="og:description" content={series.synopsis?.slice(0, 200) ?? ""} />
@@ -81,7 +96,9 @@ export default function SeriesDetail() {
           src={series.background_url || series.poster_url || FALLBACK_BG}
           alt={series.title}
           className="w-full h-full object-cover object-top"
-          onError={e => { (e.currentTarget as HTMLImageElement).src = FALLBACK_BG; }}
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).src = FALLBACK_BG;
+          }}
         />
         <div className="absolute inset-0 hero-gradient" />
         <div className="absolute inset-x-0 bottom-0 h-40 hero-gradient-bottom" />
@@ -96,14 +113,15 @@ export default function SeriesDetail() {
       {/* Content */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 -mt-24 relative z-10 pb-16">
         <div className="flex flex-col sm:flex-row gap-8">
-
           {/* Poster */}
           <div className="flex-shrink-0 w-36 sm:w-48 md:w-56">
             <img
               src={series.poster_url || FALLBACK_POSTER}
               alt={series.title}
               className="w-full aspect-[2/3] object-cover rounded-xl shadow-2xl border border-brand-border"
-              onError={e => { (e.currentTarget as HTMLImageElement).src = FALLBACK_POSTER; }}
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).src = FALLBACK_POSTER;
+              }}
             />
           </div>
 
@@ -111,44 +129,65 @@ export default function SeriesDetail() {
           <div className="flex-1 pt-2 sm:pt-12">
             <h1 className="text-2xl sm:text-4xl font-black text-white mb-2 leading-tight">
               {series.title}
-              {showYear && <span className="ml-2 text-lg sm:text-2xl font-normal text-gray-400">({series.year})</span>}
+              {showYear && (
+                <span className="ml-2 text-lg sm:text-2xl font-normal text-gray-400">({series.year})</span>
+              )}
             </h1>
 
             <div className="flex flex-wrap items-center gap-3 mb-4">
               {series.rating !== undefined && Number(series.rating) > 0 && (
-                <span className="flex items-center gap-1 text-brand-gold font-bold">★ {Number(series.rating).toFixed(1)}</span>
+                <span className="flex items-center gap-1 text-brand-gold font-bold">
+                  ★ {Number(series.rating).toFixed(1)}
+                </span>
               )}
               {series.mpa_rating && series.mpa_rating !== "NR" && (
-                <span className="text-xs border border-gray-600 text-gray-400 px-1.5 py-0.5 rounded">{series.mpa_rating}</span>
+                <span className="text-xs border border-gray-600 text-gray-400 px-1.5 py-0.5 rounded">
+                  {series.mpa_rating}
+                </span>
               )}
               {seasonsData.length > 0 && (
-                <span className="text-gray-400">{seasonsData.length} temporada{seasonsData.length !== 1 ? "s" : ""}</span>
+                <span className="text-gray-400">
+                  {seasonsData.length} temporada{seasonsData.length !== 1 ? "s" : ""}
+                </span>
               )}
             </div>
 
             {series.genres && series.genres.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-5">
-                {series.genres.map(g => (
-                  <span key={g} className="text-xs bg-brand-surface border border-brand-border rounded-full px-3 py-1 text-gray-300">{g}</span>
+                {series.genres.map((g) => (
+                  <span
+                    key={g}
+                    className="text-xs bg-brand-surface border border-brand-border rounded-full px-3 py-1 text-gray-300"
+                  >
+                    {g}
+                  </span>
                 ))}
               </div>
             )}
 
             {series.synopsis && (
-              <p className="text-gray-300 text-sm sm:text-base leading-relaxed mb-5 max-w-2xl">{series.synopsis}</p>
+              <p className="text-gray-300 text-sm sm:text-base leading-relaxed mb-5 max-w-2xl">
+                {series.synopsis}
+              </p>
             )}
 
             <div className="flex flex-wrap gap-3">
               {series.imdb_id ? (
                 <button
-                  onClick={() => navigate(`/player/series/${series.imdb_id}?title=${encodeURIComponent(series.title)}`)}
+                  onClick={() =>
+                    navigate(`/player/series/${series.imdb_id}?title=${encodeURIComponent(series.title)}`)
+                  }
                   className="flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
                 >
                   <PlayIcon /> Ver ahora
                 </button>
               ) : firstSource ? (
                 <button
-                  onClick={() => navigate(`/player?url=${encodeURIComponent(firstSource.url)}&title=${encodeURIComponent(series.title)}&label=${encodeURIComponent(firstSource.label)}`)}
+                  onClick={() =>
+                    navigate(
+                      `/player?url=${encodeURIComponent(firstSource.url)}&title=${encodeURIComponent(series.title)}&label=${encodeURIComponent(firstSource.label)}`,
+                    )
+                  }
                   className="flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
                 >
                   <PlayIcon /> Ver ahora
@@ -163,11 +202,16 @@ export default function SeriesDetail() {
           <div className="mt-12">
             <h2 className="text-xl font-bold text-white mb-4">Temporadas</h2>
             <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
-              {seasonsData.map(season => (
+              {seasonsData.map((season) => (
                 <div key={season.season} className="flex-shrink-0 w-36 group">
                   <div className="aspect-[2/3] rounded-xl overflow-hidden bg-brand-surface border border-brand-border">
                     {season.poster ? (
-                      <img src={season.poster} alt={season.name} className="w-full h-full object-cover" loading="lazy" />
+                      <img
+                        src={season.poster}
+                        alt={season.name}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
                     ) : (
                       <div className="w-full h-full flex flex-col items-center justify-center text-gray-500 text-sm font-bold">
                         <span>{season.season}</span>
@@ -202,7 +246,9 @@ export default function SeriesDetail() {
               Reseñas <span className="ml-2 text-sm font-normal text-gray-500">{reviews.length}</span>
             </h2>
             <div className="flex flex-col gap-4">
-              {reviews.map((r, i) => <ReviewCard key={i} review={r} />)}
+              {reviews.map((r, i) => (
+                <ReviewCard key={i} review={r} />
+              ))}
             </div>
           </div>
         )}

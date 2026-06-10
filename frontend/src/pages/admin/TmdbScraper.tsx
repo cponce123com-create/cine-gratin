@@ -65,7 +65,9 @@ export default function TmdbScraper() {
     setGenres([]);
     setSelectedGenres([]);
     getTmdbGenres(mediaType).catch(() => {});
-    getTmdbGenres(mediaType).then(setGenres).catch(() => {});
+    getTmdbGenres(mediaType)
+      .then(setGenres)
+      .catch(() => {});
   }, [mediaType]);
 
   // Reset sort when switching type
@@ -73,34 +75,37 @@ export default function TmdbScraper() {
     setSortBy("popularity.desc");
   }, [mediaType]);
 
-  const handleSearch = useCallback(async (p: number) => {
-    setLoading(true);
-    setImportResult(null);
-    setSearchError("");
-    try {
-      const data = await tmdbDiscover({
-        type: mediaType,
-        genre_ids: selectedGenres.length > 0 ? selectedGenres.join(",") : undefined,
-        year_from: yearFrom ? Number(yearFrom) : undefined,
-        year_to: yearTo ? Number(yearTo) : undefined,
-        sort_by: sortBy,
-        language: language || undefined,
-        min_votes: Number(minVotes) || 0,
-        page: p,
-        count: 2000,
-      });
-      setResults(data.results);
-      setTotalResults(data.total_results);
-      setTotalPages(data.total_pages);
-      setPage(p);
-      setSelected(new Set());
-      setHasSearched(true);
-    } catch (err: unknown) {
-      setSearchError(err instanceof Error ? err.message : "Error al buscar en TMDB.");
-    } finally {
-      setLoading(false);
-    }
-  }, [mediaType, selectedGenres, yearFrom, yearTo, sortBy, language, minVotes]);
+  const handleSearch = useCallback(
+    async (p: number) => {
+      setLoading(true);
+      setImportResult(null);
+      setSearchError("");
+      try {
+        const data = await tmdbDiscover({
+          type: mediaType,
+          genre_ids: selectedGenres.length > 0 ? selectedGenres.join(",") : undefined,
+          year_from: yearFrom ? Number(yearFrom) : undefined,
+          year_to: yearTo ? Number(yearTo) : undefined,
+          sort_by: sortBy,
+          language: language || undefined,
+          min_votes: Number(minVotes) || 0,
+          page: p,
+          count: 2000,
+        });
+        setResults(data.results);
+        setTotalResults(data.total_results);
+        setTotalPages(data.total_pages);
+        setPage(p);
+        setSelected(new Set());
+        setHasSearched(true);
+      } catch (err: unknown) {
+        setSearchError(err instanceof Error ? err.message : "Error al buscar en TMDB.");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [mediaType, selectedGenres, yearFrom, yearTo, sortBy, language, minVotes],
+  );
 
   const toggleSelect = (tmdbId: number) => {
     setSelected((prev) => {
@@ -144,7 +149,8 @@ export default function TmdbScraper() {
         <div>
           <h1 className="text-2xl font-black text-white">Explorador TMDB</h1>
           <p className="text-gray-500 text-sm mt-0.5">
-            Busca y filtra contenido de TMDB por género, año, idioma y más para importar directamente al catálogo.
+            Busca y filtra contenido de TMDB por género, año, idioma y más para importar directamente al
+            catálogo.
           </p>
         </div>
 
@@ -155,7 +161,11 @@ export default function TmdbScraper() {
             {(["movie", "series"] as const).map((t) => (
               <button
                 key={t}
-                onClick={() => { setMediaType(t); setResults([]); setHasSearched(false); }}
+                onClick={() => {
+                  setMediaType(t);
+                  setResults([]);
+                  setHasSearched(false);
+                }}
                 className={`px-5 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
                   mediaType === t
                     ? "bg-brand-card text-white border border-brand-border shadow-sm"
@@ -170,7 +180,9 @@ export default function TmdbScraper() {
           {/* Filter grid */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <div>
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">Año desde</label>
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">
+                Año desde
+              </label>
               <input
                 type="number"
                 min="1900"
@@ -182,7 +194,9 @@ export default function TmdbScraper() {
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">Año hasta</label>
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">
+                Año hasta
+              </label>
               <input
                 type="number"
                 min="1900"
@@ -194,31 +208,41 @@ export default function TmdbScraper() {
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">Ordenar por</label>
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">
+                Ordenar por
+              </label>
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
                 className="w-full bg-brand-surface border border-brand-border rounded-lg px-3 py-2 text-gray-200 text-sm focus:outline-none focus:border-gray-500 transition-colors"
               >
                 {sortOptions.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">Idioma original</label>
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">
+                Idioma original
+              </label>
               <select
                 value={language}
                 onChange={(e) => setLanguage(e.target.value)}
                 className="w-full bg-brand-surface border border-brand-border rounded-lg px-3 py-2 text-gray-200 text-sm focus:outline-none focus:border-gray-500 transition-colors"
               >
                 {LANGUAGE_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">Votos mínimos</label>
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">
+                Votos mínimos
+              </label>
               <input
                 type="number"
                 min="0"
@@ -249,7 +273,7 @@ export default function TmdbScraper() {
                     key={g.id}
                     onClick={() =>
                       setSelectedGenres((prev) =>
-                        prev.includes(g.id) ? prev.filter((id) => id !== g.id) : [...prev, g.id]
+                        prev.includes(g.id) ? prev.filter((id) => id !== g.id) : [...prev, g.id],
                       )
                     }
                     className={`text-xs font-semibold px-2.5 py-1 rounded-full border transition-all ${
@@ -306,7 +330,9 @@ export default function TmdbScraper() {
                   onClick={toggleSelectAll}
                   className="text-xs font-semibold text-gray-400 hover:text-white transition-colors"
                 >
-                  {selected.size === results.length && results.length > 0 ? "Deseleccionar todo" : "Seleccionar todo"}
+                  {selected.size === results.length && results.length > 0
+                    ? "Deseleccionar todo"
+                    : "Seleccionar todo"}
                 </button>
                 {selected.size > 0 && (
                   <button
@@ -431,7 +457,15 @@ export default function TmdbScraper() {
 
 function SearchIcon() {
   return (
-    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      className="w-4 h-4"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <circle cx="11" cy="11" r="8" />
       <path d="m21 21-4.35-4.35" />
     </svg>
@@ -440,7 +474,15 @@ function SearchIcon() {
 
 function CheckIcon() {
   return (
-    <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      className="w-3 h-3 text-white"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <polyline points="20 6 9 17 4 12" />
     </svg>
   );

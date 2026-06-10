@@ -71,7 +71,6 @@ export const GENRE_SECTIONS: GenreSection[] = [
     label: "Romance",
     keywords: ["romance", "romantic"],
   },
-
 ];
 
 // ── Platform sections (future) ────────────────────────────────────────────────

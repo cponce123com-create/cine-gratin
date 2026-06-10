@@ -28,13 +28,13 @@ interface UseIptvChannelsResult {
 export function useIptvChannels(
   source: IptvSource,
   searchQuery: string = "",
-  selectedGroup: string = ""
+  selectedGroup: string = "",
 ): UseIptvChannelsResult {
   const { data, isLoading, isError } = useQuery<IptvChannel[]>({
     queryKey: ["iptv", source],
     queryFn: () => fetchIptvChannels(source),
-    staleTime: 15 * 60 * 1000,   // 15 min — M3U playlists rarely change
-    gcTime:    20 * 60 * 1000,   // keep in memory 20 min after last use
+    staleTime: 15 * 60 * 1000, // 15 min — M3U playlists rarely change
+    gcTime: 20 * 60 * 1000, // keep in memory 20 min after last use
     retry: 1,
     refetchOnWindowFocus: false,
   });

@@ -5,6 +5,7 @@
 ## Fetch Layer Consolidation
 
 All HTTP API calls now flow through `lib/api.ts`:
+
 - `apiFetch` → public GET requests
 - `apiPost` → public POST requests
 - `apiPatch` → public PATCH requests
@@ -34,6 +35,7 @@ All HTTP API calls now flow through `lib/api.ts`:
 `components/admin/YouTubeSettingsSection.tsx` — shared API key settings component for YouTube channel-based admin pages. Accepts `getSettings` and `saveSettings` props.
 
 `components/admin/YouTubeChannelsSection.tsx` — shared CRUD component for managing YouTube channels. Handles add/delete/sync/sync-all with two visual variants:
+
 - `variant="list"` — simple card list layout (used by events)
 - `variant="table"` — table layout with columns (used by sports)
 
@@ -89,12 +91,14 @@ All icons (SyncIcon, PlusIcon, KeyIcon, TrashIcon, RefreshIcon, DownloadIcon, Wi
 El sistema completo de sagas/colecciones fue eliminado el 6/May/2026.
 
 Backend:
+
 - Se eliminaron 18 endpoints de sagas de admin.ts y el endpoint GET /api/sagas de movies.ts
 - Se eliminaron las tablas cv_active_sagas y cv_saga_config de db.ts (seed incluido)
 - Se eliminaron columnas collection_id/collection_name de INSERTs y queries
 - Las columnas collection_id/collection_name en movies y cv_series se conservan en DB (ALTER TABLE ADD COLUMN) para uso futuro
 
 Frontend:
+
 - Archivos eliminados: SagaPage, SagaCard, SagaManager, ManageSagas, SagaExplorer
 - App.tsx: rutas /saga/:id y /admin/sagas eliminadas
 - Home.tsx: sección de sagas eliminada
@@ -145,17 +149,20 @@ Regla de importación: las películas deben tener runtime >= 30 minutos para ser
 The scanner lives at `/admin/vidsrc-scanner` (`VidsrcScanner.tsx`) and uses **SSE streaming** for real-time progress.
 
 **Backend endpoint**: `GET /api/admin/vidsrc-scan-stream` (in `admin.ts`)
+
 - Downloads ALL vidsrc.me pages in parallel (10 concurrent, no artificial delay)
 - Cross-references IMDb IDs against the local DB
 - Updates `vidsrc_status` in both `movies` and `cv_series` tables
 - Streams events: `start`, `phase`, `page_progress`, `match_progress`, `saving`, `done`, `error`
 
 **Legacy code preserved** (backward compatibility):
+
 - `GET /api/admin/vidsrc-range` — sequential page download (old approach)
 - `GET /api/admin/vidsrc-list` — single page fetch
 - `saveVidsrcResults` + `verifyVidsrc` — used by `ManageMovies`/`ManageSeries` for per-selection verification
 
 **Frontend details** (`VidsrcScanner.tsx`):
+
 - Uses `EventSource` with `?token=` query param for auth
 - Three progress phases: downloading (0-55%) → matching (55-95%) → saving (95-100%)
 - After `done` event, reloads catalog from API to populate per-item `vidsrc_status`
@@ -170,25 +177,29 @@ The scanner lives at `/admin/vidsrc-scanner` (`VidsrcScanner.tsx`) and uses **SS
 ## Saga System — Admin Endpoints
 
 `AdminSagas.tsx` calls two backend endpoints:
+
 1. `POST /api/admin/sagas/:id/refresh` — refreshes saga from TMDB, optionally auto-imports missing movies (existed in admin.ts)
 2. `POST /api/admin/import-by-tmdb-ids` — imports movies/series directly by TMDB IDs (added 2026-05-07 via `importMovie`/`importSeries` from auto-import.ts)
-Both are in `artifacts/api-server/src/routes/admin.ts`.
+   Both are in `artifacts/api-server/src/routes/admin.ts`.
 
 ## Saga System — Bug Fix
 
 ## Saga Movies Showing "No disponible"
 
 ### Root Cause
+
 Movies imported via `importByImdbId` (IMDB-based importer) were stored without a `tmdb_id` (NULL). The saga detail endpoint's `findLocalMoviesByTmdbIds` only searched by `tmdb_id`, so it never found these movies — they existed in the DB but were invisible to saga lookup.
 
 ### Fix (2026-05-07)
 
 **File 1: `artifacts/api-server/src/jobs/auto-import.ts`**
+
 - `importMovie()` ON CONFLICT clause expanded to also backfill `poster_url` and `background_url` (in addition to existing `cast_full` and `tmdb_id`):
   - `poster_url = COALESCE(NULLIF(movies.poster_url, ''), EXCLUDED.poster_url)`
   - `background_url = COALESCE(NULLIF(movies.background_url, ''), EXCLUDED.background_url)`
 
 **File 2: `artifacts/api-server/src/routes/sagas.ts`**
+
 - `findLocalMoviesByTmdbIds` replaced with two-step lookup:
   1. Direct `tmdb_id` match in `movies` table
   2. For unmatched IDs: fetch `imdb_id` from TMDB `/movie/{id}/external_ids`, then query `movies` by `id = auto_{imdb_id}` as fallback
@@ -199,6 +210,7 @@ Movies imported via `importByImdbId` (IMDB-based importer) were stored without a
 2026-05-07: Remoção massiva de código morto.
 
 Arquivos/diretórios removidos:
+
 - `src/` — Blink skeleton app inteiro (não usado, o real é frontend/)
 - `index.html`, `vite.config.ts`, `postcss.config.cjs`, `tailwind.config.cjs` raiz — configs do Blink app
 - `lib/db/` — pacote drizzle com schema vazio, não importado por nada
@@ -211,6 +223,7 @@ Arquivos/diretórios removidos:
 - `frontend/src/components/GenreCarousel.tsx,text:` — arquivo corrompido (1 byte)
 
 Configs atualizadas:
+
 - `pnpm-workspace.yaml`: remove `lib/integrations/*` (inexistente)
 - `tsconfig.json`: remove referências a lib/db e lib/api-client-react
 - `.replit`: remove mockup-sandbox artifact, atualiza workflow frontend para `cd frontend && pnpm run dev` (porta 5173)

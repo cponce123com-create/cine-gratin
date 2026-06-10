@@ -59,10 +59,7 @@ const Carousel = memo(function Carousel({ title, items, type }: CarouselProps) {
         </div>
       </div>
 
-      <div
-        ref={scrollRef}
-        className="flex gap-3 overflow-x-auto carousel-scroll px-4 sm:px-6 lg:px-8 pb-2"
-      >
+      <div ref={scrollRef} className="flex gap-3 overflow-x-auto carousel-scroll px-4 sm:px-6 lg:px-8 pb-2">
         {visibleItems.map((item) => (
           <MediaCard key={item.id} item={item} type={type} size="md" />
         ))}
@@ -73,7 +70,12 @@ const Carousel = memo(function Carousel({ title, items, type }: CarouselProps) {
             className="flex-shrink-0 w-[140px] sm:w-[180px] aspect-[2/3] rounded-lg bg-brand-surface border border-brand-border flex flex-col items-center justify-center gap-3 group hover:border-brand-red transition-all"
           >
             <div className="w-12 h-12 rounded-full bg-brand-dark border border-brand-border flex items-center justify-center group-hover:bg-brand-red group-hover:border-brand-red transition-all">
-              <svg className="w-6 h-6 text-gray-400 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg
+                className="w-6 h-6 text-gray-400 group-hover:text-white"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
             </div>

@@ -3,7 +3,10 @@ import type { IptvChannel } from "@/lib/iptv-api";
 import { ChannelInitial, LiveBadge } from "./ChannelBadge";
 
 export default function ChannelRow({
-  channel, isSelected, isOffline, onSelect,
+  channel,
+  isSelected,
+  isOffline,
+  onSelect,
 }: {
   channel: IptvChannel;
   isSelected: boolean;
@@ -29,23 +32,32 @@ export default function ChannelRow({
     >
       <div className="w-10 h-10 rounded-md overflow-hidden flex-shrink-0 bg-brand-surface border border-brand-border">
         {!logoFailed && channel.logo ? (
-          <img src={channel.logo} alt={channel.name} loading="lazy"
+          <img
+            src={channel.logo}
+            alt={channel.name}
+            loading="lazy"
             className="w-full h-full object-contain"
-            onError={() => setLogoFailed(true)} />
+            onError={() => setLogoFailed(true)}
+          />
         ) : (
           <ChannelInitial name={channel.name} />
         )}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 mb-0.5">
-          <p className={["text-sm font-semibold truncate flex-1 transition-colors",
-            isSelected ? "text-white" : "text-gray-300 group-hover:text-white"].join(" ")}>
+          <p
+            className={[
+              "text-sm font-semibold truncate flex-1 transition-colors",
+              isSelected ? "text-white" : "text-gray-300 group-hover:text-white",
+            ].join(" ")}
+          >
             {channel.name}
           </p>
           <LiveBadge offline={isOffline} />
         </div>
         <p className="text-[11px] text-gray-500 truncate">
-          {channel.group}{channel.country ? ` · ${channel.country}` : ""}
+          {channel.group}
+          {channel.country ? ` · ${channel.country}` : ""}
         </p>
       </div>
     </button>

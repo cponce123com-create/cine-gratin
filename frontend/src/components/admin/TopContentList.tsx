@@ -39,9 +39,7 @@ export default function TopContentList({ title, items, type }: TopContentListPro
                   key={item.id}
                   className="border-b border-brand-border last:border-0 hover:bg-brand-surface/50 transition-colors"
                 >
-                  <td className="px-6 py-3.5 text-gray-400 font-bold">
-                    #{idx + 1}
-                  </td>
+                  <td className="px-6 py-3.5 text-gray-400 font-bold">#{idx + 1}</td>
                   <td className="px-6 py-3.5">
                     <div className="flex items-center gap-3">
                       {item.poster_url && (
@@ -51,15 +49,11 @@ export default function TopContentList({ title, items, type }: TopContentListPro
                           className="w-8 h-12 object-cover rounded"
                         />
                       )}
-                      <span className="text-gray-300 font-medium truncate">
-                        {item.title}
-                      </span>
+                      <span className="text-gray-300 font-medium truncate">{item.title}</span>
                     </div>
                   </td>
                   <td className="px-6 py-3.5 text-right">
-                    <span className="text-brand-red font-bold">
-                      {item.views.toLocaleString()}
-                    </span>
+                    <span className="text-brand-red font-bold">{item.views.toLocaleString()}</span>
                   </td>
                 </tr>
               ))}

@@ -10,7 +10,9 @@ import { ReviewCard } from "@/components/detail/ReviewCard";
 
 function PlayIcon() {
   return (
-    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M8 5v14l11-7z" />
+    </svg>
   );
 }
 
@@ -18,7 +20,11 @@ export default function MovieDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
-  const { data: movie, isLoading: loading, error } = useQuery({
+  const {
+    data: movie,
+    isLoading: loading,
+    error,
+  } = useQuery({
     queryKey: ["movie", id],
     queryFn: () => getMovie(id!),
     enabled: !!id,
@@ -27,7 +33,9 @@ export default function MovieDetail() {
 
   const runtimeMin = movie?.runtime ?? movie?.duration_min ?? null;
   const runtimeLabel = runtimeMin
-    ? runtimeMin >= 60 ? `${Math.floor(runtimeMin / 60)}h ${runtimeMin % 60}m` : `${runtimeMin} min`
+    ? runtimeMin >= 60
+      ? `${Math.floor(runtimeMin / 60)}h ${runtimeMin % 60}m`
+      : `${runtimeMin} min`
     : null;
 
   const firstSource = movie?.video_sources?.[0];
@@ -52,7 +60,9 @@ export default function MovieDetail() {
       <div className="min-h-screen bg-brand-dark flex items-center justify-center pt-16">
         <div className="text-center">
           <p className="text-red-400 text-lg">No se pudo cargar la película.</p>
-          <Link to="/peliculas" className="mt-4 inline-block text-brand-red hover:text-red-400 underline">Volver a películas</Link>
+          <Link to="/peliculas" className="mt-4 inline-block text-brand-red hover:text-red-400 underline">
+            Volver a películas
+          </Link>
         </div>
       </div>
     );
@@ -63,7 +73,10 @@ export default function MovieDetail() {
   return (
     <div className="min-h-screen bg-brand-dark">
       <Helmet>
-        <title>{movie.title}{showYear ? ` (${movie.year})` : ""} — Cine Gratín</title>
+        <title>
+          {movie.title}
+          {showYear ? ` (${movie.year})` : ""} — Cine Gratín
+        </title>
         <meta name="description" content={movie.synopsis?.slice(0, 160) ?? ""} />
         <meta property="og:title" content={`${movie.title} — Cine Gratín`} />
         <meta property="og:description" content={movie.synopsis?.slice(0, 200) ?? ""} />
@@ -77,7 +90,9 @@ export default function MovieDetail() {
           src={movie.background_url || movie.poster_url || FALLBACK_BG}
           alt={movie.title}
           className="w-full h-full object-cover object-top"
-          onError={e => { (e.currentTarget as HTMLImageElement).src = FALLBACK_BG; }}
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).src = FALLBACK_BG;
+          }}
         />
         <div className="absolute inset-0 hero-gradient" />
         <div className="absolute inset-x-0 bottom-0 h-40 hero-gradient-bottom" />
@@ -92,14 +107,15 @@ export default function MovieDetail() {
       {/* Content */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 -mt-24 relative z-10 pb-16">
         <div className="flex flex-col sm:flex-row gap-8">
-
           {/* Poster */}
           <div className="flex-shrink-0 w-36 sm:w-48 md:w-56">
             <img
               src={movie.poster_url || FALLBACK_POSTER}
               alt={movie.title}
               className="w-full aspect-[2/3] object-cover rounded-xl shadow-2xl border border-brand-border"
-              onError={e => { (e.currentTarget as HTMLImageElement).src = FALLBACK_POSTER; }}
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).src = FALLBACK_POSTER;
+              }}
             />
           </div>
 
@@ -107,48 +123,68 @@ export default function MovieDetail() {
           <div className="flex-1 pt-2 sm:pt-12">
             <h1 className="text-2xl sm:text-4xl font-black text-white mb-2 leading-tight">
               {movie.title}
-              {showYear && <span className="ml-2 text-lg sm:text-2xl font-normal text-gray-400">({movie.year})</span>}
+              {showYear && (
+                <span className="ml-2 text-lg sm:text-2xl font-normal text-gray-400">({movie.year})</span>
+              )}
             </h1>
 
             <div className="flex flex-wrap items-center gap-3 mb-4">
               {movie.rating !== undefined && Number(movie.rating) > 0 && (
-                <span className="flex items-center gap-1 text-brand-gold font-bold">★ {Number(movie.rating).toFixed(1)}</span>
+                <span className="flex items-center gap-1 text-brand-gold font-bold">
+                  ★ {Number(movie.rating).toFixed(1)}
+                </span>
               )}
               {runtimeLabel && <span className="text-gray-400">{runtimeLabel}</span>}
               {movie.mpa_rating && movie.mpa_rating !== "NR" && (
-                <span className="text-xs border border-gray-600 text-gray-400 px-1.5 py-0.5 rounded">{movie.mpa_rating}</span>
+                <span className="text-xs border border-gray-600 text-gray-400 px-1.5 py-0.5 rounded">
+                  {movie.mpa_rating}
+                </span>
               )}
             </div>
 
             {movie.genres && movie.genres.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-5">
-                {movie.genres.map(g => (
-                  <span key={g} className="text-xs bg-brand-surface border border-brand-border rounded-full px-3 py-1 text-gray-300">{g}</span>
+                {movie.genres.map((g) => (
+                  <span
+                    key={g}
+                    className="text-xs bg-brand-surface border border-brand-border rounded-full px-3 py-1 text-gray-300"
+                  >
+                    {g}
+                  </span>
                 ))}
               </div>
             )}
 
             {movie.synopsis && (
-              <p className="text-gray-300 text-sm sm:text-base leading-relaxed mb-5 max-w-2xl">{movie.synopsis}</p>
+              <p className="text-gray-300 text-sm sm:text-base leading-relaxed mb-5 max-w-2xl">
+                {movie.synopsis}
+              </p>
             )}
 
             {movie.director && (
               <p className="text-gray-400 text-sm mb-5">
-                <span className="text-gray-500">Director: </span>{movie.director}
+                <span className="text-gray-500">Director: </span>
+                {movie.director}
               </p>
             )}
 
             <div className="flex flex-wrap gap-3">
               {movie.imdb_id ? (
                 <button
-                  onClick={() => navigate(`/player/movie/${movie.imdb_id}?title=${encodeURIComponent(movie.title)}`)}
+                  onClick={() =>
+                    navigate(`/player/movie/${movie.imdb_id}?title=${encodeURIComponent(movie.title)}`)
+                  }
                   className="flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
                 >
                   <PlayIcon /> Ver ahora
                 </button>
               ) : firstSource ? (
                 <button
-                  onClick={() => navigate(`/player?url=${encodeURIComponent(firstSource.url)}&title=${encodeURIComponent(movie.title)}&label=${encodeURIComponent(firstSource.label)}`)}
+                  onClick={() =>
+                    navigate(
+                      `/player?url=${encodeURIComponent(firstSource.url)}&title=${encodeURIComponent(movie.title)}&label=${encodeURIComponent(firstSource.label)}`,
+                    )
+                  }
                   className="flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
                 >
                   <PlayIcon /> Ver ahora
@@ -176,7 +212,9 @@ export default function MovieDetail() {
               Reseñas <span className="ml-2 text-sm font-normal text-gray-500">{reviews.length}</span>
             </h2>
             <div className="flex flex-col gap-4">
-              {reviews.map((r, i) => <ReviewCard key={i} review={r} />)}
+              {reviews.map((r, i) => (
+                <ReviewCard key={i} review={r} />
+              ))}
             </div>
           </div>
         )}

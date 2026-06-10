@@ -71,9 +71,9 @@ export default function HlsPlayer({ src, channelName, logo, onError }: HlsPlayer
   const videoRef = useRef<HTMLVideoElement>(null);
   // CRITICAL: hls instance lives in a ref, never in local scope, so the
   // cleanup function always has access to it even after async operations.
-  const hlsRef   = useRef<HlsInstance | null>(null);
+  const hlsRef = useRef<HlsInstance | null>(null);
 
-  const [state,    setState]    = useState<PlayerState>("loading");
+  const [state, setState] = useState<PlayerState>("loading");
   const [retryKey, setRetryKey] = useState(0);
 
   // ─── Core effect — runs when src or retryKey changes ───────────────────────
@@ -118,7 +118,9 @@ export default function HlsPlayer({ src, channelName, logo, onError }: HlsPlayer
         if (cancelled) return;
         clearTimeout(timeout);
         setState("playing");
-        video.play().catch(() => {/* autoplay policy — user will tap play */});
+        video.play().catch(() => {
+          /* autoplay policy — user will tap play */
+        });
       };
       const onNativeError = () => {
         if (cancelled) return;
@@ -127,14 +129,14 @@ export default function HlsPlayer({ src, channelName, logo, onError }: HlsPlayer
         onError?.();
       };
 
-      video.addEventListener("canplay", onCanPlay,      { once: true });
-      video.addEventListener("error",   onNativeError,  { once: true });
+      video.addEventListener("canplay", onCanPlay, { once: true });
+      video.addEventListener("error", onNativeError, { once: true });
 
       return () => {
         cancelled = true;
         clearTimeout(timeout);
         video.removeEventListener("canplay", onCanPlay);
-        video.removeEventListener("error",   onNativeError);
+        video.removeEventListener("error", onNativeError);
         video.pause();
         video.removeAttribute("src");
         video.load();
@@ -151,7 +153,11 @@ export default function HlsPlayer({ src, channelName, logo, onError }: HlsPlayer
         const mod = await import("hls.js");
         Hls = (mod.default ?? mod) as unknown as HlsStatic;
       } catch {
-        if (!cancelled) { clearTimeout(timeout); setState("error"); onError?.(); }
+        if (!cancelled) {
+          clearTimeout(timeout);
+          setState("error");
+          onError?.();
+        }
         return;
       }
 
@@ -167,7 +173,7 @@ export default function HlsPlayer({ src, channelName, logo, onError }: HlsPlayer
 
       // ── Create instance and save to ref IMMEDIATELY ──────────────────────
       const hls = new Hls({
-        enableWorker:   true,
+        enableWorker: true,
         lowLatencyMode: true,
         backBufferLength: 90,
       });
@@ -177,7 +183,9 @@ export default function HlsPlayer({ src, channelName, logo, onError }: HlsPlayer
         if (cancelled) return;
         clearTimeout(timeout);
         setState("playing");
-        video.play().catch(() => {/* autoplay policy */});
+        video.play().catch(() => {
+          /* autoplay policy */
+        });
       });
 
       hls.on(Hls.Events.ERROR, (_evt: string, data: HlsErrorData) => {
@@ -212,8 +220,8 @@ export default function HlsPlayer({ src, channelName, logo, onError }: HlsPlayer
       video.load(); // mandatory: releases the audio/video buffer in the browser
     };
 
-  // retryKey is intentionally included so "Reintentar" re-runs the full setup.
-  // onError is stable (useCallback in parent) so it won't cause extra runs.
+    // retryKey is intentionally included so "Reintentar" re-runs the full setup.
+    // onError is stable (useCallback in parent) so it won't cause extra runs.
   }, [src, retryKey, onError]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRetry = () => {
@@ -225,7 +233,6 @@ export default function HlsPlayer({ src, channelName, logo, onError }: HlsPlayer
 
   return (
     <div className="relative w-full bg-black overflow-hidden" style={{ aspectRatio: "16/9" }}>
-
       {/* video element is always in the DOM — hls.js needs a stable reference */}
       <video
         ref={videoRef}

@@ -56,7 +56,9 @@ const HeroCarousel = memo(function HeroCarousel({ items }: HeroCarouselProps) {
       if (movie.imdb_id) {
         navigate(`/player/movie/${movie.imdb_id}?title=${encodeURIComponent(movie.title)}`);
       } else if (movie.video_sources && movie.video_sources.length > 0) {
-        navigate(`/player?url=${encodeURIComponent(movie.video_sources[0].url)}&title=${encodeURIComponent(movie.title)}&label=${encodeURIComponent(movie.video_sources[0].label)}`);
+        navigate(
+          `/player?url=${encodeURIComponent(movie.video_sources[0].url)}&title=${encodeURIComponent(movie.title)}&label=${encodeURIComponent(movie.video_sources[0].label)}`,
+        );
       }
     } else {
       navigate(`/serie/${item.id}`);
@@ -64,7 +66,7 @@ const HeroCarousel = memo(function HeroCarousel({ items }: HeroCarouselProps) {
   };
 
   return (
-    <div 
+    <div
       className="relative w-full h-[80vh] min-h-[520px] overflow-hidden group"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
@@ -74,7 +76,7 @@ const HeroCarousel = memo(function HeroCarousel({ items }: HeroCarouselProps) {
         const isCurrent = idx === currentIndex;
         const isNext = idx === (currentIndex + 1) % items.length;
         const isPrev = idx === (currentIndex - 1 + items.length) % items.length;
-        
+
         // Solo cargar la imagen actual, la siguiente y la anterior para ahorrar ancho de banda
         const shouldLoad = isCurrent || isNext || isPrev;
         const bgUrl = optimizeImageUrl(entry.item.background_url || entry.item.poster_url, "large");
@@ -93,7 +95,9 @@ const HeroCarousel = memo(function HeroCarousel({ items }: HeroCarouselProps) {
                 fetchPriority={isCurrent ? "high" : "low"}
                 loading={idx === 0 ? "eager" : "lazy"}
                 className="w-full h-full object-cover object-center"
-                onError={(e) => { (e.currentTarget as HTMLImageElement).src = FALLBACK_BG; }}
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = FALLBACK_BG;
+                }}
               />
             )}
           </div>
@@ -106,14 +110,14 @@ const HeroCarousel = memo(function HeroCarousel({ items }: HeroCarouselProps) {
       {/* Content */}
       <div className="relative z-10 flex flex-col justify-end h-full pb-16 px-6 sm:px-10 lg:px-16 max-w-3xl">
         <div className="mb-4">
-           <span className="inline-block px-2 py-1 rounded bg-brand-red text-white text-[10px] font-bold uppercase tracking-wider mb-2">
-             {type === "movie" ? "Película" : "Serie"} Destacada
-           </span>
-           <h1 className="text-3xl sm:text-5xl font-black text-white leading-tight mb-3 drop-shadow-lg">
+          <span className="inline-block px-2 py-1 rounded bg-brand-red text-white text-[10px] font-bold uppercase tracking-wider mb-2">
+            {type === "movie" ? "Película" : "Serie"} Destacada
+          </span>
+          <h1 className="text-3xl sm:text-5xl font-black text-white leading-tight mb-3 drop-shadow-lg">
             {item.title}
           </h1>
         </div>
-        
+
         <div className="flex flex-wrap items-center gap-3 mb-4">
           {item.rating !== undefined && (
             <span className="flex items-center gap-1 text-brand-gold font-semibold text-sm">
@@ -130,7 +134,10 @@ const HeroCarousel = memo(function HeroCarousel({ items }: HeroCarouselProps) {
           {item.genres && item.genres.length > 0 && (
             <div className="flex gap-1.5">
               {item.genres.slice(0, 3).map((g) => (
-                <span key={g} className="text-xs bg-white/10 border border-white/20 rounded px-2 py-0.5 text-gray-300">
+                <span
+                  key={g}
+                  className="text-xs bg-white/10 border border-white/20 rounded px-2 py-0.5 text-gray-300"
+                >
                   {g}
                 </span>
               ))}

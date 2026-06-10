@@ -2,11 +2,7 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { useEffect, useRef } from "react";
 
 function isYouTube(url: string): boolean {
-  return (
-    url.includes("youtube.com") ||
-    url.includes("youtu.be") ||
-    url.includes("youtube-nocookie.com")
-  );
+  return url.includes("youtube.com") || url.includes("youtu.be") || url.includes("youtube-nocookie.com");
 }
 
 function toEmbedUrl(url: string): string {

@@ -82,9 +82,10 @@ export default function YouTubeChannelsSection({
   };
 
   const handleDelete = async (id: number) => {
-    const msg = variant === "table"
-      ? "¿Eliminar este canal y todos sus partidos?"
-      : "¿Eliminar este canal y todos sus eventos?";
+    const msg =
+      variant === "table"
+        ? "¿Eliminar este canal y todos sus partidos?"
+        : "¿Eliminar este canal y todos sus eventos?";
     if (!confirm(msg)) return;
     try {
       await deleteChannel(id);
@@ -139,9 +140,7 @@ export default function YouTubeChannelsSection({
 
   const addForm = (
     <div className="bg-brand-surface border border-brand-border rounded-xl p-4 space-y-3">
-      <p className="text-gray-400 text-xs font-semibold uppercase tracking-wider">
-        Añadir nuevo canal
-      </p>
+      <p className="text-gray-400 text-xs font-semibold uppercase tracking-wider">Añadir nuevo canal</p>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
         <input
           type="text"
@@ -258,9 +257,7 @@ export default function YouTubeChannelsSection({
             <tr key={ch.id} className="hover:bg-brand-surface/30 transition-colors">
               <td className="px-4 py-3">
                 <div className="text-gray-200 font-medium text-sm">{ch.name}</div>
-                <div className="text-gray-600 text-xs font-mono truncate max-w-[220px]">
-                  {ch.url}
-                </div>
+                <div className="text-gray-600 text-xs font-mono truncate max-w-[220px]">{ch.url}</div>
               </td>
               <td className="px-4 py-3 hidden sm:table-cell">
                 <span className="text-xs bg-brand-surface border border-brand-border text-gray-400 px-2 py-1 rounded">

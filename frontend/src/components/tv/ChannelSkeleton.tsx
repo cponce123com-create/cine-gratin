@@ -18,7 +18,10 @@ export function SkeletonCards() {
   return (
     <div className="grid grid-cols-2 gap-2 p-2">
       {Array.from({ length: 12 }).map((_, i) => (
-        <div key={i} className="flex flex-col gap-2 p-2 rounded-xl bg-brand-card border border-brand-border animate-pulse">
+        <div
+          key={i}
+          className="flex flex-col gap-2 p-2 rounded-xl bg-brand-card border border-brand-border animate-pulse"
+        >
           <div className="w-full aspect-square rounded-lg bg-brand-surface" />
           <div className="h-2.5 bg-brand-surface rounded w-4/5 mx-auto" />
           <div className="h-2 bg-brand-surface rounded w-3/5 mx-auto" />

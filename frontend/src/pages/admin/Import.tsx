@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
-import { getMovies, getSeries, runAutoImport, importByIds, scanNetworks } from "@/lib/api";
+import { runAutoImport, importByIds, scanNetworks } from "@/lib/api";
 import type { RunImportResult } from "@/lib/types";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -12,8 +12,8 @@ type IdStatus = "imported" | "existed" | "not_found" | "error";
 interface IdResult {
   imdb_id: string;
   status: IdStatus;
-  title?: string;
-  year?: number;
+  title: string | null;
+  year?: number | null;
 }
 
 interface BulkDone {
@@ -36,8 +36,6 @@ function extractImdbIds(text: string): string[] {
   const matches = text.match(/(tt|ev)\d{7,8}/gi) ?? [];
   return [...new Set(matches.map((id) => id.toLowerCase()))];
 }
-
-
 
 // ─── Phase progress bar ──────────────────────────────────────────────────────
 
@@ -62,12 +60,18 @@ function PhaseProgress({ phase }: { phase: Phase }) {
                 done
                   ? "bg-green-500/20 border border-green-500 text-green-400"
                   : active
-                  ? "bg-brand-red/20 border border-brand-red"
-                  : "bg-brand-surface border border-brand-border"
+                    ? "bg-brand-red/20 border border-brand-red"
+                    : "bg-brand-surface border border-brand-border"
               }`}
             >
               {done ? (
-                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                <svg
+                  className="w-3 h-3"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                >
                   <polyline points="20 6 9 17 4 12" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               ) : active ? (
@@ -116,16 +120,12 @@ function IdRow({ result }: { result: IdResult }) {
 
   return (
     <tr className="border-b border-brand-border last:border-0 hover:bg-brand-surface/40 transition-colors">
-      <td className="px-4 py-3 font-mono text-xs text-gray-400 whitespace-nowrap">
-        {result.imdb_id}
-      </td>
+      <td className="px-4 py-3 font-mono text-xs text-gray-400 whitespace-nowrap">{result.imdb_id}</td>
       <td className="px-4 py-3">
         {result.title ? (
           <span className="text-gray-200 text-sm font-medium">
             {result.title}
-            {result.year && (
-              <span className="text-gray-500 font-normal ml-1.5">({result.year})</span>
-            )}
+            {result.year && <span className="text-gray-500 font-normal ml-1.5">({result.year})</span>}
           </span>
         ) : (
           <span className="text-gray-600 text-sm italic">—</span>
@@ -204,12 +204,12 @@ export default function ImportPage() {
   const [phase, setPhase] = useState<Phase | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<BulkDone | AutoDone | null>(null);
+  const [showAutoConfig, setShowAutoConfig] = useState(false);
 
   // Auto-import config
-  const [showAutoConfig, setShowAutoConfig] = useState(false);
   const [selectedSources, setSelectedSources] = useState<string[]>(() => {
     const saved = localStorage.getItem("auto_import_sources");
-    return saved ? JSON.parse(saved) : AUTO_IMPORT_SOURCES.map(s => s.id);
+    return saved ? JSON.parse(saved) : AUTO_IMPORT_SOURCES.map((s) => s.id);
   });
 
   useEffect(() => {
@@ -217,19 +217,8 @@ export default function ImportPage() {
   }, [selectedSources]);
 
   const toggleSource = (id: string) => {
-    setSelectedSources(prev => 
-      prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]
-    );
+    setSelectedSources((prev) => (prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]));
   };
-
-  // Stats
-  const [movieCount, setMovieCount] = useState(0);
-  const [seriesCount, setSeriesCount] = useState(0);
-
-  useEffect(() => {
-    getMovies({ limit: 1 }).then((m) => setMovieCount(m.length ? 999 : 0)); // simple placeholder
-    getSeries({ limit: 1 }).then((s) => setSeriesCount(s.length ? 999 : 0));
-  }, []);
 
   const imdbIds = useMemo(() => extractImdbIds(input), [input]);
 
@@ -261,7 +250,7 @@ export default function ImportPage() {
       setPhase("importing");
       const res = await runAutoImport(selectedSources);
       setPhase("snapshot_after");
-      
+
       setResult({
         kind: "auto_done",
         newItems: [],
@@ -275,7 +264,7 @@ export default function ImportPage() {
   };
 
   return (
-    <AdminLayout title="Importar Contenido">
+    <AdminLayout>
       <div className="max-w-5xl mx-auto space-y-8 pb-20">
         {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
@@ -334,17 +323,20 @@ export default function ImportPage() {
                   <span className="text-sm font-bold text-gray-300 flex items-center gap-2">
                     ⚙️ Configuración del escáner automático
                   </span>
-                  <svg 
-                    className={`w-4 h-4 text-gray-500 transition-transform ${showAutoConfig ? "rotate-180" : ""}`} 
-                    viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                  <svg
+                    className={`w-4 h-4 text-gray-500 transition-transform ${showAutoConfig ? "rotate-180" : ""}`}
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
                   >
-                    <path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 </button>
-                
+
                 {showAutoConfig && (
                   <div className="p-4 bg-brand-card border-t border-brand-border grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {AUTO_IMPORT_SOURCES.map(source => (
+                    {AUTO_IMPORT_SOURCES.map((source) => (
                       <label key={source.id} className="flex items-center gap-3 group cursor-pointer">
                         <div className="relative flex items-center">
                           <input
@@ -353,7 +345,13 @@ export default function ImportPage() {
                             onChange={() => toggleSource(source.id)}
                             className="peer appearance-none w-5 h-5 border border-brand-border rounded bg-brand-surface checked:bg-brand-red checked:border-brand-red transition-all"
                           />
-                          <svg className="absolute w-3.5 h-3.5 text-white left-0.5 opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4">
+                          <svg
+                            className="absolute w-3.5 h-3.5 text-white left-0.5 opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          >
                             <polyline points="20 6 9 17 4 12" strokeLinecap="round" strokeLinejoin="round" />
                           </svg>
                         </div>
@@ -375,7 +373,13 @@ export default function ImportPage() {
                   {phase === "importing" ? (
                     <span className="w-5 h-5 border-3 border-black border-t-transparent rounded-full animate-spin" />
                   ) : (
-                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <svg
+                      className="w-5 h-5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                    >
                       <path d="M12 5v14m7-7H5" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   )}
@@ -398,7 +402,13 @@ export default function ImportPage() {
             {error && (
               <div className="bg-red-900/20 border border-red-800/40 rounded-2xl p-5 flex gap-4">
                 <div className="w-10 h-10 bg-red-500/20 rounded-full flex items-center justify-center flex-shrink-0 text-red-500">
-                  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <svg
+                    className="w-6 h-6"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                  >
                     <circle cx="12" cy="12" r="10" />
                     <line x1="12" y1="8" x2="12" y2="12" />
                     <line x1="12" y1="16" x2="12.01" y2="16" />
@@ -419,8 +429,12 @@ export default function ImportPage() {
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-brand-surface/50 border-b border-brand-border">
-                        <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">IMDb ID</th>
-                        <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Título</th>
+                        <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">
+                          IMDb ID
+                        </th>
+                        <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">
+                          Título
+                        </th>
                         <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">
                           Estado
                         </th>
@@ -440,7 +454,13 @@ export default function ImportPage() {
               <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <div className="bg-green-500/10 border border-green-500/20 rounded-2xl p-6 flex gap-5">
                   <div className="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center flex-shrink-0 text-green-400">
-                    <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <svg
+                      className="w-7 h-7"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                    >
                       <path d="M20 6 9 17 4 12" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   </div>
@@ -456,14 +476,18 @@ export default function ImportPage() {
                   <div className="bg-brand-card border border-brand-border rounded-2xl p-5">
                     <p className="text-gray-500 text-xs font-bold uppercase mb-3">Películas</p>
                     <div className="flex items-end gap-2">
-                      <span className="text-3xl font-black text-white">{result.apiResult.movies_imported}</span>
+                      <span className="text-3xl font-black text-white">
+                        {result.apiResult.movies_imported}
+                      </span>
                       <span className="text-gray-500 text-sm mb-1">añadidas</span>
                     </div>
                   </div>
                   <div className="bg-brand-card border border-brand-border rounded-2xl p-5">
                     <p className="text-gray-500 text-xs font-bold uppercase mb-3">Series</p>
                     <div className="flex items-end gap-2">
-                      <span className="text-3xl font-black text-white">{result.apiResult.series_imported}</span>
+                      <span className="text-3xl font-black text-white">
+                        {result.apiResult.series_imported}
+                      </span>
                       <span className="text-gray-500 text-sm mb-1">añadidas</span>
                     </div>
                   </div>
@@ -474,7 +498,10 @@ export default function ImportPage() {
                     <h4 className="text-white font-bold mb-4">Nuevos títulos añadidos</h4>
                     <div className="space-y-3">
                       {result.newItems.map((item, i) => (
-                        <div key={i} className="flex items-center justify-between py-2 border-b border-brand-border last:border-0">
+                        <div
+                          key={i}
+                          className="flex items-center justify-between py-2 border-b border-brand-border last:border-0"
+                        >
                           <span className="text-gray-200 text-sm font-medium">{item.title}</span>
                           <span className="text-gray-500 text-xs font-mono">{item.imdb_id}</span>
                         </div>
@@ -501,14 +528,20 @@ export default function ImportPage() {
                 disabled={phase !== null}
                 className="w-full bg-brand-surface border border-brand-border hover:border-gray-500 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2"
               >
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <svg
+                  className="w-4 h-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                >
                   <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
                   <path d="M21 3v5h-5" />
                 </svg>
                 Ejecutar ahora
               </button>
             </div>
-            
+
             <div className="bg-brand-card border border-brand-border rounded-2xl p-6 space-y-5">
               <div>
                 <h2 className="text-white font-bold text-base mb-1">Utilidades</h2>
@@ -518,24 +551,24 @@ export default function ImportPage() {
               </div>
 
               <div className="space-y-2">
-                <button 
+                <button
                   onClick={() => scanNetworks("movie")}
                   className="w-full text-left px-4 py-3 rounded-xl bg-brand-surface border border-brand-border hover:border-brand-red/50 transition-all group"
                 >
-                  <p className="text-white text-sm font-bold group-hover:text-brand-red">Escanear Productoras</p>
-                  <p className="text-gray-500 text-xs mt-0.5">Busca Netflix, HBO, etc. en TMDB para las películas actuales.</p>
+                  <p className="text-white text-sm font-bold group-hover:text-brand-red">
+                    Escanear Productoras
+                  </p>
+                  <p className="text-gray-500 text-xs mt-0.5">
+                    Busca Netflix, HBO, etc. en TMDB para las películas actuales.
+                  </p>
                 </button>
-                
-
               </div>
             </div>
           </div>
         </div>
 
         {/* Full Width Section: Collection Import */}
-        <div className="w-full">
-          
-        </div>
+        <div className="w-full"></div>
       </div>
     </AdminLayout>
   );

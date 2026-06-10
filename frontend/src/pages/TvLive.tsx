@@ -12,11 +12,11 @@ import ChannelCard from "@/components/tv/ChannelCard";
 import { SkeletonRows, SkeletonCards } from "@/components/tv/ChannelSkeleton";
 
 export default function TvLive() {
-  const [source, setSource]           = useState<IptvSource>("peru");
-  const [rawSearch, setRawSearch]     = useState("");
+  const [source, setSource] = useState<IptvSource>("peru");
+  const [rawSearch, setRawSearch] = useState("");
   const [debouncedSearch, setDebounced] = useState("");
-  const [selectedGroup, setGroup]     = useState("Todos");
-  const [offlineIds, setOfflineIds]   = useState<Set<string>>(new Set());
+  const [selectedGroup, setGroup] = useState("Todos");
+  const [offlineIds, setOfflineIds] = useState<Set<string>>(new Set());
 
   // selectedChannel guardado en ref Y state
   const [selectedChannel, _setSelectedChannel] = useState<IptvChannel | null>(null);
@@ -26,8 +26,8 @@ export default function TvLive() {
     _setSelectedChannel(ch);
   }, []);
 
-  const debounceRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const listRef         = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const mobilePlayerRef = useRef<HTMLDivElement>(null);
   const autoSelectedRef = useRef(false);
 
@@ -35,7 +35,9 @@ export default function TvLive() {
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => setDebounced(rawSearch), 300);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, [rawSearch]);
 
   // Reset completo al cambiar source
@@ -51,12 +53,14 @@ export default function TvLive() {
   const { channels, groups, isLoading, isError } = useIptvChannels(
     source,
     debouncedSearch,
-    selectedGroup === "Todos" ? "" : selectedGroup
+    selectedGroup === "Todos" ? "" : selectedGroup,
   );
 
   // Auto-selección: SOLO cuando termina de cargar, SOLO una vez por source
   const channelsRef = useRef<IptvChannel[]>([]);
-  useEffect(() => { channelsRef.current = channels; }, [channels]);
+  useEffect(() => {
+    channelsRef.current = channels;
+  }, [channels]);
 
   useEffect(() => {
     if (autoSelectedRef.current) return;
@@ -66,23 +70,25 @@ export default function TvLive() {
     autoSelectedRef.current = true;
     const first = list.find((c) => !offlineIds.has(c.id)) ?? list[0];
     setSelectedChannel(first);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading]);
 
   // handleChannelError: estable, lee de refs
   const offlineIdsRef = useRef(offlineIds);
-  useEffect(() => { offlineIdsRef.current = offlineIds; }, [offlineIds]);
+  useEffect(() => {
+    offlineIdsRef.current = offlineIds;
+  }, [offlineIds]);
 
   const handleChannelError = useCallback(() => {
-    const current  = selectedChannelRef.current;
-    const list     = channelsRef.current;
-    const offline  = offlineIdsRef.current;
+    const current = selectedChannelRef.current;
+    const list = channelsRef.current;
+    const offline = offlineIdsRef.current;
     if (!current) return;
 
     const newOffline = new Set([...offline, current.id]);
     setOfflineIds(newOffline);
 
-    const idx  = list.findIndex((c) => c.id === current.id);
+    const idx = list.findIndex((c) => c.id === current.id);
     const next = list.slice(idx + 1).find((c) => !newOffline.has(c.id));
 
     if (next) {
@@ -93,14 +99,17 @@ export default function TvLive() {
     }
   }, [setSelectedChannel]);
 
-  const selectChannel = useCallback((ch: IptvChannel) => {
-    setSelectedChannel(ch);
-    if (window.innerWidth < 768 && mobilePlayerRef.current) {
-      setTimeout(() => {
-        mobilePlayerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 50);
-    }
-  }, [setSelectedChannel]);
+  const selectChannel = useCallback(
+    (ch: IptvChannel) => {
+      setSelectedChannel(ch);
+      if (window.innerWidth < 768 && mobilePlayerRef.current) {
+        setTimeout(() => {
+          mobilePlayerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 50);
+      }
+    },
+    [setSelectedChannel],
+  );
 
   const clearFilters = useCallback(() => {
     setRawSearch("");
@@ -110,7 +119,7 @@ export default function TvLive() {
 
   const availableCount = useMemo(
     () => channels.filter((c) => !offlineIds.has(c.id)).length,
-    [channels, offlineIds]
+    [channels, offlineIds],
   );
 
   const displayedGroups = useMemo(() => ["Todos", ...groups], [groups]);
@@ -118,14 +127,21 @@ export default function TvLive() {
   // ─── Subviews ─────────────────────────────────────────────────────────────
 
   const sourceTabs = (
-    <div className="flex gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: "none" }}>
+    <div
+      className="flex gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden"
+      style={{ scrollbarWidth: "none" }}
+    >
       {SOURCE_TABS.map((tab) => (
-        <button key={tab.id} onClick={() => setSource(tab.id)}
-          className={["flex-shrink-0 rounded-full text-xs font-medium py-1.5 px-3 border transition-colors whitespace-nowrap",
+        <button
+          key={tab.id}
+          onClick={() => setSource(tab.id)}
+          className={[
+            "flex-shrink-0 rounded-full text-xs font-medium py-1.5 px-3 border transition-colors whitespace-nowrap",
             source === tab.id
               ? "bg-brand-red text-white border-brand-red"
               : "bg-brand-surface text-gray-400 border-brand-border hover:text-white hover:border-gray-500",
-          ].join(" ")}>
+          ].join(" ")}
+        >
           {tab.label}
         </button>
       ))}
@@ -134,35 +150,49 @@ export default function TvLive() {
 
   const searchBox = (
     <div className="relative">
-      <input type="text" value={rawSearch}
+      <input
+        type="text"
+        value={rawSearch}
         onChange={(e) => setRawSearch(e.target.value)}
         placeholder="Buscar canal..."
         className="w-full bg-brand-surface border border-brand-border rounded-lg px-4 py-2.5 pl-10 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-gray-500 transition-colors"
       />
-      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"><SearchIcon /></span>
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+        <SearchIcon />
+      </span>
       {rawSearch && (
-        <button onClick={() => setRawSearch("")}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white text-xl leading-none">
+        <button
+          onClick={() => setRawSearch("")}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white text-xl leading-none"
+        >
           &times;
         </button>
       )}
     </div>
   );
 
-  const groupPills = groups.length > 1 ? (
-    <div className="flex gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: "none" }}>
-      {displayedGroups.map((g) => (
-        <button key={g} onClick={() => setGroup(g)}
-          className={["flex-shrink-0 rounded-full text-xs font-medium py-1 px-2.5 border transition-colors whitespace-nowrap",
-            selectedGroup === g
-              ? "bg-brand-gold/20 text-brand-gold border-brand-gold/50"
-              : "bg-transparent text-gray-500 border-brand-border hover:text-white hover:border-gray-500",
-          ].join(" ")}>
-          {g}
-        </button>
-      ))}
-    </div>
-  ) : null;
+  const groupPills =
+    groups.length > 1 ? (
+      <div
+        className="flex gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden"
+        style={{ scrollbarWidth: "none" }}
+      >
+        {displayedGroups.map((g) => (
+          <button
+            key={g}
+            onClick={() => setGroup(g)}
+            className={[
+              "flex-shrink-0 rounded-full text-xs font-medium py-1 px-2.5 border transition-colors whitespace-nowrap",
+              selectedGroup === g
+                ? "bg-brand-gold/20 text-brand-gold border-brand-gold/50"
+                : "bg-transparent text-gray-500 border-brand-border hover:text-white hover:border-gray-500",
+            ].join(" ")}
+          >
+            {g}
+          </button>
+        ))}
+      </div>
+    ) : null;
 
   const playerSection = (
     <div className="bg-brand-card border border-brand-border rounded-xl overflow-hidden shadow-xl">
@@ -178,9 +208,14 @@ export default function TvLive() {
           <div className="px-4 py-3 bg-brand-surface/40 border-t border-brand-border flex items-center gap-3">
             <div className="w-9 h-9 rounded-md overflow-hidden bg-brand-surface border border-brand-border flex-shrink-0">
               {selectedChannel.logo ? (
-                <img src={selectedChannel.logo} alt={selectedChannel.name}
+                <img
+                  src={selectedChannel.logo}
+                  alt={selectedChannel.name}
                   className="w-full h-full object-contain"
-                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).style.display = "none";
+                  }}
+                />
               ) : (
                 <ChannelInitial name={selectedChannel.name} />
               )}
@@ -193,7 +228,10 @@ export default function TvLive() {
           </div>
         </>
       ) : (
-        <div className="flex flex-col items-center justify-center gap-4 bg-brand-dark" style={{ aspectRatio: "16/9" }}>
+        <div
+          className="flex flex-col items-center justify-center gap-4 bg-brand-dark"
+          style={{ aspectRatio: "16/9" }}
+        >
           <div className="text-5xl opacity-20">📺</div>
           <p className="text-gray-600 text-sm">Selecciona un canal para reproducir</p>
         </div>
@@ -207,44 +245,55 @@ export default function TvLive() {
   const channelList = (isMobile: boolean) => {
     if (isLoading) return isMobile ? <SkeletonCards /> : <SkeletonRows />;
 
-    if (isError) return (
-      <div className="flex flex-col items-center justify-center py-12 px-4 text-center gap-3">
-        <span className="text-4xl">📡</span>
-        <p className="text-gray-400 text-sm font-medium">No se pudieron cargar los canales.</p>
-      </div>
-    );
+    if (isError)
+      return (
+        <div className="flex flex-col items-center justify-center py-12 px-4 text-center gap-3">
+          <span className="text-4xl">📡</span>
+          <p className="text-gray-400 text-sm font-medium">No se pudieron cargar los canales.</p>
+        </div>
+      );
 
-    if (channels.length === 0) return (
-      <div className="flex flex-col items-center justify-center py-12 px-4 text-center gap-3">
-        <span className="text-4xl">🔍</span>
-        <p className="text-gray-400 text-sm font-medium">No se encontraron canales.</p>
-        {(rawSearch || selectedGroup !== "Todos") && (
-          <button onClick={clearFilters}
-            className="mt-1 px-3 py-1.5 bg-brand-surface border border-brand-border rounded-lg text-xs text-gray-300 hover:text-white transition-colors">
-            Limpiar filtros
-          </button>
-        )}
-      </div>
-    );
+    if (channels.length === 0)
+      return (
+        <div className="flex flex-col items-center justify-center py-12 px-4 text-center gap-3">
+          <span className="text-4xl">🔍</span>
+          <p className="text-gray-400 text-sm font-medium">No se encontraron canales.</p>
+          {(rawSearch || selectedGroup !== "Todos") && (
+            <button
+              onClick={clearFilters}
+              className="mt-1 px-3 py-1.5 bg-brand-surface border border-brand-border rounded-lg text-xs text-gray-300 hover:text-white transition-colors"
+            >
+              Limpiar filtros
+            </button>
+          )}
+        </div>
+      );
 
-    if (isMobile) return (
-      <div className="grid grid-cols-2 gap-2 p-2">
-        {channels.map((ch) => (
-          <ChannelCard key={ch.id} channel={ch}
-            isSelected={selectedChannel?.id === ch.id}
-            isOffline={offlineIds.has(ch.id)}
-            onSelect={selectChannel} />
-        ))}
-      </div>
-    );
+    if (isMobile)
+      return (
+        <div className="grid grid-cols-2 gap-2 p-2">
+          {channels.map((ch) => (
+            <ChannelCard
+              key={ch.id}
+              channel={ch}
+              isSelected={selectedChannel?.id === ch.id}
+              isOffline={offlineIds.has(ch.id)}
+              onSelect={selectChannel}
+            />
+          ))}
+        </div>
+      );
 
     return (
       <div ref={listRef} className="overflow-y-auto h-[calc(100vh-340px)] min-h-[320px]">
         {channels.map((ch) => (
-          <ChannelRow key={ch.id} channel={ch}
+          <ChannelRow
+            key={ch.id}
+            channel={ch}
             isSelected={selectedChannel?.id === ch.id}
             isOffline={offlineIds.has(ch.id)}
-            onSelect={selectChannel} />
+            onSelect={selectChannel}
+          />
         ))}
       </div>
     );
@@ -252,7 +301,9 @@ export default function TvLive() {
 
   return (
     <div className="min-h-screen bg-brand-dark pt-16 pb-16">
-      <Helmet><title>TV en Vivo — Cine Gratín</title></Helmet>
+      <Helmet>
+        <title>TV en Vivo — Cine Gratín</title>
+      </Helmet>
 
       {/* MOBILE */}
       <div className="md:hidden flex flex-col">
@@ -261,7 +312,10 @@ export default function TvLive() {
           <div className="mb-3">{sourceTabs}</div>
           {searchBox}
         </div>
-        <div ref={mobilePlayerRef} className="sticky top-16 z-30 bg-brand-dark border-b border-brand-border shadow-2xl">
+        <div
+          ref={mobilePlayerRef}
+          className="sticky top-16 z-30 bg-brand-dark border-b border-brand-border shadow-2xl"
+        >
           {playerSection}
         </div>
         {(groups.length > 1 || !isLoading) && (
@@ -269,7 +323,8 @@ export default function TvLive() {
             {groupPills}
             {!isLoading && (
               <p className="text-[11px] text-gray-600 px-1">
-                {availableCount} canal{availableCount !== 1 ? "es" : ""} disponible{availableCount !== 1 ? "s" : ""}
+                {availableCount} canal{availableCount !== 1 ? "es" : ""} disponible
+                {availableCount !== 1 ? "s" : ""}
               </p>
             )}
           </div>
@@ -284,7 +339,8 @@ export default function TvLive() {
             <h1 className="text-3xl font-black text-white">📺 TV en Vivo</h1>
             {!isLoading && (
               <span className="text-gray-500 text-sm">
-                {availableCount} canal{availableCount !== 1 ? "es" : ""} disponible{availableCount !== 1 ? "s" : ""}
+                {availableCount} canal{availableCount !== 1 ? "es" : ""} disponible
+                {availableCount !== 1 ? "s" : ""}
               </span>
             )}
           </div>

@@ -12,7 +12,11 @@ const FALLBACK_POSTER =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='300' viewBox='0 0 200 300'%3E%3Crect width='200' height='300' fill='%231a1a1a'/%3E%3Ctext x='100' y='150' font-family='sans-serif' font-size='14' fill='%23555' text-anchor='middle' dominant-baseline='middle'%3ESin imagen%3C/text%3E%3C/svg%3E";
 
 export default function Movies() {
-  const { data: movies, isLoading: loading, error } = useQuery({
+  const {
+    data: movies,
+    isLoading: loading,
+    error,
+  } = useQuery({
     queryKey: ["movies"],
     queryFn: () => getMovies(),
     staleTime: 5 * 60 * 1000,
@@ -29,7 +33,9 @@ export default function Movies() {
   }, [search]);
 
   // Reset pagination when filters change
-  useEffect(() => { setVisibleCount(GRID_PAGE_SIZE); }, [debouncedSearch, genre]);
+  useEffect(() => {
+    setVisibleCount(GRID_PAGE_SIZE);
+  }, [debouncedSearch, genre]);
 
   const genres = useMemo(() => {
     const set = new Set<string>();
@@ -99,7 +105,10 @@ export default function Movies() {
           <div className="text-center py-20">
             <p className="text-gray-400 text-lg">No hay películas que coincidan.</p>
             <button
-              onClick={() => { setSearch(""); setGenre("Todos"); }}
+              onClick={() => {
+                setSearch("");
+                setGenre("Todos");
+              }}
               className="mt-4 text-brand-red hover:text-red-400 text-sm underline"
             >
               Limpiar filtros
@@ -117,7 +126,9 @@ export default function Movies() {
                       src={movie.poster_url || FALLBACK_POSTER}
                       alt={movie.title}
                       loading="lazy"
-                      onError={(e) => { (e.currentTarget as HTMLImageElement).src = FALLBACK_POSTER; }}
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = FALLBACK_POSTER;
+                      }}
                       className="w-full h-full object-cover"
                     />
                   </div>
@@ -128,7 +139,9 @@ export default function Movies() {
                     <div className="flex items-center gap-2 mt-0.5">
                       {movie.year && <span className="text-xs text-gray-500">{movie.year}</span>}
                       {movie.rating !== undefined && (
-                        <span className="text-xs text-brand-gold">&#9733; {Number(movie.rating).toFixed(1)}</span>
+                        <span className="text-xs text-brand-gold">
+                          &#9733; {Number(movie.rating).toFixed(1)}
+                        </span>
                       )}
                     </div>
                   </div>

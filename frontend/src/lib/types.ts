@@ -139,6 +139,7 @@ export interface Series {
   end_year?: number | null;
   genres?: string[];
   rating?: number;
+  mpa_rating?: string;
   creators?: string[];
   cast_list?: string[];
   cast_full?: CastMember[];
@@ -174,4 +175,3 @@ export interface Season {
   number: number;
   episodes?: Episode[];
 }
-

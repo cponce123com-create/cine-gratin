@@ -4,7 +4,9 @@ import { VIDEO_TYPE_COLORS } from "./constants";
 
 export function VideoTypeLabel({ type }: { type: string }) {
   return (
-    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${VIDEO_TYPE_COLORS[type] ?? "bg-gray-600"} text-white`}>
+    <span
+      className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${VIDEO_TYPE_COLORS[type] ?? "bg-gray-600"} text-white`}
+    >
       {type}
     </span>
   );
@@ -37,13 +39,17 @@ export function VideoCard({ video }: { video: TmdbVideo }) {
       <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors" />
       <div className="absolute inset-0 flex items-center justify-center">
         <div className="w-12 h-12 rounded-full bg-brand-red/90 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-          <svg className="w-5 h-5 text-white ml-0.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+          <svg className="w-5 h-5 text-white ml-0.5" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M8 5v14l11-7z" />
+          </svg>
         </div>
       </div>
       <div className="absolute bottom-0 inset-x-0 p-2 bg-gradient-to-t from-black/90 to-transparent">
         <div className="flex items-start gap-1.5">
           <VideoTypeLabel type={video.type} />
-          <p className="text-white text-xs font-medium leading-tight line-clamp-2 flex-1 text-left">{video.name}</p>
+          <p className="text-white text-xs font-medium leading-tight line-clamp-2 flex-1 text-left">
+            {video.name}
+          </p>
         </div>
       </div>
     </button>

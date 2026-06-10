@@ -55,9 +55,7 @@ function EventsSection() {
     <div className="bg-brand-card border border-brand-border rounded-2xl p-6 space-y-4">
       <div>
         <h2 className="text-white font-bold text-base mb-1">Eventos Importados</h2>
-        <p className="text-gray-500 text-sm">
-          {events.length} eventos disponibles (mínimo 30 minutos)
-        </p>
+        <p className="text-gray-500 text-sm">{events.length} eventos disponibles (mínimo 30 minutos)</p>
       </div>
 
       {loading ? (
@@ -111,10 +109,7 @@ export default function EventChannels() {
           </p>
         </div>
 
-        <YouTubeSettingsSection
-          getSettings={getEventsSettings}
-          saveSettings={saveEventsSettings}
-        />
+        <YouTubeSettingsSection getSettings={getEventsSettings} saveSettings={saveEventsSettings} />
         <YouTubeChannelsSection
           variant="list"
           description="Añade canales y sincroniza sus eventos automáticamente."

@@ -1,10 +1,7 @@
 const AUTH_KEY = "cg_admin_token";
-const BASE_URL = import.meta.env["VITE_API_URL"] as string || "https://cine-gratin.onrender.com";
+const BASE_URL = (import.meta.env["VITE_API_URL"] as string) || "https://cine-gratin.onrender.com";
 
-export async function login(
-  _username: string,
-  password: string
-): Promise<{ ok: boolean; error?: string }> {
+export async function login(_username: string, password: string): Promise<{ ok: boolean; error?: string }> {
   try {
     const res = await fetch(`${BASE_URL}/api/auth/login`, {
       method: "POST",

@@ -5,24 +5,14 @@ const MIN_ITEMS_TO_SHOW = 2;
 
 export { MIN_ITEMS_TO_SHOW };
 
-export function matchesKeywords(
-  genres: string[] | undefined,
-  keywords: string[],
-): boolean {
+export function matchesKeywords(genres: string[] | undefined, keywords: string[]): boolean {
   if (!genres || genres.length === 0) return false;
-  return genres.some((g) =>
-    keywords.some((kw) => g.toLowerCase().includes(kw.toLowerCase())),
-  );
+  return genres.some((g) => keywords.some((kw) => g.toLowerCase().includes(kw.toLowerCase())));
 }
 
-export function matchesNetworks(
-  itemNetworks: string[] | undefined,
-  targets: string[],
-): boolean {
+export function matchesNetworks(itemNetworks: string[] | undefined, targets: string[]): boolean {
   if (!itemNetworks || itemNetworks.length === 0) return false;
-  return itemNetworks.some((n) =>
-    targets.some((t) => n.toLowerCase().includes(t.toLowerCase())),
-  );
+  return itemNetworks.some((n) => targets.some((t) => n.toLowerCase().includes(t.toLowerCase())));
 }
 
 function normalizeTitle(title: string): string {

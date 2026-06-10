@@ -5,12 +5,12 @@
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
 export interface IptvChannel {
-  id: string;          // hash único de la URL (btoa slice)
-  name: string;        // tvg-name o nombre del canal
-  url: string;         // URL del stream .m3u8
-  logo: string;        // tvg-logo (puede estar vacío)
-  group: string;       // group-title
-  country: string;     // tvg-country (puede estar vacío)
+  id: string; // hash único de la URL (btoa slice)
+  name: string; // tvg-name o nombre del canal
+  url: string; // URL del stream .m3u8
+  logo: string; // tvg-logo (puede estar vacío)
+  group: string; // group-title
+  country: string; // tvg-country (puede estar vacío)
   status: "unknown" | "online" | "offline" | "cors-blocked";
 }
 
@@ -34,21 +34,21 @@ export type IptvSource =
 // ─── Sources map ───────────────────────────────────────────────────────────────
 
 const SOURCES: Record<IptvSource, string> = {
-  peru:        "https://iptv-org.github.io/iptv/countries/pe.m3u",
-  latino:      "https://iptv-org.github.io/iptv/languages/spa.m3u",
-  mexico:      "https://iptv-org.github.io/iptv/countries/mx.m3u",
-  argentina:   "https://iptv-org.github.io/iptv/countries/ar.m3u",
-  colombia:    "https://iptv-org.github.io/iptv/countries/co.m3u",
-  news:        "https://iptv-org.github.io/iptv/categories/news.m3u",
-  sports:      "https://iptv-org.github.io/iptv/categories/sports.m3u",
-  movies:      "https://iptv-org.github.io/iptv/categories/movies.m3u",
-  kids:        "https://iptv-org.github.io/iptv/categories/kids.m3u",
-  music:       "https://iptv-org.github.io/iptv/categories/music.m3u",
-  documentary:   "https://iptv-org.github.io/iptv/categories/documentary.m3u",
-  tdtchannels:   "https://www.tdtchannels.com/lists/tv.m3u8",
+  peru: "https://iptv-org.github.io/iptv/countries/pe.m3u",
+  latino: "https://iptv-org.github.io/iptv/languages/spa.m3u",
+  mexico: "https://iptv-org.github.io/iptv/countries/mx.m3u",
+  argentina: "https://iptv-org.github.io/iptv/countries/ar.m3u",
+  colombia: "https://iptv-org.github.io/iptv/countries/co.m3u",
+  news: "https://iptv-org.github.io/iptv/categories/news.m3u",
+  sports: "https://iptv-org.github.io/iptv/categories/sports.m3u",
+  movies: "https://iptv-org.github.io/iptv/categories/movies.m3u",
+  kids: "https://iptv-org.github.io/iptv/categories/kids.m3u",
+  music: "https://iptv-org.github.io/iptv/categories/music.m3u",
+  documentary: "https://iptv-org.github.io/iptv/categories/documentary.m3u",
+  tdtchannels: "https://www.tdtchannels.com/lists/tv.m3u8",
   peru_regional: "https://raw.githubusercontent.com/antholyber1a/lista-iptv-peru/main/iptvperu.m3u",
-  infinity:      "https://telechancho.github.io/infinity.m3u",
-  all:           "https://iptv-org.github.io/iptv/index.m3u",
+  infinity: "https://telechancho.github.io/infinity.m3u",
+  all: "https://iptv-org.github.io/iptv/index.m3u",
 };
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -98,19 +98,19 @@ export function parseM3U(text: string): IptvChannel[] {
       const candidate = lines[j];
       if (!candidate) continue;
       if (candidate.startsWith("#EXTINF")) break; // next channel block
-      if (!candidate.startsWith("#")) { url = candidate; break; }
+      if (!candidate.startsWith("#")) {
+        url = candidate;
+        break;
+      }
     }
 
     // Skip if no URL, not HTTP, or already seen
     if (!url || !url.startsWith("http") || seenUrls.has(url)) continue;
     seenUrls.add(url);
 
-    const name =
-      extractDisplayName(line) ||
-      extractAttr(line, "tvg-name") ||
-      "Canal desconocido";
-    const logo    = extractAttr(line, "tvg-logo");
-    const group   = extractAttr(line, "group-title") || "General";
+    const name = extractDisplayName(line) || extractAttr(line, "tvg-name") || "Canal desconocido";
+    const logo = extractAttr(line, "tvg-logo");
+    const group = extractAttr(line, "group-title") || "General";
     const country = extractAttr(line, "tvg-country");
 
     channels.push({

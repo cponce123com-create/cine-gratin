@@ -14,8 +14,8 @@ export default function Footer() {
           {/* Disclaimer + copyright */}
           <div className="text-center sm:text-right">
             <p className="text-gray-600 text-xs leading-relaxed max-w-sm">
-              El contenido multimedia es provisto por servicios externos. No almacenamos ni
-              distribuimos archivos de video.
+              El contenido multimedia es provisto por servicios externos. No almacenamos ni distribuimos
+              archivos de video.
             </p>
             <p className="text-gray-700 text-xs mt-1">
               &copy; {year} Cine Gratín. Todos los derechos reservados.

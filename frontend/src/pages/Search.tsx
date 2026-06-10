@@ -74,8 +74,7 @@ export default function Search() {
         {query && (
           <div className="mb-6">
             <h1 className="text-2xl font-black text-white">
-              Resultados para{" "}
-              <span className="text-brand-red">&ldquo;{query}&rdquo;</span>
+              Resultados para <span className="text-brand-red">&ldquo;{query}&rdquo;</span>
             </h1>
             {!loading && (
               <p className="text-gray-500 text-sm mt-1">
@@ -98,7 +97,11 @@ export default function Search() {
                     : "bg-brand-surface border-brand-border text-gray-400 hover:text-white hover:border-gray-500"
                 }`}
               >
-                {t === "todas" ? "Todas" : t === "peliculas" ? `Películas (${movies.length})` : `Series (${series.length})`}
+                {t === "todas"
+                  ? "Todas"
+                  : t === "peliculas"
+                    ? `Películas (${movies.length})`
+                    : `Series (${series.length})`}
               </button>
             ))}
           </div>
@@ -135,7 +138,9 @@ export default function Search() {
                       src={m.poster_url || FALLBACK_POSTER}
                       alt={m.title}
                       loading="lazy"
-                      onError={(e) => { (e.currentTarget as HTMLImageElement).src = FALLBACK_POSTER; }}
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = FALLBACK_POSTER;
+                      }}
                       className="w-full h-full object-cover"
                     />
                   </div>
@@ -172,7 +177,9 @@ export default function Search() {
                       src={s.poster_url || FALLBACK_POSTER}
                       alt={s.title}
                       loading="lazy"
-                      onError={(e) => { (e.currentTarget as HTMLImageElement).src = FALLBACK_POSTER; }}
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = FALLBACK_POSTER;
+                      }}
                       className="w-full h-full object-cover"
                     />
                   </div>

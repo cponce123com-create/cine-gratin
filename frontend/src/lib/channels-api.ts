@@ -29,32 +29,21 @@ export interface SyncResult {
 
 // ─── Factory ───────────────────────────────────────────────────────────────────
 
-export function createChannelApi(
-  channelPrefix: string,
-  itemEndpoint: string,
-) {
+export function createChannelApi(channelPrefix: string, itemEndpoint: string) {
   return {
     // Settings
-    getSettings: (): Promise<Record<string, string>> =>
-      adminFetch(`/api/${channelPrefix}/settings`),
+    getSettings: (): Promise<Record<string, string>> => adminFetch(`/api/${channelPrefix}/settings`),
 
-    saveSettings: (
-      data: { youtube_api_key: string },
-    ): Promise<{ ok: boolean }> =>
+    saveSettings: (data: { youtube_api_key: string }): Promise<{ ok: boolean }> =>
       adminFetch(`/api/${channelPrefix}/settings`, {
         method: "POST",
         body: JSON.stringify(data),
       }),
 
     // Channels (admin)
-    getChannels: (): Promise<Channel[]> =>
-      adminFetch(`/api/${channelPrefix}/channels`),
+    getChannels: (): Promise<Channel[]> => adminFetch(`/api/${channelPrefix}/channels`),
 
-    addChannel: (data: {
-      name: string;
-      url: string;
-      keyword?: string;
-    }): Promise<Channel> =>
+    addChannel: (data: { name: string; url: string; keyword?: string }): Promise<Channel> =>
       adminFetch(`/api/${channelPrefix}/channels`, {
         method: "POST",
         body: JSON.stringify(data),
@@ -74,11 +63,7 @@ export function createChannelApi(
       adminFetch(`/api/${channelPrefix}/sync-all`, { method: "POST" }),
 
     // Items (public)
-    getItems: (params?: {
-      q?: string;
-      limit?: number;
-      offset?: number;
-    }): Promise<ChannelItem[]> => {
+    getItems: (params?: { q?: string; limit?: number; offset?: number }): Promise<ChannelItem[]> => {
       const qs = new URLSearchParams();
       if (params?.q) qs.set("q", params.q);
       if (params?.limit) qs.set("limit", String(params.limit));
@@ -87,7 +72,6 @@ export function createChannelApi(
       return apiFetch(`/api/${itemEndpoint}${query}`);
     },
 
-    deleteItem: (id: number): Promise<void> =>
-      adminFetch(`/api/${itemEndpoint}/${id}`, { method: "DELETE" }),
+    deleteItem: (id: number): Promise<void> => adminFetch(`/api/${itemEndpoint}/${id}`, { method: "DELETE" }),
   };
 }

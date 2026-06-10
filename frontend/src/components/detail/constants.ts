@@ -23,10 +23,10 @@ export const VIDEO_TYPE_COLORS: Record<string, string> = {
 };
 
 export const VIDEO_TABS = [
-  { id: "popular",  label: "Más popular" },
+  { id: "popular", label: "Más popular" },
   { id: "trailers", label: "Tráileres" },
-  { id: "teasers",  label: "Teasers" },
-  { id: "clips",    label: "Clips" },
-  { id: "bts",      label: "Behind the Scenes" },
-  { id: "all",      label: "Todo" },
+  { id: "teasers", label: "Teasers" },
+  { id: "clips", label: "Clips" },
+  { id: "bts", label: "Behind the Scenes" },
+  { id: "all", label: "Todo" },
 ];

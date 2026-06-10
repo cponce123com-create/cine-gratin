@@ -47,4 +47,3 @@ export function useSeries(id: string) {
     enabled: Boolean(id),
   });
 }
-

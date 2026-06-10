@@ -9,18 +9,21 @@ export function useIntersectionObserver(options?: IntersectionObserverInit) {
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
-    const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) {
-        setIsVisible(true);
-        // Una vez visible, desuscribirse para no seguir observando
-        if (ref.current) {
-          observer.unobserve(ref.current);
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          // Una vez visible, desuscribirse para no seguir observando
+          if (ref.current) {
+            observer.unobserve(ref.current);
+          }
         }
-      }
-    }, {
-      threshold: 0.01, // Activar cuando al menos el 1% sea visible
-      ...options,
-    });
+      },
+      {
+        threshold: 0.01, // Activar cuando al menos el 1% sea visible
+        ...options,
+      },
+    );
 
     if (ref.current) {
       observer.observe(ref.current);

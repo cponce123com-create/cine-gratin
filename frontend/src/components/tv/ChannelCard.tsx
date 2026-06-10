@@ -3,7 +3,10 @@ import type { IptvChannel } from "@/lib/iptv-api";
 import { ChannelInitial, LiveBadge } from "./ChannelBadge";
 
 export default function ChannelCard({
-  channel, isSelected, isOffline, onSelect,
+  channel,
+  isSelected,
+  isOffline,
+  onSelect,
 }: {
   channel: IptvChannel;
   isSelected: boolean;
@@ -13,13 +16,18 @@ export default function ChannelCard({
   const [logoFailed, setLogoFailed] = useState(false);
   const touchFiredRef = useRef(false);
 
-  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
-    e.preventDefault();
-    if (isOffline) return;
-    touchFiredRef.current = true;
-    onSelect(channel);
-    setTimeout(() => { touchFiredRef.current = false; }, 500);
-  }, [channel, isOffline, onSelect]);
+  const handleTouchEnd = useCallback(
+    (e: React.TouchEvent) => {
+      e.preventDefault();
+      if (isOffline) return;
+      touchFiredRef.current = true;
+      onSelect(channel);
+      setTimeout(() => {
+        touchFiredRef.current = false;
+      }, 500);
+    },
+    [channel, isOffline, onSelect],
+  );
 
   const handleClick = useCallback(() => {
     if (touchFiredRef.current) return;
@@ -42,9 +50,13 @@ export default function ChannelCard({
     >
       <div className="w-full aspect-square rounded-lg overflow-hidden bg-brand-surface border border-brand-border/50">
         {!logoFailed && channel.logo ? (
-          <img src={channel.logo} alt={channel.name} loading="lazy"
+          <img
+            src={channel.logo}
+            alt={channel.name}
+            loading="lazy"
             className="w-full h-full object-contain"
-            onError={() => setLogoFailed(true)} />
+            onError={() => setLogoFailed(true)}
+          />
         ) : (
           <ChannelInitial name={channel.name} />
         )}

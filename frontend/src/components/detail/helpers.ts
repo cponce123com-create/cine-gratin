@@ -1,8 +1,7 @@
 import type { TmdbVideo } from "@/lib/types";
 
 const BASE_URL =
-  (import.meta.env["VITE_API_URL"] as string | undefined) ||
-  "https://cine-gratin.onrender.com";
+  (import.meta.env["VITE_API_URL"] as string | undefined) || "https://cine-gratin.onrender.com";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -38,12 +37,21 @@ export interface PersonProfile {
   profile_url: string;
   profile_photos: string[];
   known_for: {
-    id: number; media_type: string; title: string;
-    character: string; poster_url: string; year: string; rating: number;
+    id: number;
+    media_type: string;
+    title: string;
+    character: string;
+    poster_url: string;
+    year: string;
+    rating: number;
   }[];
   all_credits: {
-    id: number; media_type: string; title: string;
-    character: string; year: string; poster_url?: string;
+    id: number;
+    media_type: string;
+    title: string;
+    character: string;
+    year: string;
+    poster_url?: string;
   }[];
 }
 
@@ -78,7 +86,10 @@ export async function fetchImages(imdbId: string, type: "movie" | "series"): Pro
   return res.json();
 }
 
-export async function fetchRecommendations(imdbId: string, type: "movie" | "series"): Promise<TmdbRecommendation[]> {
+export async function fetchRecommendations(
+  imdbId: string,
+  type: "movie" | "series",
+): Promise<TmdbRecommendation[]> {
   const res = await fetch(`${BASE_URL}/api/tmdb/recommendations/${imdbId}?type=${type}`);
   if (!res.ok) return [];
   return res.json();

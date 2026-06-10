@@ -29,7 +29,10 @@ export function ReviewCard({ review }: { review: TmdbReview }) {
       </div>
       <p className="text-gray-300 text-sm leading-relaxed">{text}</p>
       {isLong && (
-        <button onClick={() => setExpanded(v => !v)} className="mt-2 text-brand-red hover:text-red-400 text-xs font-medium transition-colors">
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-2 text-brand-red hover:text-red-400 text-xs font-medium transition-colors"
+        >
           {expanded ? "Leer menos" : "Leer más"}
         </button>
       )}

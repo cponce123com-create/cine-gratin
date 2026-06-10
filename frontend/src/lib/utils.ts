@@ -2,7 +2,10 @@
  * Optimiza las URLs de imágenes de TMDB si es posible.
  * Si la URL es de TMDB, intenta cambiar el tamaño a uno más pequeño para el catálogo.
  */
-export function optimizeImageUrl(url: string | null | undefined, size: "small" | "medium" | "large" = "medium"): string {
+export function optimizeImageUrl(
+  url: string | null | undefined,
+  size: "small" | "medium" | "large" = "medium",
+): string {
   if (!url) return "";
 
   // Si es una URL de TMDB
@@ -31,9 +34,7 @@ export function tmdbSrcSet(url: string | null | undefined): string {
   if (!match) return "";
   const imgPath = match[1];
   const base = "https://image.tmdb.org/t/p";
-  return [
-    `${base}/w185${imgPath} 185w`,
-    `${base}/w342${imgPath} 342w`,
-    `${base}/w500${imgPath} 500w`,
-  ].join(", ");
+  return [`${base}/w185${imgPath} 185w`, `${base}/w342${imgPath} 342w`, `${base}/w500${imgPath} 500w`].join(
+    ", ",
+  );
 }

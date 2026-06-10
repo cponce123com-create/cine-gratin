@@ -21,9 +21,7 @@ async function fetchVidsrcList(
 ): Promise<Set<string>> {
   const available = new Set<string>();
   const base =
-    type === "series"
-      ? "https://vidsrc.me/tvshows/latest/page-"
-      : "https://vidsrc.me/movies/latest/page-";
+    type === "series" ? "https://vidsrc.me/tvshows/latest/page-" : "https://vidsrc.me/movies/latest/page-";
 
   let consecutiveFailures = 0;
   for (let page = 1; page <= 999; page++) {
@@ -77,12 +75,8 @@ export default function VidsrcVerificationCard() {
       setPhase("verifying");
       const [movies, series] = await Promise.all([getMovies(), getSeries()]);
       const allItems = [
-        ...movies
-          .filter((m) => m.imdb_id)
-          .map((m) => ({ imdb_id: m.imdb_id!, type: "movie" as const })),
-        ...series
-          .filter((s) => s.imdb_id)
-          .map((s) => ({ imdb_id: s.imdb_id!, type: "series" as const })),
+        ...movies.filter((m) => m.imdb_id).map((m) => ({ imdb_id: m.imdb_id!, type: "movie" as const })),
+        ...series.filter((s) => s.imdb_id).map((s) => ({ imdb_id: s.imdb_id!, type: "series" as const })),
       ];
       const total = allItems.length;
       setProgress({ checked: 0, total });
@@ -98,8 +92,7 @@ export default function VidsrcVerificationCard() {
       }[] = [];
 
       for (const item of allItems) {
-        const available =
-          item.type === "movie" ? movieSet.has(item.imdb_id) : seriesSet.has(item.imdb_id);
+        const available = item.type === "movie" ? movieSet.has(item.imdb_id) : seriesSet.has(item.imdb_id);
         if (available) active++;
         else inactive++;
         checked++;
@@ -148,15 +141,13 @@ export default function VidsrcVerificationCard() {
     <div className="bg-brand-card border border-brand-border rounded-2xl p-6">
       <div className="flex items-start justify-between gap-4 mb-4">
         <div>
-          <h2 className="text-white font-bold text-base mb-1">
-            Verificar disponibilidad en VIDSRC
-          </h2>
+          <h2 className="text-white font-bold text-base mb-1">Verificar disponibilidad en VIDSRC</h2>
           <p className="text-gray-500 text-sm">
-            Comprueba si cada título tiene video disponible en VIDSRC. Para escaneos
-            grandes usa el{" "}
+            Comprueba si cada título tiene video disponible en VIDSRC. Para escaneos grandes usa el{" "}
             <a href="/admin/vidsrc-scanner" className="text-brand-red hover:underline">
               Escáner VIDSRC
-            </a>.
+            </a>
+            .
           </p>
         </div>
       </div>
@@ -240,8 +231,8 @@ export default function VidsrcVerificationCard() {
 
         {cleanResult && (
           <p className="text-xs text-green-400 mt-2 w-full">
-            ✅ Eliminados: {cleanResult.movies} películas y {cleanResult.series} series (
-            {cleanResult.total} en total)
+            ✅ Eliminados: {cleanResult.movies} películas y {cleanResult.series} series ({cleanResult.total}{" "}
+            en total)
           </p>
         )}
       </div>

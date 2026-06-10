@@ -45,9 +45,18 @@ export default function VidsrcScanner() {
     matched: 0,
     total: 0,
   });
-  const [counts, setCounts] = useState({ active: 0, inactive: 0, moviesActive: 0, moviesInactive: 0, seriesActive: 0, seriesInactive: 0 });
+  const [counts, setCounts] = useState({
+    active: 0,
+    inactive: 0,
+    moviesActive: 0,
+    moviesInactive: 0,
+    seriesActive: 0,
+    seriesInactive: 0,
+  });
   const [cleaning, setCleaning] = useState(false);
-  const [cleanResult, setCleanResult] = useState<{ movies: number; series: number; total: number } | null>(null);
+  const [cleanResult, setCleanResult] = useState<{ movies: number; series: number; total: number } | null>(
+    null,
+  );
   const [typeFilter, setTypeFilter] = useState<"all" | "movie" | "series">("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive" | "pending">("all");
   const [error, setError] = useState("");
@@ -59,14 +68,22 @@ export default function VidsrcScanner() {
       try {
         const [movies, series] = await Promise.all([getMovies(), getSeries()]);
         const items: ScanRow[] = [
-          ...movies.filter((m: Movie) => m.imdb_id).map((m: Movie) => ({
-            imdb_id: m.imdb_id!, title: m.title, type: "movie" as const,
-            status: (m.vidsrc_status === "active" ? "active" : "pending") as RowStatus,
-          })),
-          ...series.filter((s: Series) => s.imdb_id).map((s: Series) => ({
-            imdb_id: s.imdb_id!, title: s.title, type: "series" as const,
-            status: (s.vidsrc_status === "active" ? "active" : "pending") as RowStatus,
-          })),
+          ...movies
+            .filter((m: Movie) => m.imdb_id)
+            .map((m: Movie) => ({
+              imdb_id: m.imdb_id!,
+              title: m.title,
+              type: "movie" as const,
+              status: (m.vidsrc_status === "active" ? "active" : "pending") as RowStatus,
+            })),
+          ...series
+            .filter((s: Series) => s.imdb_id)
+            .map((s: Series) => ({
+              imdb_id: s.imdb_id!,
+              title: s.title,
+              type: "series" as const,
+              status: (s.vidsrc_status === "active" ? "active" : "pending") as RowStatus,
+            })),
         ];
         setRows(items);
       } catch {
@@ -88,8 +105,20 @@ export default function VidsrcScanner() {
     cleanup();
     setError("");
     setPhase("downloading");
-    setCounts({ active: 0, inactive: 0, moviesActive: 0, moviesInactive: 0, seriesActive: 0, seriesInactive: 0 });
-    setProgress({ pagesLoaded: { movie: 0, series: 0 }, totalPages: { movie: 0, series: 0 }, matched: 0, total: 0 });
+    setCounts({
+      active: 0,
+      inactive: 0,
+      moviesActive: 0,
+      moviesInactive: 0,
+      seriesActive: 0,
+      seriesInactive: 0,
+    });
+    setProgress({
+      pagesLoaded: { movie: 0, series: 0 },
+      totalPages: { movie: 0, series: 0 },
+      matched: 0,
+      total: 0,
+    });
 
     const token = getToken();
     const url = `${BASE_URL}/api/admin/vidsrc-scan-stream${token ? `?token=${encodeURIComponent(token)}` : ""}`;
@@ -98,7 +127,7 @@ export default function VidsrcScanner() {
 
     es.addEventListener("start", (e: MessageEvent) => {
       const data = JSON.parse(e.data) as { totalItems: number };
-      setProgress(prev => ({ ...prev, total: data.totalItems }));
+      setProgress((prev) => ({ ...prev, total: data.totalItems }));
     });
 
     es.addEventListener("phase", (e: MessageEvent) => {
@@ -108,7 +137,7 @@ export default function VidsrcScanner() {
 
     es.addEventListener("page_progress", (e: MessageEvent) => {
       const data = JSON.parse(e.data) as PageProgress;
-      setProgress(prev => ({
+      setProgress((prev) => ({
         ...prev,
         pagesLoaded: { ...prev.pagesLoaded, [data.type]: data.pagesLoaded },
         totalPages: { ...prev.totalPages, [data.type]: data.totalPages },
@@ -117,7 +146,7 @@ export default function VidsrcScanner() {
 
     es.addEventListener("match_progress", (e: MessageEvent) => {
       const data = JSON.parse(e.data) as MatchProgress;
-      setProgress(prev => ({ ...prev, matched: data.matched, total: data.total }));
+      setProgress((prev) => ({ ...prev, matched: data.matched, total: data.total }));
     });
 
     es.addEventListener("done", (e: MessageEvent) => {
@@ -130,7 +159,7 @@ export default function VidsrcScanner() {
         seriesActive: data.seriesActive,
         seriesInactive: data.seriesInactive,
       });
-      setProgress(prev => ({ ...prev, matched: data.total, total: data.total }));
+      setProgress((prev) => ({ ...prev, matched: data.total, total: data.total }));
       setPhase("done");
       es.close();
       eventSourceRef.current = null;
@@ -140,17 +169,27 @@ export default function VidsrcScanner() {
         try {
           const [movies, series] = await Promise.all([getMovies(), getSeries()]);
           const updatedItems: ScanRow[] = [
-            ...movies.filter((m: Movie) => m.imdb_id).map((m: Movie) => ({
-              imdb_id: m.imdb_id!, title: m.title, type: "movie" as const,
-              status: (m.vidsrc_status === "active" ? "active" : "inactive") as RowStatus,
-            })),
-            ...series.filter((s: Series) => s.imdb_id).map((s: Series) => ({
-              imdb_id: s.imdb_id!, title: s.title, type: "series" as const,
-              status: (s.vidsrc_status === "active" ? "active" : "inactive") as RowStatus,
-            })),
+            ...movies
+              .filter((m: Movie) => m.imdb_id)
+              .map((m: Movie) => ({
+                imdb_id: m.imdb_id!,
+                title: m.title,
+                type: "movie" as const,
+                status: (m.vidsrc_status === "active" ? "active" : "inactive") as RowStatus,
+              })),
+            ...series
+              .filter((s: Series) => s.imdb_id)
+              .map((s: Series) => ({
+                imdb_id: s.imdb_id!,
+                title: s.title,
+                type: "series" as const,
+                status: (s.vidsrc_status === "active" ? "active" : "inactive") as RowStatus,
+              })),
           ];
           setRows(updatedItems);
-        } catch { /* keep previous rows */ }
+        } catch {
+          /* keep previous rows */
+        }
       })();
     });
 
@@ -167,7 +206,7 @@ export default function VidsrcScanner() {
     });
 
     es.onerror = () => {
-      setPhase(prev => {
+      setPhase((prev) => {
         if (prev === "done") return prev;
         setError("Error de conexión con el servidor");
         return "idle";
@@ -186,14 +225,15 @@ export default function VidsrcScanner() {
   useEffect(() => cleanup, [cleanup]);
 
   const handleCleanup = async () => {
-    if (!confirm(`¿Eliminar los ${counts.inactive} títulos sin video? Esta acción no se puede deshacer.`)) return;
+    if (!confirm(`¿Eliminar los ${counts.inactive} títulos sin video? Esta acción no se puede deshacer.`))
+      return;
     setCleaning(true);
     setCleanResult(null);
     try {
       const res = await cleanupNoVidsrc();
       setCleanResult(res.summary);
-      setRows(prev => prev.filter(r => r.status !== "inactive"));
-      setCounts(prev => ({ ...prev, inactive: 0, moviesInactive: 0, seriesInactive: 0 }));
+      setRows((prev) => prev.filter((r) => r.status !== "inactive"));
+      setCounts((prev) => ({ ...prev, inactive: 0, moviesInactive: 0, seriesInactive: 0 }));
     } catch {
       alert("Error al eliminar los títulos.");
     } finally {
@@ -201,7 +241,7 @@ export default function VidsrcScanner() {
     }
   };
 
-  const filtered = rows.filter(r => {
+  const filtered = rows.filter((r) => {
     if (typeFilter !== "all" && r.type !== typeFilter) return false;
     if (statusFilter === "active") return r.status === "active";
     if (statusFilter === "inactive") return r.status === "inactive";
@@ -209,7 +249,7 @@ export default function VidsrcScanner() {
     return true;
   });
 
-  const pendingCount = rows.filter(r => r.status === "pending").length;
+  const pendingCount = rows.filter((r) => r.status === "pending").length;
   const isScanning = phase === "downloading" || phase === "matching" || phase === "saving";
 
   const phaseLabel = () => {
@@ -219,9 +259,12 @@ export default function VidsrcScanner() {
         const seriesPages = progress.pagesLoaded.series;
         const movieTotal = progress.totalPages.movie;
         const seriesTotal = progress.totalPages.series;
-        if (movieTotal > 0 && seriesTotal === 0) return `Descargando películas: ${moviePages}/${movieTotal} páginas`;
-        if (seriesTotal > 0 && movieTotal === 0) return `Descargando series: ${seriesPages}/${seriesTotal} páginas`;
-        if (movieTotal > 0 && seriesTotal > 0) return `Descargando: películas ${moviePages}/${movieTotal} · series ${seriesPages}/${seriesTotal}`;
+        if (movieTotal > 0 && seriesTotal === 0)
+          return `Descargando películas: ${moviePages}/${movieTotal} páginas`;
+        if (seriesTotal > 0 && movieTotal === 0)
+          return `Descargando series: ${seriesPages}/${seriesTotal} páginas`;
+        if (movieTotal > 0 && seriesTotal > 0)
+          return `Descargando: películas ${moviePages}/${movieTotal} · series ${seriesPages}/${seriesTotal}`;
         return "Descargando listas de vidsrc.me...";
       case "matching":
         return `Cruzando catálogo: ${progress.matched} de ${progress.total} títulos`;
@@ -247,8 +290,12 @@ export default function VidsrcScanner() {
   };
 
   const progressPct = isScanning
-    ? phase === "downloading" ? Math.max(downloadPct(), 1) : Math.min(matchPct(), 95)
-    : phase === "done" ? 100 : 0;
+    ? phase === "downloading"
+      ? Math.max(downloadPct(), 1)
+      : Math.min(matchPct(), 95)
+    : phase === "done"
+      ? 100
+      : 0;
 
   return (
     <AdminLayout>
@@ -256,8 +303,8 @@ export default function VidsrcScanner() {
         <div>
           <h1 className="text-2xl font-black text-white">Escáner VIDSRC</h1>
           <p className="text-gray-500 text-sm mt-0.5">
-            Descarga la lista completa de vidsrc.me en paralelo y cruza con tu catálogo de {rows.length} títulos.
-            Sin iframes — rápido y preciso.
+            Descarga la lista completa de vidsrc.me en paralelo y cruza con tu catálogo de {rows.length}{" "}
+            títulos. Sin iframes — rápido y preciso.
           </p>
         </div>
 
@@ -267,19 +314,31 @@ export default function VidsrcScanner() {
             <div className="flex flex-wrap gap-3">
               {/* Type filter */}
               <div className="flex rounded-lg overflow-hidden border border-brand-border text-xs font-semibold">
-                {(["all","movie","series"] as const).map(f => (
-                  <button key={f} onClick={() => setTypeFilter(f)}
-                    className={`px-3 py-1.5 transition-colors ${typeFilter === f ? "bg-brand-red text-white" : "bg-brand-surface text-gray-400 hover:text-white"}`}>
+                {(["all", "movie", "series"] as const).map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setTypeFilter(f)}
+                    className={`px-3 py-1.5 transition-colors ${typeFilter === f ? "bg-brand-red text-white" : "bg-brand-surface text-gray-400 hover:text-white"}`}
+                  >
                     {f === "all" ? "Todo" : f === "movie" ? "Películas" : "Series"}
                   </button>
                 ))}
               </div>
               {/* Status filter */}
               <div className="flex rounded-lg overflow-hidden border border-brand-border text-xs font-semibold">
-                {(["all","active","inactive","pending"] as const).map(f => (
-                  <button key={f} onClick={() => setStatusFilter(f)}
-                    className={`px-3 py-1.5 transition-colors ${statusFilter === f ? "bg-brand-red text-white" : "bg-brand-surface text-gray-400 hover:text-white"}`}>
-                    {f === "all" ? `Todos (${rows.length})` : f === "active" ? `✅ Activos (${counts.active})` : f === "inactive" ? `❌ Sin video (${counts.inactive})` : `⏳ Pendientes (${pendingCount})`}
+                {(["all", "active", "inactive", "pending"] as const).map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setStatusFilter(f)}
+                    className={`px-3 py-1.5 transition-colors ${statusFilter === f ? "bg-brand-red text-white" : "bg-brand-surface text-gray-400 hover:text-white"}`}
+                  >
+                    {f === "all"
+                      ? `Todos (${rows.length})`
+                      : f === "active"
+                        ? `✅ Activos (${counts.active})`
+                        : f === "inactive"
+                          ? `❌ Sin video (${counts.inactive})`
+                          : `⏳ Pendientes (${pendingCount})`}
                   </button>
                 ))}
               </div>
@@ -287,13 +346,19 @@ export default function VidsrcScanner() {
 
             <div className="flex gap-2">
               {!isScanning ? (
-                <button onClick={startScan} disabled={loadingCatalog || rows.length === 0}
-                  className="flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors disabled:opacity-50">
-                  <PlayIcon /> {phase === "done" ? "Volver a escanear" : `Iniciar escaneo (${rows.length} títulos)`}
+                <button
+                  onClick={startScan}
+                  disabled={loadingCatalog || rows.length === 0}
+                  className="flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  <PlayIcon />{" "}
+                  {phase === "done" ? "Volver a escanear" : `Iniciar escaneo (${rows.length} títulos)`}
                 </button>
               ) : (
-                <button onClick={stopScan}
-                  className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors">
+                <button
+                  onClick={stopScan}
+                  className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors"
+                >
                   <StopIcon /> Detener
                 </button>
               )}
@@ -314,13 +379,16 @@ export default function VidsrcScanner() {
                 <span>{phaseLabel()}</span>
                 {phase === "done" && (
                   <span className="text-gray-500">
-                    {counts.moviesActive + (counts.seriesActive ?? 0)} activos · {counts.moviesInactive + (counts.seriesInactive ?? 0)} sin video
+                    {counts.moviesActive + (counts.seriesActive ?? 0)} activos ·{" "}
+                    {counts.moviesInactive + (counts.seriesInactive ?? 0)} sin video
                   </span>
                 )}
               </div>
               <div className="w-full bg-brand-border rounded-full h-2">
-                <div className={`h-2 rounded-full transition-all duration-500 ${phase === "done" ? "bg-green-500" : phase === "saving" ? "bg-yellow-500" : "bg-brand-red"}`}
-                  style={{ width: `${progressPct}%` }} />
+                <div
+                  className={`h-2 rounded-full transition-all duration-500 ${phase === "done" ? "bg-green-500" : phase === "saving" ? "bg-yellow-500" : "bg-brand-red"}`}
+                  style={{ width: `${progressPct}%` }}
+                />
               </div>
               {(phase === "matching" || phase === "saving" || phase === "done") && (
                 <div className="flex flex-wrap items-center gap-4 pt-0.5">
@@ -333,9 +401,14 @@ export default function VidsrcScanner() {
                       className="flex items-center gap-1.5 bg-red-900/20 border border-red-800/40 hover:bg-red-900/30 text-red-400 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 ml-auto"
                     >
                       {cleaning ? (
-                        <><span className="w-3 h-3 rounded-full border-2 border-red-500 border-t-white animate-spin" /> Eliminando...</>
+                        <>
+                          <span className="w-3 h-3 rounded-full border-2 border-red-500 border-t-white animate-spin" />{" "}
+                          Eliminando...
+                        </>
                       ) : (
-                        <><TrashIcon /> Eliminar {counts.inactive} sin video</>
+                        <>
+                          <TrashIcon /> Eliminar {counts.inactive} sin video
+                        </>
                       )}
                     </button>
                   )}
@@ -343,7 +416,8 @@ export default function VidsrcScanner() {
               )}
               {cleanResult && (
                 <div className="mt-2 text-xs text-green-400 bg-green-900/15 border border-green-800/30 rounded-lg px-3 py-2">
-                  ✅ Eliminados: {cleanResult.movies} películas y {cleanResult.series} series ({cleanResult.total} en total)
+                  ✅ Eliminados: {cleanResult.movies} películas y {cleanResult.series} series (
+                  {cleanResult.total} en total)
                 </div>
               )}
             </div>
@@ -361,51 +435,81 @@ export default function VidsrcScanner() {
         <div className="bg-brand-card border border-brand-border rounded-2xl overflow-hidden">
           <div className="px-5 py-3 border-b border-brand-border">
             <span className="text-white font-semibold text-sm">
-              {filtered.length} título{filtered.length !== 1 ? "s" : ""} {statusFilter !== "all" ? `(${statusFilter === "active" ? "activos" : statusFilter === "inactive" ? "sin video" : "pendientes"})` : ""}
+              {filtered.length} título{filtered.length !== 1 ? "s" : ""}{" "}
+              {statusFilter !== "all"
+                ? `(${statusFilter === "active" ? "activos" : statusFilter === "inactive" ? "sin video" : "pendientes"})`
+                : ""}
             </span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-brand-border">
-                  <th className="text-left px-5 py-3 text-gray-500 font-medium text-xs uppercase tracking-wider">Título</th>
-                  <th className="text-center px-4 py-3 text-gray-500 font-medium text-xs uppercase tracking-wider">Tipo</th>
-                  <th className="text-center px-4 py-3 text-gray-500 font-medium text-xs uppercase tracking-wider">IMDb</th>
-                  <th className="text-center px-5 py-3 text-gray-500 font-medium text-xs uppercase tracking-wider">vidsrc.me</th>
+                  <th className="text-left px-5 py-3 text-gray-500 font-medium text-xs uppercase tracking-wider">
+                    Título
+                  </th>
+                  <th className="text-center px-4 py-3 text-gray-500 font-medium text-xs uppercase tracking-wider">
+                    Tipo
+                  </th>
+                  <th className="text-center px-4 py-3 text-gray-500 font-medium text-xs uppercase tracking-wider">
+                    IMDb
+                  </th>
+                  <th className="text-center px-5 py-3 text-gray-500 font-medium text-xs uppercase tracking-wider">
+                    vidsrc.me
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={4} className="text-center py-16 text-gray-500 text-sm">
-                    {loadingCatalog ? "Cargando catálogo..." : phase === "idle" ? "Pulsa «Iniciar escaneo» para comenzar" : "No hay títulos con ese filtro"}
-                  </td></tr>
-                ) : filtered.map(row => (
-                  <tr key={row.imdb_id} className="border-b border-brand-border last:border-0 hover:bg-brand-surface/40 transition-colors">
-                    <td className="px-5 py-3 text-gray-200 font-medium truncate max-w-xs">{row.title}</td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${row.type === "movie" ? "bg-blue-900/40 text-blue-400" : "bg-purple-900/40 text-purple-400"}`}>
-                        {row.type === "movie" ? "Película" : "Serie"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <a href={`https://www.imdb.com/title/${row.imdb_id}/`} target="_blank" rel="noreferrer"
-                        className="text-gray-500 hover:text-white font-mono text-xs transition-colors">{row.imdb_id}</a>
-                    </td>
-                    <td className="px-5 py-3 text-center">
-                      {row.status === "pending" && <span className="text-gray-600 text-xs">—</span>}
-                      {row.status === "active" && (
-                        <span className="inline-flex items-center gap-1 bg-green-900/30 text-green-400 text-xs font-semibold px-2.5 py-1 rounded-full border border-green-800/40">
-                          <span className="w-1.5 h-1.5 rounded-full bg-green-400" /> Activo
-                        </span>
-                      )}
-                      {row.status === "inactive" && (
-                        <span className="inline-flex items-center gap-1 bg-red-900/20 text-red-400 text-xs font-semibold px-2.5 py-1 rounded-full border border-red-800/40">
-                          <span className="w-1.5 h-1.5 rounded-full bg-red-400" /> Sin video
-                        </span>
-                      )}
+                  <tr>
+                    <td colSpan={4} className="text-center py-16 text-gray-500 text-sm">
+                      {loadingCatalog
+                        ? "Cargando catálogo..."
+                        : phase === "idle"
+                          ? "Pulsa «Iniciar escaneo» para comenzar"
+                          : "No hay títulos con ese filtro"}
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  filtered.map((row) => (
+                    <tr
+                      key={row.imdb_id}
+                      className="border-b border-brand-border last:border-0 hover:bg-brand-surface/40 transition-colors"
+                    >
+                      <td className="px-5 py-3 text-gray-200 font-medium truncate max-w-xs">{row.title}</td>
+                      <td className="px-4 py-3 text-center">
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${row.type === "movie" ? "bg-blue-900/40 text-blue-400" : "bg-purple-900/40 text-purple-400"}`}
+                        >
+                          {row.type === "movie" ? "Película" : "Serie"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <a
+                          href={`https://www.imdb.com/title/${row.imdb_id}/`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-gray-500 hover:text-white font-mono text-xs transition-colors"
+                        >
+                          {row.imdb_id}
+                        </a>
+                      </td>
+                      <td className="px-5 py-3 text-center">
+                        {row.status === "pending" && <span className="text-gray-600 text-xs">—</span>}
+                        {row.status === "active" && (
+                          <span className="inline-flex items-center gap-1 bg-green-900/30 text-green-400 text-xs font-semibold px-2.5 py-1 rounded-full border border-green-800/40">
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-400" /> Activo
+                          </span>
+                        )}
+                        {row.status === "inactive" && (
+                          <span className="inline-flex items-center gap-1 bg-red-900/20 text-red-400 text-xs font-semibold px-2.5 py-1 rounded-full border border-red-800/40">
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-400" /> Sin video
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -416,15 +520,32 @@ export default function VidsrcScanner() {
 }
 
 function PlayIcon() {
-  return <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>;
+  return (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+      <polygon points="5 3 19 12 5 21 5 3" />
+    </svg>
+  );
 }
 function TrashIcon() {
   return (
-    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    <svg
+      className="w-3.5 h-3.5"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
     </svg>
   );
 }
 function StopIcon() {
-  return <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2" /></svg>;
+  return (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+    </svg>
+  );
 }

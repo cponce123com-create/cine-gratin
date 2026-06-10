@@ -10,16 +10,14 @@ export default function TrendsChart({ data, title = "Tendencias (últimos 30 dí
     return (
       <div className="bg-brand-card border border-brand-border rounded-2xl p-6">
         <h2 className="text-white font-bold text-base mb-4">{title}</h2>
-        <div className="text-center text-gray-500 py-12">
-          No hay datos de tendencias disponibles.
-        </div>
+        <div className="text-center text-gray-500 py-12">No hay datos de tendencias disponibles.</div>
       </div>
     );
   }
 
   // Encontrar el máximo valor para escalar el gráfico
-  const maxCount = Math.max(...data.map(d => d.count), 1);
-  const minCount = Math.min(...data.map(d => d.count), 0);
+  const maxCount = Math.max(...data.map((d) => d.count), 1);
+  const minCount = Math.min(...data.map((d) => d.count), 0);
   const range = maxCount - minCount || 1;
 
   // Formatear fechas
@@ -46,9 +44,7 @@ export default function TrendsChart({ data, title = "Tendencias (últimos 30 dí
 
           return (
             <div key={idx} className="flex items-end gap-3">
-              <div className="text-xs text-gray-500 w-12 text-right">
-                {formatDate(point.date)}
-              </div>
+              <div className="text-xs text-gray-500 w-12 text-right">{formatDate(point.date)}</div>
               <div className="flex-1 flex items-end gap-2">
                 <div
                   className="bg-gradient-to-t from-brand-red to-red-500 rounded-t transition-all hover:opacity-80"
@@ -56,9 +52,7 @@ export default function TrendsChart({ data, title = "Tendencias (últimos 30 dí
                   title={`${point.count} elementos`}
                 />
               </div>
-              <div className="text-xs text-gray-400 w-8 text-right">
-                {point.count}
-              </div>
+              <div className="text-xs text-gray-400 w-8 text-right">{point.count}</div>
             </div>
           );
         })}

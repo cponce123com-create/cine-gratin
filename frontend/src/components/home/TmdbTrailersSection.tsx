@@ -3,8 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { TmdbTrailerItem } from "./types";
 
 const BASE_URL =
-  (import.meta.env["VITE_API_URL"] as string | undefined) ||
-  "https://cine-gratin.onrender.com";
+  (import.meta.env["VITE_API_URL"] as string | undefined) || "https://cine-gratin.onrender.com";
 
 async function fetchTmdbTrailers(type: string): Promise<TmdbTrailerItem[]> {
   const res = await fetch(`${BASE_URL}/api/tmdb/trailers?type=${type}`);
@@ -44,9 +43,7 @@ export default function TmdbTrailersSection() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
-                activeTab === tab.id
-                  ? "bg-brand-red text-white"
-                  : "text-gray-400 hover:text-white"
+                activeTab === tab.id ? "bg-brand-red text-white" : "text-gray-400 hover:text-white"
               }`}
             >
               {tab.label}
@@ -81,11 +78,7 @@ export default function TmdbTrailersSection() {
                 />
                 <div className="absolute inset-0 bg-black/30 group-hover:bg-black/10 transition-colors flex items-center justify-center">
                   <div className="w-12 h-12 rounded-full bg-white/90 group-hover:bg-white group-hover:scale-110 transition-all flex items-center justify-center shadow-lg">
-                    <svg
-                      className="w-5 h-5 text-black ml-0.5"
-                      fill="currentColor"
-                      viewBox="0 0 24 24"
-                    >
+                    <svg className="w-5 h-5 text-black ml-0.5" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M8 5v14l11-7z" />
                     </svg>
                   </div>

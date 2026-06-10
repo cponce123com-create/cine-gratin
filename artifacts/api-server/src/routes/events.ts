@@ -345,7 +345,6 @@ router.get("/events", async (req, res) => {
 
 // DELETE /api/events/:id
 router.delete("/events/:id", async (req, res) => {
-    if (!requireAuth(req, res)) return;
   if (!requireAuth(req, res)) return;
   try {
     await pool.query("DELETE FROM events WHERE id = $1", [req.params["id"]]);

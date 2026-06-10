@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import type { Movie, Series } from "@/lib/types";
 
 export interface ContinueWatchingItem {
   id: string | number;
@@ -31,7 +30,7 @@ export function useContinueWatching() {
 
   const saveItem = (item: Omit<ContinueWatchingItem, "updatedAt">) => {
     const newItem: ContinueWatchingItem = { ...item, updatedAt: Date.now() };
-    
+
     setItems((prev) => {
       // Remove existing entry for the same content
       const filtered = prev.filter((i) => i.imdbId !== item.imdbId);

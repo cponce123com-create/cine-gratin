@@ -15,7 +15,7 @@ export function CastSection({ cast }: { cast: CastMember[] }) {
           <span className="ml-2 text-sm font-normal text-gray-500">{cast.length}</span>
         </h2>
         <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
-          {cast.map(member => (
+          {cast.map((member) => (
             <button
               key={member.id}
               onClick={() => setSelectedPersonId(member.id)}
@@ -27,15 +27,15 @@ export function CastSection({ cast }: { cast: CastMember[] }) {
                   alt={member.name}
                   className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-300"
                   loading="lazy"
-                  onError={e => { (e.currentTarget as HTMLImageElement).src = FALLBACK_PERSON; }}
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).src = FALLBACK_PERSON;
+                  }}
                 />
               </div>
               <p className="mt-1.5 text-xs font-bold text-white truncate group-hover:text-brand-red transition-colors">
                 {member.name}
               </p>
-              {member.character && (
-                <p className="text-[10px] text-gray-500 truncate">{member.character}</p>
-              )}
+              {member.character && <p className="text-[10px] text-gray-500 truncate">{member.character}</p>}
             </button>
           ))}
         </div>

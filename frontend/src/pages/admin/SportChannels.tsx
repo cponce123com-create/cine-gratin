@@ -52,12 +52,9 @@ function MatchesSection({ refreshKey }: { refreshKey: number }) {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-white font-bold text-base mb-1">
-            Partidos importados{" "}
-            <span className="text-gray-500 font-normal text-sm">({matches.length})</span>
+            Partidos importados <span className="text-gray-500 font-normal text-sm">({matches.length})</span>
           </h2>
-          <p className="text-gray-500 text-sm">
-            Todos los partidos guardados en la base de datos.
-          </p>
+          <p className="text-gray-500 text-sm">Todos los partidos guardados en la base de datos.</p>
         </div>
         <div className="flex gap-2">
           <input
@@ -76,7 +73,10 @@ function MatchesSection({ refreshKey }: { refreshKey: number }) {
           </button>
           {query && (
             <button
-              onClick={() => { setSearch(""); setQuery(""); }}
+              onClick={() => {
+                setSearch("");
+                setQuery("");
+              }}
               className="text-gray-500 hover:text-gray-300 text-sm transition-colors"
             >
               Limpiar
@@ -112,9 +112,7 @@ function MatchesSection({ refreshKey }: { refreshKey: number }) {
                   <div className="text-gray-200 text-sm font-medium truncate">{m.title}</div>
                   <div className="text-gray-600 text-xs flex gap-3 mt-0.5">
                     <span>{m.channel_name}</span>
-                    {m.published_at && (
-                      <span>{new Date(m.published_at).toLocaleDateString("es-ES")}</span>
-                    )}
+                    {m.published_at && <span>{new Date(m.published_at).toLocaleDateString("es-ES")}</span>}
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
@@ -157,10 +155,7 @@ export default function SportChannels() {
           </p>
         </div>
 
-        <YouTubeSettingsSection
-          getSettings={getSportsSettings}
-          saveSettings={saveSportsSettings}
-        />
+        <YouTubeSettingsSection getSettings={getSportsSettings} saveSettings={saveSportsSettings} />
         <YouTubeChannelsSection
           variant="table"
           description="Añade canales y sincroniza sus partidos completos automáticamente."

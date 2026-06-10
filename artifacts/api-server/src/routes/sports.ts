@@ -187,7 +187,8 @@ async function syncChannel(
 // ─── Settings ─────────────────────────────────────────────────────────────────
 
 // GET /api/sports/settings
-router.get("/sports/settings", async (_req, res) => {
+router.get("/sports/settings", async (req, res) => {
+  if (!requireAuth(req, res)) return;
   try {
     const { rows } = await pool.query("SELECT key, value FROM sport_settings");
     const settings: Record<string, string> = {};

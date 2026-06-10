@@ -47,16 +47,9 @@ export default function SagasSection() {
         </div>
       </div>
 
-      <div
-        ref={scrollRef}
-        className="flex gap-3 overflow-x-auto carousel-scroll px-4 sm:px-6 lg:px-8 pb-2"
-      >
+      <div ref={scrollRef} className="flex gap-3 overflow-x-auto carousel-scroll px-4 sm:px-6 lg:px-8 pb-2">
         {sagas.map((saga) => (
-          <Link
-            key={saga.id}
-            to={`/saga/${saga.id}`}
-            className="group flex-shrink-0 w-44 md:w-52"
-          >
+          <Link key={saga.id} to={`/saga/${saga.id}`} className="group flex-shrink-0 w-44 md:w-52">
             <div className="relative overflow-hidden rounded-lg bg-brand-surface card-hover">
               <div className="aspect-[2/3] w-full relative">
                 {saga.poster_path ? (
@@ -75,14 +68,14 @@ export default function SagasSection() {
 
               {/* Part count badge */}
               <div className="absolute top-1.5 right-1.5 bg-black/70 backdrop-blur-sm rounded-md px-1.5 py-0.5">
-                <span className="text-white text-[10px] font-bold">{saga.part_count} {saga.part_count === 1 ? "film" : "films"}</span>
+                <span className="text-white text-[10px] font-bold">
+                  {saga.part_count} {saga.part_count === 1 ? "film" : "films"}
+                </span>
               </div>
 
               {/* Hover overlay */}
               <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-3">
-                <p className="text-white text-xs font-semibold line-clamp-2 leading-snug">
-                  {saga.name}
-                </p>
+                <p className="text-white text-xs font-semibold line-clamp-2 leading-snug">{saga.name}</p>
               </div>
             </div>
             <p className="mt-2 text-xs text-gray-400 truncate px-0.5 group-hover:text-gray-200 transition-colors">

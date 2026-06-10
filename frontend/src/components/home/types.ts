@@ -20,4 +20,3 @@ export interface TmdbTrailerItem {
   youtube_url: string;
   thumbnail_url: string;
 }
-
