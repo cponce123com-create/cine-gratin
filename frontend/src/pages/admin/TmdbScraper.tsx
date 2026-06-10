@@ -1,12 +1,16 @@
 import { useState, useEffect, useCallback } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
+import { toast } from "sonner";
 import {
   getTmdbGenres,
   tmdbDiscover,
   importByTmdbIds,
+  getSeries,
+  getMovies,
   type TmdbGenre,
   type TmdbDiscoverItem,
 } from "@/lib/api";
+import type { Series, Movie } from "@/lib/types";
 
 const SORT_OPTIONS = [
   { value: "popularity.desc", label: "Popularidad" },
@@ -59,16 +63,31 @@ export default function TmdbScraper() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ imported: number; total: number } | null>(null);
+  const [localIds, setLocalIds] = useState<Set<number>>(new Set());
 
-  // Load genres when type changes
+  // Load local catalog (TMDB IDs already imported) to show badges
+  const loadLocalCatalog = useCallback(async () => {
+    try {
+      const [movies, series] = await Promise.all([
+        getMovies({ limit: 500 }).catch(() => [] as Movie[]),
+        getSeries({ limit: 500 }).catch(() => [] as Series[]),
+      ]);
+      const ids = new Set<number>();
+      movies.forEach((m) => { if (m.tmdb_id) ids.add(m.tmdb_id); });
+      series.forEach((s) => { if (s.tmdb_id) ids.add(s.tmdb_id); });
+      setLocalIds(ids);
+    } catch {}
+  }, []);
+
+  // Load genres once, without duplicate calls
   useEffect(() => {
     setGenres([]);
     setSelectedGenres([]);
-    getTmdbGenres(mediaType).catch(() => {});
     getTmdbGenres(mediaType)
       .then(setGenres)
       .catch(() => {});
-  }, [mediaType]);
+    loadLocalCatalog();
+  }, [mediaType, loadLocalCatalog]);
 
   // Reset sort when switching type
   useEffect(() => {
@@ -90,7 +109,7 @@ export default function TmdbScraper() {
           language: language || undefined,
           min_votes: Number(minVotes) || 0,
           page: p,
-          count: 2000,
+          count: 300,
         });
         setResults(data.results);
         setTotalResults(data.total_results);
@@ -106,6 +125,10 @@ export default function TmdbScraper() {
     },
     [mediaType, selectedGenres, yearFrom, yearTo, sortBy, language, minVotes],
   );
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") handleSearch(1);
+  };
 
   const toggleSelect = (tmdbId: number) => {
     setSelected((prev) => {
@@ -133,8 +156,9 @@ export default function TmdbScraper() {
       const resp = await importByTmdbIds([...selected], mediaType);
       setImportResult({ imported: resp.summary.imported, total: resp.summary.total });
       setSelected(new Set());
+      loadLocalCatalog();
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Error al importar.");
+      toast.error(err instanceof Error ? err.message : "Error al importar.");
     } finally {
       setImporting(false);
     }
@@ -155,7 +179,7 @@ export default function TmdbScraper() {
         </div>
 
         {/* Filters card */}
-        <div className="bg-brand-card border border-brand-border rounded-2xl p-6 space-y-5">
+        <div className="bg-brand-card border border-brand-border rounded-2xl p-6 space-y-5" onKeyDown={handleKeyDown}>
           {/* Type selector */}
           <div className="flex gap-1 bg-brand-surface border border-brand-border rounded-xl p-1 w-fit">
             {(["movie", "series"] as const).map((t) => (
@@ -360,8 +384,18 @@ export default function TmdbScraper() {
               </div>
             )}
 
-            {/* Grid */}
-            {results.length === 0 ? (
+            {/* Skeleton grid while loading */}
+            {loading ? (
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5">
+                {Array.from({ length: 15 }).map((_, i) => (
+                  <div key={i} className="p-3 border-r border-b border-brand-border animate-pulse">
+                    <div className="aspect-[2/3] w-full mb-2 rounded bg-brand-surface" />
+                    <div className="h-3 bg-brand-surface rounded w-3/4 mb-1" />
+                    <div className="h-2.5 bg-brand-surface rounded w-1/2" />
+                  </div>
+                ))}
+              </div>
+            ) : results.length === 0 ? (
               <div className="px-6 py-16 text-center text-gray-500 text-sm">
                 No se encontraron resultados para los filtros seleccionados.
               </div>
@@ -369,6 +403,7 @@ export default function TmdbScraper() {
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5">
                 {results.map((item) => {
                   const isSelected = selected.has(item.tmdb_id);
+                  const isImported = localIds.has(item.tmdb_id);
                   return (
                     <button
                       key={item.tmdb_id}
@@ -391,13 +426,18 @@ export default function TmdbScraper() {
                             Sin imagen
                           </div>
                         )}
-                        {isSelected && (
-                          <div className="absolute inset-0 bg-brand-red/20 flex items-start justify-end p-1.5">
+                        <div className="absolute top-1.5 left-1.5 flex flex-col gap-1">
+                          {isImported && (
+                            <span className="bg-green-500/80 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
+                              ✔ En catálogo
+                            </span>
+                          )}
+                          {isSelected && (
                             <div className="w-5 h-5 rounded-full bg-brand-red flex items-center justify-center">
                               <CheckIcon />
                             </div>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
                       <p className="text-gray-200 text-xs font-semibold line-clamp-2 leading-snug">
                         {item.title}
@@ -430,10 +470,16 @@ export default function TmdbScraper() {
                     type="number"
                     min={1}
                     max={totalPages}
-                    value={page}
-                    onChange={(e) => {
+                    defaultValue={page}
+                    onBlur={(e) => {
                       const v = Number(e.target.value);
-                      if (v >= 1 && v <= totalPages) handleSearch(v);
+                      if (v >= 1 && v <= totalPages && v !== page) handleSearch(v);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        const v = Number((e.target as HTMLInputElement).value);
+                        if (v >= 1 && v <= totalPages && v !== page) handleSearch(v);
+                      }
                     }}
                     className="w-16 bg-brand-surface border border-brand-border rounded px-2 py-1 text-gray-200 text-sm text-center focus:outline-none focus:border-gray-500"
                   />
