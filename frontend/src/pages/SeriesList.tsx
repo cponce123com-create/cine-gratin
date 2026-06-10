@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Helmet } from "react-helmet-async";
 import { getSeries } from "@/lib/api";
+import { SearchIcon } from "@/components/icons";
 import GenreFilter from "@/components/GenreFilter";
 import { SkeletonGrid } from "@/components/SkeletonCard";
 
@@ -165,14 +166,5 @@ export default function SeriesList() {
         )}
       </div>
     </div>
-  );
-}
-
-function SearchIcon() {
-  return (
-    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <circle cx="11" cy="11" r="8" />
-      <path d="m21 21-4.35-4.35" />
-    </svg>
   );
 }

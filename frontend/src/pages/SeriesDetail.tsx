@@ -9,13 +9,7 @@ import { CastSection } from "@/components/detail/CastSection";
 import { MediaSection, RecommendationsSection } from "@/components/detail/MediaSection";
 import { ReviewCard } from "@/components/detail/ReviewCard";
 
-function PlayIcon() {
-  return (
-    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M8 5v14l11-7z" />
-    </svg>
-  );
-}
+import { PlayIcon } from "@/components/icons";
 
 function parseSeasons(raw: unknown): SeasonData[] {
   if (!raw) return [];

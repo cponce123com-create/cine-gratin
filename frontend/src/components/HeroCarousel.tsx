@@ -2,6 +2,7 @@ import { memo, useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { Movie, Series } from "@/lib/types";
 import { optimizeImageUrl } from "@/lib/utils";
+import { PlayIcon } from "@/components/icons";
 
 interface HeroCarouselProps {
   items: { item: Movie | Series; type: "movie" | "series" }[];
@@ -9,14 +10,6 @@ interface HeroCarouselProps {
 
 const FALLBACK_BG =
   "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=1400&auto=format&fit=crop";
-
-function PlayIcon() {
-  return (
-    <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-      <path d="M8 5v14l11-7z" />
-    </svg>
-  );
-}
 
 function InfoIcon() {
   return (

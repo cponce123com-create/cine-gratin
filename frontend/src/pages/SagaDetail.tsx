@@ -2,17 +2,10 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Helmet } from "react-helmet-async";
 import { fetchSagaById, type SagaDetail as SagaDetailType } from "@/lib/api";
+import { PlayIcon } from "@/components/icons";
 
 const FALLBACK_BG =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1280' height='720' viewBox='0 0 1280 720'%3E%3Crect width='1280' height='720' fill='%231a1a1a'/%3E%3C/svg%3E";
-
-function PlayIcon() {
-  return (
-    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M8 5v14l11-7z" />
-    </svg>
-  );
-}
 
 export default function SagaDetail() {
   const { id } = useParams<{ id: string }>();
