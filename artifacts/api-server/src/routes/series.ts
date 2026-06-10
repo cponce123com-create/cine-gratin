@@ -45,7 +45,7 @@ const toSeries = (row: Record<string, unknown>) => ({
 // GET /api/series - Added pagination and rate limiting
 router.get("/series", seriesLimit, async (req, res) => {
   const page = Math.max(1, Number(req.query.page || 1));
-  const limit = req.query.limit ? Math.max(1, Number(req.query.limit)) : 20;
+  const limit = req.query.limit ? Math.max(1, Number(req.query.limit)) : 100;
   const offset = (page - 1) * limit;
 
   try {
@@ -105,9 +105,9 @@ router.get("/series/:id", seriesLimit, async (req, res) => {
       [req.params.id]
     );
     if (!rows[0]) return res.status(404).json({ error: "Not found" });
-    res.json(toSeries(rows[0]));
+    return res.json(toSeries(rows[0]));
   } catch (e) {
-    res.status(500).json({ error: String(e) });
+    return res.status(500).json({ error: String(e) });
   }
 });
 

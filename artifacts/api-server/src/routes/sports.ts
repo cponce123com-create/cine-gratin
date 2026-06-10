@@ -211,9 +211,9 @@ router.post("/sports/settings", async (req, res) => {
        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
       [youtube_api_key]
     );
-    res.json({ ok: true });
+    return res.json({ ok: true });
   } catch (e) {
-    res.status(500).json({ error: String(e) });
+    return res.status(500).json({ error: String(e) });
   }
 });
 
@@ -248,9 +248,9 @@ router.post("/sports/channels", async (req, res) => {
        RETURNING *`,
       [name, url, keyword]
     );
-    res.json(rows[0]);
+    return res.json(rows[0]);
   } catch (e) {
-    res.status(500).json({ error: String(e) });
+    return res.status(500).json({ error: String(e) });
   }
 });
 
@@ -277,9 +277,9 @@ router.post("/sports/channels/:id/sync", async (req, res) => {
 
     const channel = rows[0] as { id: number; url: string; keyword: string };
     const result = await syncChannel(channel.id, channel.url, channel.keyword, apiKey);
-    res.json(result);
+    return res.json(result);
   } catch (e) {
-    res.status(500).json({ error: String(e) });
+    return res.status(500).json({ error: String(e) });
   }
 });
 

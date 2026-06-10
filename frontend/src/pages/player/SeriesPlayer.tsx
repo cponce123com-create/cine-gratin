@@ -7,7 +7,7 @@ import type { SeasonData } from "@/lib/types";
 
 interface Server {
   label: string;
-  url: (imdbId: string, season: number, episode: number) => string;
+  url: (imdbId: string, season: number, episode: number, tmdbId?: number | null) => string;
 }
 
 const SERVERS: Server[] = [
@@ -17,7 +17,17 @@ const SERVERS: Server[] = [
   },
   { label: "Servidor 2", url: (id, s, e) => `https://vidsrc.to/embed/tv/${id}/${s}/${e}` },
   { label: "Servidor 3", url: (id, s, e) => `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}` },
-  { label: "Servidor 4", url: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}` },
+  {
+    label: "Servidor 4",
+    url: (_id, s, e, tmdbId) =>
+      tmdbId
+        ? `https://vidsrc.mov/embed/tv/${tmdbId}/${s}/${e}`
+        : `https://multiembed.mov/?video_id=${_id}&tmdb=1&s=${s}&e=${e}`,
+  },
+  {
+    label: "Servidor 5",
+    url: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`,
+  },
 ];
 
 function parseSeasons(raw: unknown): SeasonData[] {
@@ -49,6 +59,7 @@ export default function SeriesPlayer() {
 
   const [totalSeasons, setTotalSeasons] = useState<number | null>(null);
   const [seasonsData, setSeasonsData] = useState<SeasonData[]>([]);
+  const [tmdbId, setTmdbId] = useState<number | null>(null);
   const { saveItem } = useContinueWatching();
 
   useEffect(() => {
@@ -62,6 +73,8 @@ export default function SeriesPlayer() {
         const parsed = parseSeasons(s.seasons_data);
         setSeasonsData(parsed);
         setTotalSeasons(s.total_seasons ?? parsed.length ?? 1);
+
+        if (s.tmdb_id) setTmdbId(s.tmdb_id);
 
         // Save to continue watching
         saveItem({
@@ -90,7 +103,7 @@ export default function SeriesPlayer() {
 
   const resolvedTotalSeasons = totalSeasons ?? 1;
   const episodesInSeason = seasonsData.find((s) => s.season === season)?.episodes ?? 30;
-  const iframeSrc = SERVERS[activeServer].url(imdbId!, season, episode);
+  const iframeSrc = SERVERS[activeServer].url(imdbId!, season, episode, tmdbId);
 
   const seasonOptions = Array.from({ length: resolvedTotalSeasons }, (_, i) => i + 1);
   const episodeOptions = Array.from({ length: episodesInSeason }, (_, i) => i + 1);

@@ -185,7 +185,8 @@ async function syncChannel(
 // ─── Settings ─────────────────────────────────────────────────────────────────
 
 // GET /api/events/settings
-router.get("/events/settings", async (_req, res) => {
+router.get("/events/settings", async (req, res) => {
+  if (!requireAuth(req, res)) return;
   try {
     const { rows } = await pool.query("SELECT key, value FROM event_settings");
     const settings: Record<string, string> = {};
@@ -198,7 +199,7 @@ router.get("/events/settings", async (_req, res) => {
 
 // POST /api/events/settings
 router.post("/events/settings", async (req, res) => {
-    if (!requireAuth(req, res)) return;
+  if (!requireAuth(req, res)) return;
   try {
     const { youtube_api_key } = req.body as { youtube_api_key: string };
     if (!youtube_api_key) return res.status(400).json({ error: "Falta youtube_api_key" });
@@ -208,9 +209,9 @@ router.post("/events/settings", async (req, res) => {
        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
       [youtube_api_key]
     );
-    res.json({ ok: true });
+    return res.json({ ok: true });
   } catch (e) {
-    res.status(500).json({ error: String(e) });
+    return res.status(500).json({ error: String(e) });
   }
 });
 
@@ -230,7 +231,6 @@ router.get("/events/channels", async (_req, res) => {
 
 // POST /api/events/channels
 router.post("/events/channels", async (req, res) => {
-    if (!requireAuth(req, res)) return;
   if (!requireAuth(req, res)) return;
   try {
     const { name, url, keyword = "" } = req.body as {
@@ -246,15 +246,14 @@ router.post("/events/channels", async (req, res) => {
        RETURNING *`,
       [name, url, keyword]
     );
-    res.json(rows[0]);
+    return res.json(rows[0]);
   } catch (e) {
-    res.status(500).json({ error: String(e) });
+    return res.status(500).json({ error: String(e) });
   }
 });
 
 // DELETE /api/events/channels/:id
 router.delete("/events/channels/:id", async (req, res) => {
-    if (!requireAuth(req, res)) return;
   if (!requireAuth(req, res)) return;
   try {
     await pool.query("DELETE FROM event_channels WHERE id = $1", [req.params["id"]]);
@@ -266,7 +265,6 @@ router.delete("/events/channels/:id", async (req, res) => {
 
 // POST /api/events/channels/:id/sync
 router.post("/events/channels/:id/sync", async (req, res) => {
-    if (!requireAuth(req, res)) return;
   if (!requireAuth(req, res)) return;
   try {
     const apiKey = await getYoutubeApiKey();
@@ -277,9 +275,9 @@ router.post("/events/channels/:id/sync", async (req, res) => {
 
     const channel = rows[0] as { id: number; url: string; keyword: string };
     const result = await syncChannel(channel.id, channel.url, channel.keyword, apiKey);
-    res.json(result);
+    return res.json(result);
   } catch (e) {
-    res.status(500).json({ error: String(e) });
+    return res.status(500).json({ error: String(e) });
   }
 });
 

@@ -17,8 +17,8 @@ export default function SeriesList() {
     isLoading: loading,
     error,
   } = useQuery({
-    queryKey: ["series"],
-    queryFn: () => getSeries(),
+    queryKey: ["series", "all"],
+    queryFn: () => getSeries({ limit: 500 }),
     staleTime: 5 * 60 * 1000,
   });
 
