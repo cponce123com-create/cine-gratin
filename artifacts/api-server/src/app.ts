@@ -2,30 +2,56 @@ import path from "path";
 import express, { type Express } from "express";
 import cors from "cors";
 import compression from "compression";
+import helmet from "helmet";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
 
-// Trust proxy is required for express-rate-limit to work correctly on Render
 app.set("trust proxy", 1);
+
+// ── Security headers via Helmet ───────────────────────────────────────────────
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "https://www.youtube.com", "https://s.ytimg.com"],
+        frameSrc: ["'self'", "https://www.youtube.com", "https://vidsrc.me", "https://2embed.org", "https://vidembed.io"],
+        imgSrc: ["'self'", "data:", "https://image.tmdb.org", "https://i.ytimg.com", "https://*.ytimg.com"],
+        connectSrc: ["'self'", "https://www.googleapis.com", "https://vidsrc.me"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        fontSrc: ["'self'"],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  })
+);
+
+// ── CORS: validate origins in production ──────────────────────────────────────
+const corsOrigins = process.env["CORS_ORIGINS"];
+if (corsOrigins) {
+  const origins = corsOrigins.split(",").map((o) => o.trim());
+  // Refuse wildcard in production
+  if (origins.includes("*") && process.env["NODE_ENV"] === "production") {
+    throw new Error("CORS_ORIGINS wildcard (*) is not allowed in production. Specify explicit origins.");
+  }
+  app.use(cors({ origin: origins, credentials: true }));
+} else {
+  app.use(cors());
+}
 
 app.use(
   pinoHttp({
     logger,
     serializers: {
       req(req) {
-        return {
-          id: req.id,
-          method: req.method,
-          url: req.url?.split("?")[0],
-        };
+        return { id: req.id, method: req.method, url: req.url?.split("?")[0] };
       },
       res(res) {
-        return {
-          statusCode: res.statusCode,
-        };
+        return { statusCode: res.statusCode };
       },
     },
   }),
@@ -60,12 +86,10 @@ app.use(express.urlencoded({ extended: true }));
 app.use("/api", router);
 
 // Serve React frontend static files
-// In production (Render), frontend/dist is copied to artifacts/api-server/public/
-// __dirname is set to the dist/ directory by the esbuild banner
 const publicDir = path.resolve(__dirname, "../public");
 app.use(express.static(publicDir));
 
-// SPA catch-all: serve index.html for all non-API routes so React Router works
+// SPA catch-all
 app.get("/*path", (_req, res) => {
   const indexFile = path.join(publicDir, "index.html");
   res.sendFile(indexFile, (err) => {

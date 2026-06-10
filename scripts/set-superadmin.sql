@@ -1,9 +1,14 @@
--- Set superadmin credentials from environment variables
--- Usage: psql "$DATABASE_URL" -v username="'$ADMIN_USERNAME'" -v password="'$ADMIN_PASSWORD'" -f scripts/set-superadmin.sql
+-- Set superadmin credentials with bcrypt-hashed password.
+-- 
+-- IMPORTANT: The password MUST be pre-hashed with bcrypt before running this script.
+-- Use the following Node.js one-liner to generate a hash:
+--   node -e "const bcrypt = require('bcrypt'); bcrypt.hash('your-password', 10).then(h => console.log(h))"
+--
+-- Usage: psql "$DATABASE_URL" -v username="'$ADMIN_USERNAME'" -v password="'$BCRYPT_HASH'" -f scripts/set-superadmin.sql
 --
 -- Set these env vars before running:
 --   export ADMIN_USERNAME="admin@example.com"
---   export ADMIN_PASSWORD="your-secure-password"
+--   export BCRYPT_HASH='$2b$10$...'
 
 -- Add username column if it doesn't exist
 ALTER TABLE cv_auth ADD COLUMN IF NOT EXISTS username TEXT DEFAULT 'admin';

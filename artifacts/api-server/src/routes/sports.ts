@@ -1,19 +1,6 @@
-import { Router, type Request, type Response } from "express";
+import { Router } from "express";
 import { pool } from "../lib/db";
-
-/** Inline auth check for routes not under /admin/* */
-function requireAuth(req: Request, res: Response): boolean {
-  const secret = process.env["ADMIN_SECRET"];
-  if (!secret) return true;
-  const authHeader = req.headers["authorization"];
-  const queryToken = req.query["token"] as string | undefined;
-  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : queryToken;
-  if (!token || token !== secret) {
-    res.status(401).json({ error: "No autorizado" });
-    return false;
-  }
-  return true;
-}
+import { requireAuth } from "../lib/auth-utils";
 
 const router = Router();
 

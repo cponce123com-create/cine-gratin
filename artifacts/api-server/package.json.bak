@@ -22,10 +22,7 @@
     "node-cron": "^4.2.1",
     "pg": "^8.20.0",
     "pino": "^9",
-    "pino-http": "^10",
-    "bcrypt": "^5",
-    "helmet": "^8",
-    "jsonwebtoken": "^9"
+    "pino-http": "^10"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.10",

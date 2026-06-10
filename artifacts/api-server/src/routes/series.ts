@@ -4,10 +4,9 @@ import { rateLimit } from "express-rate-limit";
 
 const router = Router();
 
-// Rate limiting for public series endpoints
 const seriesLimit = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 100,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Demasiadas peticiones, por favor intenta más tarde." },
@@ -42,10 +41,10 @@ const toSeries = (row: Record<string, unknown>) => ({
   date_added: row.date_added,
 });
 
-// GET /api/series - Added pagination and rate limiting
+// GET /api/series — max limit cap of 100
 router.get("/series", seriesLimit, async (req, res) => {
   const page = Math.max(1, Number(req.query.page || 1));
-  const limit = req.query.limit ? Math.max(1, Number(req.query.limit)) : 100;
+  const limit = Math.min(Math.max(1, Number(req.query.limit || 20)), 100);
   const offset = (page - 1) * limit;
 
   try {
@@ -59,8 +58,7 @@ router.get("/series", seriesLimit, async (req, res) => {
        FROM cv_series ORDER BY year DESC, date_added DESC LIMIT $1 OFFSET $2`,
       [limit, offset]
     );
-    
-    // Cache for 5 minutes, stale-while-revalidate for 1 hour
+
     res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=3600");
     res.json(rows.map(toSeries));
   } catch (e) {
@@ -68,7 +66,6 @@ router.get("/series", seriesLimit, async (req, res) => {
   }
 });
 
-// GET /api/series/trending
 router.get("/series/trending", seriesLimit, async (req, res) => {
   try {
     const { rows } = await pool.query(
@@ -81,7 +78,6 @@ router.get("/series/trending", seriesLimit, async (req, res) => {
   }
 });
 
-// GET /api/series/search?q=
 router.get("/series/search", seriesLimit, async (req, res) => {
   const q = String(req.query.q || "");
   const limit = Math.min(Number(req.query.limit || 20), 50);
@@ -97,7 +93,6 @@ router.get("/series/search", seriesLimit, async (req, res) => {
   }
 });
 
-// GET /api/series/:id
 router.get("/series/:id", seriesLimit, async (req, res) => {
   try {
     const { rows } = await pool.query(
@@ -111,7 +106,6 @@ router.get("/series/:id", seriesLimit, async (req, res) => {
   }
 });
 
-// POST /api/admin/series/:id — upsert
 router.post(["/admin/series", "/admin/series/:id"], async (req, res) => {
   const s = req.body;
   const id = req.params.id || s.id || `manual_${Date.now()}`;
@@ -146,7 +140,6 @@ router.post(["/admin/series", "/admin/series/:id"], async (req, res) => {
   }
 });
 
-// DELETE /api/admin/series/:id
 router.delete("/admin/series/:id", async (req, res) => {
   try {
     const result = await pool.query("DELETE FROM cv_series WHERE id = $1", [req.params.id]);
@@ -159,7 +152,6 @@ router.delete("/admin/series/:id", async (req, res) => {
   }
 });
 
-// PATCH /api/series/:id/view
 router.patch("/series/:id/view", seriesLimit, async (req, res) => {
   try {
     await pool.query("UPDATE cv_series SET views = views + 1 WHERE id = $1", [req.params.id]);

@@ -279,7 +279,7 @@ router.post("/admin/scan-networks", async (req, res) => {
 });
 
 // GET /api/m3u-proxy — proxy IPTV-org Spanish playlist to avoid CORS
-router.get("/m3u-proxy", async (_req, res) => {
+router.get("/admin/m3u-proxy", async (_req, res) => {
   const M3U_URL = "https://iptv-org.github.io/iptv/languages/spa.m3u";
   try {
     const upstream = await fetch(M3U_URL, {

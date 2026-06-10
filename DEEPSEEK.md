@@ -70,7 +70,6 @@ All icons (SyncIcon, PlusIcon, KeyIcon, TrashIcon, RefreshIcon, DownloadIcon, Wi
 - On success returns `ADMIN_SECRET` env var as Bearer token (token stored in `cg_admin_token` localStorage)
 - Admin middleware in `artifacts/api-server/src/middlewares/adminAuth.ts` protects all `/admin/*` routes
 - Dev mode: if `ADMIN_SECRET` is unset, auth is skipped
-- Superadmin: `cponce123.com@gmail.com` / `Hadrones456%`
 - Migration script: `scripts/set-superadmin.sql`
 
 ## Saga System

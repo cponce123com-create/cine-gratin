@@ -2,31 +2,49 @@ import { Router, type Request, type Response } from "express";
 import { pool } from "../lib/db";
 import { rateLimit } from "express-rate-limit";
 import { tmdbFetch } from "../lib/tmdb-client";
-
-/** Inline auth check for routes that are NOT under /admin/* but still need protection. */
-function requireAuth(req: Request, res: Response): boolean {
-  const secret = process.env["ADMIN_SECRET"];
-  if (!secret) return true; // dev mode: no ADMIN_SECRET set
-  const authHeader = req.headers["authorization"];
-  const queryToken = req.query["token"] as string | undefined;
-  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : queryToken;
-  if (!token || token !== secret) {
-    res.status(401).json({ error: "No autorizado" });
-    return false;
-  }
-  return true;
-}
+import {
+  hashPassword,
+  verifyPassword,
+  isBcryptHash,
+  generateToken,
+  requireAuth,
+} from "../lib/auth-utils";
+import { z } from "zod";
 
 const router = Router();
 
-// Rate limiting for public movie endpoints
+// ── Rate limiters ─────────────────────────────────────────────────────────────
+
 const movieLimit = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 100,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Demasiadas peticiones, por favor intenta más tarde." },
 });
+
+/** Stricter rate limit for login: max 10 attempts per IP per 15 min */
+const loginLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Demasiados intentos de login. Intenta de nuevo en 15 minutos." },
+});
+
+// ── Zod schemas ───────────────────────────────────────────────────────────────
+
+const loginSchema = z.object({
+  username: z.string().min(1, "Usuario requerido"),
+  password: z.string().min(1, "Contraseña requerida"),
+});
+
+const changePasswordSchema = z.object({
+  password: z.string().min(1, "Contraseña requerida"),
+  username: z.string().optional(),
+});
+
+const settingsSchema = z.record(z.string(), z.string());
 
 const toMovie = (row: Record<string, unknown>) => ({
   id: row.id,
@@ -57,10 +75,12 @@ const toMovie = (row: Record<string, unknown>) => ({
   date_added: row.date_added,
 });
 
-// GET /api/movies - Added pagination and rate limiting
+// ── Public movie endpoints ────────────────────────────────────────────────────
+
+// GET /api/movies — with max limit cap of 100
 router.get("/movies", movieLimit, async (req, res) => {
   const page = Math.max(1, Number(req.query.page || 1));
-  const limit = req.query.limit ? Math.max(1, Number(req.query.limit)) : 20; // Límite por defecto optimizado
+  const limit = Math.min(Math.max(1, Number(req.query.limit || 20)), 100);
   const offset = (page - 1) * limit;
 
   try {
@@ -73,8 +93,7 @@ router.get("/movies", movieLimit, async (req, res) => {
        FROM movies ORDER BY year DESC, date_added DESC LIMIT $1 OFFSET $2`,
       [limit, offset]
     );
-    
-    // Cache for 5 minutes, stale-while-revalidate for 1 hour
+
     res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=3600");
     res.json(rows.map(toMovie));
   } catch (e) {
@@ -93,7 +112,7 @@ router.get("/movies/featured", movieLimit, async (req, res) => {
   }
 });
 
-// GET /api/movies/trending — top 10 most viewed recently
+// GET /api/movies/trending
 router.get("/movies/trending", movieLimit, async (req, res) => {
   try {
     const { rows } = await pool.query(
@@ -139,7 +158,6 @@ router.get("/movies/by-slug/:slug", movieLimit, async (req, res) => {
 // GET /api/movies/:id
 router.get("/movies/:id", movieLimit, async (req, res) => {
   try {
-    // Try by id first, then by slug or imdb_id
     let { rows } = await pool.query("SELECT * FROM movies WHERE id = $1", [req.params.id]);
     if (!rows[0]) {
       const result = await pool.query(
@@ -155,7 +173,7 @@ router.get("/movies/:id", movieLimit, async (req, res) => {
   }
 });
 
-// POST /api/admin/movies/:id — upsert (create or update)
+// POST /api/admin/movies/:id — upsert
 router.post(["/admin/movies", "/admin/movies/:id"], async (req, res) => {
   const m = req.body;
   const id = req.params.id || m.id || `manual_${Date.now()}`;
@@ -201,7 +219,7 @@ router.delete("/admin/movies/:id", async (req, res) => {
   }
 });
 
-// PATCH /api/movies/:id/view — increment view count
+// PATCH /api/movies/:id/view
 router.patch("/movies/:id/view", movieLimit, async (req, res) => {
   try {
     await pool.query("UPDATE movies SET views = views + 1 WHERE id = $1", [req.params.id]);
@@ -223,12 +241,15 @@ router.get("/settings", async (req, res) => {
   }
 });
 
-// POST /api/settings
+// POST /api/settings — with Zod validation
 router.post("/settings", async (req, res) => {
   if (!requireAuth(req, res)) return;
-  const settings: Record<string, string> = req.body;
+  const parsed = settingsSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Formato inválido", details: parsed.error.issues });
+  }
   try {
-    for (const [key, value] of Object.entries(settings)) {
+    for (const [key, value] of Object.entries(parsed.data)) {
       await pool.query(
         `INSERT INTO cv_settings (key, value) VALUES ($1, $2)
          ON CONFLICT (key) DO UPDATE SET value = $2`,
@@ -269,41 +290,78 @@ router.post("/servers", async (req, res) => {
   }
 });
 
-// POST /api/auth/login
-router.post("/auth/login", async (req, res) => {
-  const { username, password } = req.body;
+// ── Auth ──────────────────────────────────────────────────────────────────────
+
+// POST /api/auth/login — bcrypt + JWT + auto-migration from plaintext
+router.post("/auth/login", loginLimit, async (req, res) => {
+  const parsed = loginSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Usuario y contraseña requeridos" });
+  }
+  const { username, password } = parsed.data;
+
   try {
     const { rows } = await pool.query(
       "SELECT password, username FROM cv_auth WHERE id = 'admin'"
     );
-    if (!rows[0]) return res.status(401).json({ error: "No hay usuario admin configurado. Ejecuta el script set-superadmin.sql" });
-    const storedPassword = rows[0].password;
-    const storedUsername = rows[0].username;
+    if (!rows[0]) {
+      return res.status(401).json({
+        error: "No hay usuario admin configurado. Ejecuta el script set-superadmin.sql",
+      });
+    }
 
-    // Validar tanto usuario como contraseña
-    if (username === storedUsername && password === storedPassword) {
-      const token = process.env["ADMIN_SECRET"] ?? null;
-      return res.json({ ok: true, token });
-    } else {
+    const storedHash = rows[0].password as string;
+    const storedUsername = rows[0].username as string;
+
+    if (username !== storedUsername) {
       return res.status(401).json({ error: "Usuario o contraseña incorrectos." });
     }
+
+    let passwordValid = false;
+
+    if (isBcryptHash(storedHash)) {
+      passwordValid = await verifyPassword(password, storedHash);
+    } else {
+      // Legacy plaintext — auto-migrate on successful login
+      if (password === storedHash) {
+        passwordValid = true;
+        hashPassword(password).then((hashed) => {
+          pool.query("UPDATE cv_auth SET password = $1 WHERE id = 'admin'", [hashed])
+            .catch(() => {});
+        });
+      }
+    }
+
+    if (!passwordValid) {
+      return res.status(401).json({ error: "Usuario o contraseña incorrectos." });
+    }
+
+    const token = generateToken(username);
+    res.json({ ok: true, token });
   } catch (e) {
     return res.status(500).json({ error: String(e) });
   }
 });
 
-// POST /api/auth/change-password — cambia contraseña y opcionalmente el usuario
+// POST /api/auth/change-password — stores bcrypt hash
 router.post("/auth/change-password", async (req, res) => {
   if (!requireAuth(req, res)) return;
-  const { password, username } = req.body;
+
+  const parsed = changePasswordSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Contraseña requerida", details: parsed.error.issues });
+  }
+
+  const { password, username } = parsed.data;
   try {
+    const hashed = await hashPassword(password);
     if (username) {
       await pool.query(
         "UPDATE cv_auth SET password = $1, username = $2 WHERE id = 'admin'",
-        [password, username]
+        [hashed, username]
       );
     } else {
-      await pool.query("UPDATE cv_auth SET password = $1 WHERE id = 'admin'", [password]);
+      await pool.query("UPDATE cv_auth SET password = $1 WHERE id = 'admin'", [hashed]);
     }
     res.json({ ok: true });
   } catch (e) {
@@ -311,9 +369,8 @@ router.post("/auth/change-password", async (req, res) => {
   }
 });
 
-// GET /api/admin/backfill-cast-stream
-// Recorre todas las películas/series sin cast_full y lo rellena desde TMDB.
-// Usa SSE para mostrar progreso en tiempo real.
+// ── Backfill cast ─────────────────────────────────────────────────────────────
+
 router.get("/admin/backfill-cast-stream", async (req, res) => {
   const type = req.query.type === "series" ? "series" : "movie";
   const table = type === "series" ? "cv_series" : "movies";
@@ -328,7 +385,6 @@ router.get("/admin/backfill-cast-stream", async (req, res) => {
   };
 
   try {
-    // Only process rows with empty cast_full
     const { rows } = await pool.query(
       `SELECT id, imdb_id, title FROM ${table}
        WHERE imdb_id IS NOT NULL AND imdb_id != ''
@@ -345,7 +401,6 @@ router.get("/admin/backfill-cast-stream", async (req, res) => {
       const row = rows[i] as { id: string; imdb_id: string; title: string };
 
       try {
-        // Find TMDB id from imdb_id
         const findRes = await tmdbFetch(
           `/find/${row.imdb_id}?external_source=imdb_id`
         );
@@ -362,7 +417,6 @@ router.get("/admin/backfill-cast-stream", async (req, res) => {
 
         if (!tmdbId) { skipped++; continue; }
 
-        // Fetch credits
         const creditsRes = await tmdbFetch(
           `/${type === "series" ? "tv" : "movie"}/${tmdbId}/credits?language=es-MX`
         );
@@ -395,13 +449,11 @@ router.get("/admin/backfill-cast-stream", async (req, res) => {
           updated, skipped, error: errorCount,
         });
 
-        // Respect TMDB rate limit
         await new Promise(r => setTimeout(r, 120));
       } catch {
         errorCount++;
       }
 
-      // Send heartbeat every 20 items even if no update
       if (i % 20 === 0 && updated === 0) {
         send("progress", {
           i: i + 1, total: rows.length, title: row.title,
