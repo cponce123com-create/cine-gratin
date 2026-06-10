@@ -2,11 +2,12 @@
 set -euo pipefail
 
 echo "=== Installing workspace dependencies ==="
-pnpm install --frozen-lockfile
+# Ensure devDependencies (vite) are installed for the build
+NODE_ENV=development pnpm install --frozen-lockfile
 
 echo "=== Building frontend ==="
 pushd frontend > /dev/null
-pnpm run build
+NODE_ENV=production pnpm run build
 popd > /dev/null
 
 echo "=== Copying frontend dist to API server public/ ==="
