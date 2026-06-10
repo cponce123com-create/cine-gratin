@@ -129,11 +129,10 @@ router.post("/admin/import-by-ids", async (req, res) => {
     error: results.filter(r => r.status === "error").length,
   };
 
-  res.json({ ok: true, results, summary });
+  return res.json({ ok: true, results, summary });
 });
 
 // POST /api/admin/verify-vidsrc
-// Recibe resultados del escáner y los guarda en BD con un bulk UPDATE por tipo
 router.post("/admin/verify-vidsrc", async (req, res) => {
   const { results: clientResults } = req.body as {
     results: { imdb_id: string; type: "movie" | "series"; available: boolean }[];
@@ -156,9 +155,9 @@ router.post("/admin/verify-vidsrc", async (req, res) => {
     if (seriesActive.length)   await pool.query("UPDATE cv_series  SET vidsrc_status = 'active'   WHERE imdb_id = ANY($1)", [seriesActive]);
     if (seriesInactive.length) await pool.query("UPDATE cv_series  SET vidsrc_status = 'inactive' WHERE imdb_id = ANY($1)", [seriesInactive]);
 
-    res.json({ saved: clientResults.length, active: movieActive.length + seriesActive.length, inactive: movieInactive.length + seriesInactive.length });
+    return res.json({ saved: clientResults.length, active: movieActive.length + seriesActive.length, inactive: movieInactive.length + seriesActive.length });
   } catch (e) {
-    res.status(500).json({ error: String(e) });
+    return res.status(500).json({ error: String(e) });
   }
 });
 
@@ -273,9 +272,9 @@ router.post("/admin/scan-networks", async (req, res) => {
       error: results.filter(r => r.status === "error").length,
     };
 
-    res.json({ ok: true, results, summary });
+    return res.json({ ok: true, results, summary });
   } catch (e) {
-    res.status(500).json({ error: String(e) });
+    return res.status(500).json({ error: String(e) });
   }
 });
 
@@ -534,9 +533,9 @@ router.get("/admin/vidsrc-range", async (req, res) => {
       await new Promise(r => setTimeout(r, 150));
     }
 
-    res.json({ totalPages, imdb_ids: allIds });
+    return res.json({ totalPages, imdb_ids: allIds });
   } catch (e) {
-    res.status(500).json({ error: String(e) });
+    return res.status(500).json({ error: String(e) });
   }
 });
 
@@ -551,9 +550,9 @@ router.get("/admin/vidsrc-list", async (req, res) => {
     });
     if (!r.ok) return res.status(r.status).json({ error: `vidsrc.me responded ${r.status}` });
     const data = await r.json();
-    res.json(data);
+    return res.json(data);
   } catch (e) {
-    res.status(500).json({ error: String(e) });
+    return res.status(500).json({ error: String(e) });
   }
 });
 
@@ -817,7 +816,7 @@ router.post("/admin/import-by-tmdb-ids", async (req, res) => {
   const imported = results.filter(r => r.status === "imported").length;
   const existedOrError = results.length - imported;
 
-  res.json({ ok: true, summary: { imported, existed_or_error: existedOrError, total: results.length } });
+  return res.json({ ok: true, summary: { imported, existed_or_error: existedOrError, total: results.length } });
 });
 
 // POST /api/admin/sagas/:id/refresh — refresh saga data from TMDB, optionally import missing
@@ -907,7 +906,7 @@ router.post("/admin/sagas/:id/refresh", async (req, res) => {
       }
     }
 
-    res.json({
+    return res.json({
       id: collection.id,
       name: collection.name,
       poster_path: collection.poster_path ? `${TMDB_IMG}/w500${collection.poster_path}` : null,
@@ -917,7 +916,7 @@ router.post("/admin/sagas/:id/refresh", async (req, res) => {
       imported,
     });
   } catch (e) {
-    res.status(500).json({ error: String(e) });
+    return res.status(500).json({ error: String(e) });
   }
 });
 

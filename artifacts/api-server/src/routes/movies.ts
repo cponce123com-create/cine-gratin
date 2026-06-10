@@ -130,9 +130,9 @@ router.get("/movies/by-slug/:slug", movieLimit, async (req, res) => {
       [req.params.slug]
     );
     if (!rows[0]) return res.status(404).json({ error: "Not found" });
-    res.json(toMovie(rows[0]));
+    return res.json(toMovie(rows[0]));
   } catch (e) {
-    res.status(500).json({ error: String(e) });
+    return res.status(500).json({ error: String(e) });
   }
 });
 
@@ -149,9 +149,9 @@ router.get("/movies/:id", movieLimit, async (req, res) => {
       rows = result.rows;
     }
     if (!rows[0]) return res.status(404).json({ error: "Not found" });
-    res.json(toMovie(rows[0]));
+    return res.json(toMovie(rows[0]));
   } catch (e) {
-    res.status(500).json({ error: String(e) });
+    return res.status(500).json({ error: String(e) });
   }
 });
 
@@ -281,12 +281,12 @@ router.post("/auth/login", async (req, res) => {
     // Validar tanto usuario como contraseña
     if (username === storedUsername && password === storedPassword) {
       const token = process.env["ADMIN_SECRET"] ?? null;
-      res.json({ ok: true, token });
+      return res.json({ ok: true, token });
     } else {
-      res.status(401).json({ error: "Usuario o contraseña incorrectos." });
+      return res.status(401).json({ error: "Usuario o contraseña incorrectos." });
     }
   } catch (e) {
-    res.status(500).json({ error: String(e) });
+    return res.status(500).json({ error: String(e) });
   }
 });
 
