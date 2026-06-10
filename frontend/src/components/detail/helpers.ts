@@ -55,12 +55,11 @@ export interface PersonProfile {
 
 // ── Video helpers ─────────────────────────────────────────────────────────────
 
-const VIDEO_ORDER = ["Trailer", "Teaser", "Clip", "Featurette", "Behind the Scenes", "Bloopers"];
-
 export function sortVideos(videos: TmdbVideo[]): TmdbVideo[] {
+  const ORDER = ["Trailer", "Teaser", "Clip", "Featurette", "Behind the Scenes", "Bloopers"];
   return [...videos].sort((a, b) => {
-    const ia = VIDEO_ORDER.indexOf(a.type);
-    const ib = VIDEO_ORDER.indexOf(b.type);
+    const ia = ORDER.indexOf(a.type);
+    const ib = ORDER.indexOf(b.type);
     const orderA = ia === -1 ? 99 : ia;
     const orderB = ib === -1 ? 99 : ib;
     if (orderA !== orderB) return orderA - orderB;
