@@ -1,15 +1,9 @@
-import { Router, type IRouter } from "express";
-import { z } from "zod";
+import { Router } from "express";
 
-const HealthCheckResponse = z.object({
-  status: z.string(),
-});
-
-const router: IRouter = Router();
+const router = Router();
 
 router.get("/healthz", (_req, res) => {
-  const data = HealthCheckResponse.parse({ status: "ok" });
-  res.json(data);
+  res.json({ status: "ok" });
 });
 
 export default router;

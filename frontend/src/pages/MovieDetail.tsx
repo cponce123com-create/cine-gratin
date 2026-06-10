@@ -31,7 +31,7 @@ export default function MovieDetail() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const runtimeMin = movie?.runtime ?? movie?.duration_min ?? null;
+  const runtimeMin = movie?.runtime ?? null;
   const runtimeLabel = runtimeMin
     ? runtimeMin >= 60
       ? `${Math.floor(runtimeMin / 60)}h ${runtimeMin % 60}m`

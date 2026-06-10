@@ -114,7 +114,7 @@ router.get("/series/:id", seriesLimit, async (req, res) => {
 // POST /api/admin/series/:id — upsert
 router.post(["/admin/series", "/admin/series/:id"], async (req, res) => {
   const s = req.body;
-  const id = req.params.id || s.id;
+  const id = req.params.id || s.id || `manual_${Date.now()}`;
   try {
     await pool.query(
       `INSERT INTO cv_series (id, imdb_id, tmdb_id, title, year, end_year, rating, genres, language,

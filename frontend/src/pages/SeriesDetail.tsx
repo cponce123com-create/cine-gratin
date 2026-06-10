@@ -140,11 +140,6 @@ export default function SeriesDetail() {
                   ★ {Number(series.rating).toFixed(1)}
                 </span>
               )}
-              {series.mpa_rating && series.mpa_rating !== "NR" && (
-                <span className="text-xs border border-gray-600 text-gray-400 px-1.5 py-0.5 rounded">
-                  {series.mpa_rating}
-                </span>
-              )}
               {seasonsData.length > 0 && (
                 <span className="text-gray-400">
                   {seasonsData.length} temporada{seasonsData.length !== 1 ? "s" : ""}

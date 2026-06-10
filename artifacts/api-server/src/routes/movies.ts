@@ -158,7 +158,7 @@ router.get("/movies/:id", movieLimit, async (req, res) => {
 // POST /api/admin/movies/:id — upsert (create or update)
 router.post(["/admin/movies", "/admin/movies/:id"], async (req, res) => {
   const m = req.body;
-  const id = req.params.id || m.id;
+  const id = req.params.id || m.id || `manual_${Date.now()}`;
   try {
     await pool.query(
       `INSERT INTO movies (id, imdb_id, title, year, rating, runtime, genres, language, synopsis,
