@@ -61,3 +61,33 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         run: pnpm build
+
+  deploy:
+    name: Deploy to Render
+    needs: [quality, build]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build all
+        run: pnpm render:build
+
+      - name: Deploy to Render
+        run: |
+          curl -X POST 
+            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" 
+            -H "Content-Type: application/json" 
+            -d '{"serviceId": "${{ secrets.RENDER_SERVICE_ID }}", "commit": "${{ github.sha }}"}' 
+            https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/deploys

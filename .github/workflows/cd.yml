@@ -25,14 +25,13 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Build frontend
-        working-directory: frontend
-        run: pnpm build
+      - name: Build all
+        run: pnpm render:build
 
-      - name: Build backend
-        working-directory: backend
-        run: pnpm build
-
-      - name: Trigger Render deploy
+      - name: Deploy to Render (API)
         run: |
-          curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
+          curl -X POST 
+            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" 
+            -H "Content-Type: application/json" 
+            -d '{"serviceId": "${{ secrets.RENDER_SERVICE_ID }}", "commit": "${{ github.sha }}"}' 
+            https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/deploys

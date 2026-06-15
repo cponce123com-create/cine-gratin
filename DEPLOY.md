@@ -1,42 +1,81 @@
-# Despliegue en Render
+# Despliegue de Cine Gratin
 
-## Servicio Web (API + Frontend)
+## 📦 Frontend (Vite + React)
 
-Este proyecto está configurado para desplegarse como un **Web Service** en Render que sirve tanto el frontend compilado como la API.
+Despliega en **Vercel** o **Netlify**:
 
-### Configuración
+1. Conecta tu repositorio a Vercel/Netlify.
+2. Configura la variable de entorno:
+   - `VITE_API_URL` — URL del backend desplegado (ej: `https://tu-backend.onrender.com`)
+3. Comando de build: `cd frontend && pnpm build`
+4. Directorio de salida: `frontend/dist`
+5. Despliega.
 
-| Campo | Valor |
-|---|---|
-| **Runtime** | Node |
-| **Build Command** | `bash render-build.sh` |
-| **Start Command** | `node backend/dist/index.mjs` |
-| **Root Directory** | (raíz del repo) |
+## 🚀 Backend (Express + TypeScript)
 
-### Variables de Entorno
+### Opción 1: Render (recomendado)
 
-| Variable | Requerida | Descripción |
-|---|---|---|
-| `DATABASE_URL` | ✅ | URL de conexión PostgreSQL |
-| `JWT_SECRET` | ✅ | Secreto para firmar tokens JWT |
-| `NODE_ENV` | ✅ | `production` |
-| `TMDB_API_KEY` | ❌ | Para scraping de metadatos |
-| `YOUTUBE_API_KEY` | ❌ | Para importación de YouTube |
+1. Crea un **Web Service** en [Render](https://render.com).
+2. Conecta tu repositorio (rama `main`).
+3. Configura:
 
-### Base de Datos
+   | Campo             | Valor                         |
+   | ----------------- | ----------------------------- |
+   | **Runtime**       | Node                          |
+   | **Build Command** | `bash render-build.sh`        |
+   | **Start Command** | `node backend/dist/index.mjs` |
 
-Usar **Render PostgreSQL** o cualquier PostgreSQL externa.
+4. Configura las variables de entorno:
 
-1. Crear una base de datos PostgreSQL en Render
-2. Copiar la `DATABASE_URL` interna a las variables de entorno del Web Service
-3. Las tablas se crean automáticamente al iniciar
+   | Variable          | Requerida | Descripción                                                                            |
+   | ----------------- | --------- | -------------------------------------------------------------------------------------- |
+   | `DATABASE_URL`    | ✅        | URL de conexión PostgreSQL                                                             |
+   | `JWT_SECRET`      | ✅        | Genera con: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
+   | `NODE_ENV`        | ✅        | `production`                                                                           |
+   | `TMDB_API_KEY`    | ❌        | Clave de API de TMDB                                                                   |
+   | `YOUTUBE_API_KEY` | ❌        | Para importación de YouTube                                                            |
+   | `CORS_ORIGIN`     | ❌        | Dominio del frontend (ej: `https://tudominio.vercel.app`)                              |
 
-### Notas
+5. Crea una base de datos **Render PostgreSQL** y copia la `DATABASE_URL` interna.
+6. Despliega.
 
-- El build command ejecuta `render-build.sh`, que:
-  1. Instala `yt-dlp` para descargas de video
-  2. Instala dependencias con `pnpm install --frozen-lockfile`
-  3. Compila el frontend con Vite
-  4. Copia el frontend a `backend/public/`
-  5. Compila el backend con esbuild
-- El frontend compilado se sirve como contenido estático desde el backend
+### Opción 2: Docker / VPS
+
+```bash
+# Build
+pnpm install
+pnpm render:build
+
+# Iniciar
+NODE_ENV=production DATABASE_URL=postgresql://... JWT_SECRET=... node backend/dist/index.mjs
+```
+
+## 🔗 Conexión Frontend-Backend
+
+- Asegúrate de que `VITE_API_URL` apunte a la URL del backend desplegado.
+- Configura `CORS_ORIGIN` en el backend para permitir el dominio del frontend.
+
+## ⚙️ CI/CD (GitHub Actions)
+
+El proyecto incluye dos workflows:
+
+- **CI** (`.github/workflows/ci.yml`): Se ejecuta en cada PR y push a `main`:
+  - Linting (Prettier)
+  - Type checking (root, frontend, backend)
+  - Build de frontend
+  - **Deploy a Render** (solo en push a `main`, si se configuran los secrets)
+
+### Secrets requeridos en GitHub
+
+| Secret              | Descripción                                                          |
+| ------------------- | -------------------------------------------------------------------- |
+| `RENDER_API_KEY`    | API key de Render (Settings > API Keys)                              |
+| `RENDER_SERVICE_ID` | ID del servicio en Render (de la URL: `render.com/services/srv-xxx`) |
+
+### Configurar secrets
+
+1. Ve a GitHub repo > Settings > Secrets and variables > Actions.
+2. Agrega `RENDER_API_KEY` y `RENDER_SERVICE_ID`.
+3. Los deploys automáticos se activarán al hacer push a `main`.
+
+> **Nota:** Como alternativa, también puedes usar un **Deploy Hook** de Render (URL única) configurando el secret `RENDER_DEPLOY_HOOK_URL`.
