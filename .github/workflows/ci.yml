@@ -28,13 +28,17 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Prettier check
-        run: npx prettier --check "frontend/src/**/*.{ts,tsx,css}" "*.json" "*.md"
+        run: npx prettier --check "frontend/src/**/*.{ts,tsx,css}" "backend/src/**/*.ts" "*.json" "*.md"
 
       - name: TypeScript check (root)
         run: pnpm typecheck
 
       - name: TypeScript check (frontend)
         working-directory: frontend
+        run: pnpm typecheck
+
+      - name: TypeScript check (backend)
+        working-directory: backend
         run: pnpm typecheck
 
   build:

@@ -24,12 +24,12 @@ pushd frontend > /dev/null
 NODE_ENV=production pnpm run build
 popd > /dev/null
 
-echo "=== Copying frontend dist to API server public/ ==="
-mkdir -p artifacts/api-server/public
-cp -r frontend/dist/. artifacts/api-server/public/
+echo "=== Copying frontend dist to backend public/ ==="
+mkdir -p backend/public
+cp -r frontend/dist/. backend/public/
 
-echo "=== Building API server ==="
-pushd artifacts/api-server > /dev/null
+echo "=== Building backend ==="
+pushd backend > /dev/null
 pnpm build
 popd > /dev/null
 

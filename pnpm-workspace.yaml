@@ -32,7 +32,7 @@ minimumReleaseAgeExclude:
   - stripe-replit-sync
 
 packages:
-  - "artifacts/*"
+  - backend
   - scripts
   - frontend
 

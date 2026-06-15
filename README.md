@@ -1,62 +1,57 @@
-# Enhanced Vite React TypeScript Template
+# Cine Gratin 🎬
 
-This template includes built-in detection for missing CSS variables between your Tailwind config and CSS files.
+Plataforma de streaming self-hosted con catálogo de películas, series, deportes y TV en vivo.
 
-## Features
+## Estructura del proyecto
 
-- **CSS Variable Detection**: Automatically detects if CSS variables referenced in `tailwind.config.cjs` are defined in `src/index.css`
-- **Enhanced Linting**: Includes ESLint, Stylelint, and custom CSS variable validation
-- **Shadcn/ui**: Pre-configured with all Shadcn components
-- **Modern Stack**: Vite + React + TypeScript + Tailwind CSS
+```
+cine-gratin/
+├── frontend/          # App React + TypeScript + Vite + Tailwind
+├── backend/           # API server Express + TypeScript
+├── scripts/           # Utilidades y migraciones
+└── .github/           # CI/CD y templates
+```
 
-## Available Scripts
+## Requisitos
+
+- **Node.js** 20+
+- **pnpm** 9+
+- **PostgreSQL** 16+
+
+## Desarrollo
 
 ```bash
-# Run all linting (includes CSS variable check)
-npm run lint
+# Instalar dependencias (desde la raíz)
+pnpm install
 
-# Check only CSS variables
-npm run check:css-vars
+# Iniciar backend (compila y ejecuta)
+pnpm dev:backend
 
-# Individual linting
-npm run lint:js    # ESLint
-npm run lint:css   # Stylelint
+# Iniciar frontend (hot-reload)
+pnpm dev:frontend
 ```
 
-## CSS Variable Detection
+## Build
 
-The template includes a custom script that:
+```bash
+# Build completo (frontend + backend)
+pnpm render:build
 
-1. **Parses `tailwind.config.cjs`** to find all `var(--variable)` references
-2. **Parses `src/index.css`** to find all defined CSS variables (`--variable:`)
-3. **Cross-references** them to find missing definitions
-4. **Reports undefined variables** with clear error messages
-
-### Example Output
-
-When CSS variables are missing:
-
-```
-❌ Undefined CSS variables found in tailwind.config.cjs:
-   --sidebar-background
-   --sidebar-foreground
-   --sidebar-primary
-
-Add these variables to src/index.css
+# Build individual
+pnpm build:frontend
+pnpm build:backend
 ```
 
-When all variables are defined:
+## Despliegue
 
-```
-✅ All CSS variables in tailwind.config.cjs are defined
-```
+El proyecto está preparado para desplegarse en **Render**. Ver [`DEPLOY.md`](./DEPLOY.md) para instrucciones detalladas.
 
-## How It Works
+## Características
 
-The detection happens during the `npm run lint` command, which will:
-
-- Exit with error code 1 if undefined variables are found
-- Show exactly which variables need to be added to your CSS file
-- Integrate seamlessly with your development workflow
-
-This prevents runtime CSS issues where Tailwind classes reference undefined CSS variables.
+- 🎥 Catálogo de películas y series con datos de TMDB
+- 📺 TV en vivo con canales IPTV
+- ⚽ Deportes y eventos en vivo
+- 🔍 Búsqueda y filtros por género
+- 👤 Panel de administración
+- 📥 Importación desde YouTube
+- 📱 Diseño responsive

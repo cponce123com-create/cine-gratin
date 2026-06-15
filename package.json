@@ -1,15 +1,19 @@
 {
   "name": "workspace",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "license": "MIT",
   "scripts": {
     "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
     "build": "cd frontend && pnpm build",
-    "typecheck": "node node_modules/.bin/tsc --noEmit",
+    "build:frontend": "cd frontend && pnpm build",
+    "build:backend": "cd backend && pnpm build",
+    "dev:frontend": "cd frontend && pnpm dev",
+    "dev:backend": "cd backend && pnpm dev",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "render:build": "bash render-build.sh",
-    "render:start": "node artifacts/api-server/dist/index.mjs",
-    "format": "prettier --write \"frontend/src/**/*.{ts,tsx,css}\" \"*.json\" \"*.md\"",
-    "format:check": "prettier --check \"frontend/src/**/*.{ts,tsx,css}\" \"*.json\" \"*.md\""
+    "render:start": "node backend/dist/index.mjs",
+    "format": "prettier --write \"frontend/src/**/*.{ts,tsx,css}\" \"backend/src/**/*.ts\" \"*.json\" \"*.md\"",
+    "format:check": "prettier --check \"frontend/src/**/*.{ts,tsx,css}\" \"backend/src/**/*.ts\" \"*.json\" \"*.md\""
   },
   "private": true,
   "devDependencies": {
