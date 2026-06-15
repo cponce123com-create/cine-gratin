@@ -53,6 +53,9 @@ Thumbs.db
 .env.local
 .env.*.local
 
+# Backup files
+*.bak
+
 # DeepSeek session logs
 .deepseek/logs/
 
