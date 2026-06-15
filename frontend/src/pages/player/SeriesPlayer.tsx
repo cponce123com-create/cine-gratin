@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
-import { getSeriesById, trackSeriesView } from "@/lib/api";
+import { getSeriesById, trackSeriesView, BASE_URL } from "@/lib/api";
 import { useContinueWatching } from "@/hooks/useContinueWatching";
 import type { SeasonData } from "@/lib/types";
 
@@ -200,11 +200,28 @@ export default function SeriesPlayer() {
             </button>
             <button
               onClick={() => window.open(iframeSrc, "_blank")}
-              title="Abrir en nueva pestaña"
+              title="Abrir el video en el sitio externo para descargar"
               className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md border bg-white/5 border-white/10 text-white/60 hover:bg-white/15 hover:text-white hover:border-white/25 transition-all"
             >
               <ExternalLinkIcon />
-              <span className="hidden sm:inline">Abrir enlace</span>
+              <span className="hidden sm:inline">Descargar (Externo)</span>
+            </button>
+            <button
+              onClick={() => {
+                const params = new URLSearchParams({
+                  imdbId: imdbId!,
+                  type: "series",
+                  server: String(activeServer),
+                  season: String(season),
+                  episode: String(episode),
+                });
+                window.open(`${BASE_URL}/api/download?${params}`, "_blank");
+              }}
+              title="Resolver y descargar el video directo (requiere yt-dlp en el servidor)"
+              className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md border bg-white/5 border-white/10 text-white/60 hover:bg-white/15 hover:text-white hover:border-white/25 transition-all"
+            >
+              <ExternalLinkIcon />
+              <span className="hidden sm:inline">Descargar (Directo)</span>
             </button>
           </div>
         </div>

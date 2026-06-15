@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
-import { trackMovieView, getMovieByImdbId } from "@/lib/api";
+import { trackMovieView, getMovieByImdbId, BASE_URL } from "@/lib/api";
 import { useContinueWatching } from "@/hooks/useContinueWatching";
 
 interface Server {
@@ -167,11 +167,26 @@ export default function MoviePlayer() {
             </button>
             <button
               onClick={() => window.open(src, "_blank")}
-              title="Abrir en nueva pestaña"
+              title="Abrir el video en el sitio externo para descargar"
               className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md border bg-white/5 border-white/10 text-white/60 hover:bg-white/15 hover:text-white hover:border-white/25 transition-all"
             >
-              <ExternalLinkIcon />
-              <span className="hidden sm:inline">Abrir enlace</span>
+              <DownloadIcon />
+              <span className="hidden sm:inline">Descargar (Externo)</span>
+            </button>
+            <button
+              onClick={() => {
+                const params = new URLSearchParams({
+                  imdbId: imdbId!,
+                  type: "movie",
+                  server: String(activeServer),
+                });
+                window.open(`${BASE_URL}/api/download?${params}`, "_blank");
+              }}
+              title="Resolver y descargar el video directo (requiere yt-dlp en el servidor)"
+              className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md border bg-white/5 border-white/10 text-white/60 hover:bg-white/15 hover:text-white hover:border-white/25 transition-all"
+            >
+              <DirectDownloadIcon />
+              <span className="hidden sm:inline">Descargar (Directo)</span>
             </button>
           </div>
         </div>
@@ -225,7 +240,7 @@ function FullscreenIcon() {
   );
 }
 
-function ExternalLinkIcon() {
+function DownloadIcon() {
   return (
     <svg
       className="w-3.5 h-3.5 flex-shrink-0"
@@ -234,13 +249,26 @@ function ExternalLinkIcon() {
       stroke="currentColor"
       strokeWidth="2"
     >
-      <path
-        d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <polyline points="15 3 21 3 21 9" strokeLinecap="round" strokeLinejoin="round" />
-      <line x1="10" y1="14" x2="21" y2="3" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" strokeLinecap="round" strokeLinejoin="round" />
+      <polyline points="7 10 12 15 17 10" strokeLinecap="round" strokeLinejoin="round" />
+      <line x1="12" y1="15" x2="12" y2="3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function DirectDownloadIcon() {
+  return (
+    <svg
+      className="w-3.5 h-3.5 flex-shrink-0"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" strokeLinecap="round" strokeLinejoin="round" />
+      <polyline points="14 2 14 8 20 8" strokeLinecap="round" strokeLinejoin="round" />
+      <line x1="12" y1="18" x2="12" y2="12" strokeLinecap="round" strokeLinejoin="round" />
+      <polyline points="9 15 12 18 15 15" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

@@ -1,5 +1,11 @@
 import { lazy, Suspense, type ReactNode } from "react";
-import { createBrowserRouter, RouterProvider, Outlet, type RouteObject } from "react-router-dom";
+import {
+  createBrowserRouter,
+  RouterProvider,
+  Outlet,
+  ScrollRestoration,
+  type RouteObject,
+} from "react-router-dom";
 import { Toaster } from "sonner";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -74,9 +80,22 @@ function PublicLayout() {
   );
 }
 
+/** Root layout — renders ScrollRestoration for all routes. */
+function RootLayout() {
+  return (
+    <>
+      <ScrollRestoration />
+      <Outlet />
+    </>
+  );
+}
+
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
 const routes: RouteObject[] = [
+  {
+    element: <RootLayout />,
+    children: [
   // Standalone routes (no layout)
   {
     path: "/player/movie/:imdbId",
@@ -200,6 +219,8 @@ const routes: RouteObject[] = [
       { path: "/search/:query", element: <Search /> },
       { path: "/saga/:id", element: <SagaDetail /> },
       { path: "*", element: <NotFound /> },
+    ],
+  },
     ],
   },
 ];

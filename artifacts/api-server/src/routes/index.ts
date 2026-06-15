@@ -8,6 +8,7 @@ import adminRouter from "./admin";
 import sportsRouter, { initSportsTables } from "./sports";
 import eventsRouter, { initEventsTables } from "./events";
 import sagasRouter, { initSagasTable } from "./sagas";
+import downloadRouter from "./download";
 
 const router: IRouter = Router();
 
@@ -20,6 +21,7 @@ router.use(adminRouter);
 router.use(sportsRouter);
 router.use(eventsRouter);
 router.use(sagasRouter);
+router.use(downloadRouter);
 
 export { initSportsTables, initEventsTables, initSagasTable };
 export default router;

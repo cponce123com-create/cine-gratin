@@ -1,4 +1,4 @@
-import { Router, type Request, type Response } from "express";
+import { Router } from "express";
 import { pool } from "../lib/db";
 import { rateLimit } from "express-rate-limit";
 import { tmdbFetch } from "../lib/tmdb-client";
@@ -246,7 +246,8 @@ router.post("/settings", async (req, res) => {
   if (!requireAuth(req, res)) return;
   const parsed = settingsSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ error: "Formato inválido", details: parsed.error.issues });
+    res.status(400).json({ error: "Formato inválido", details: parsed.error.issues });
+    return;
   }
   try {
     for (const [key, value] of Object.entries(parsed.data)) {
@@ -337,7 +338,7 @@ router.post("/auth/login", loginLimit, async (req, res) => {
     }
 
     const token = generateToken(username);
-    res.json({ ok: true, token });
+    return res.json({ ok: true, token });
   } catch (e) {
     return res.status(500).json({ error: String(e) });
   }
@@ -363,9 +364,9 @@ router.post("/auth/change-password", async (req, res) => {
     } else {
       await pool.query("UPDATE cv_auth SET password = $1 WHERE id = 'admin'", [hashed]);
     }
-    res.json({ ok: true });
+    return res.json({ ok: true });
   } catch (e) {
-    res.status(500).json({ error: String(e) });
+    return res.status(500).json({ error: String(e) });
   }
 });
 
