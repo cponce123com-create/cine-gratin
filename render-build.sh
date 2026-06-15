@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "=== Installing yt-dlp for video downloads ==="
-curl -fsSL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
-chmod a+rx /usr/local/bin/yt-dlp
+echo "=== Installing yt-dlp for video downloads (non-fatal) ==="
+curl -fsSL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && chmod a+rx /usr/local/bin/yt-dlp || echo "WARNING: yt-dlp installation skipped (not critical for app to function)"
 
 echo "=== Installing workspace dependencies ==="
 # Ensure devDependencies (vite) are installed for the build

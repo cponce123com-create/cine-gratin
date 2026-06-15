@@ -1,9 +1,9 @@
-import { lazy, Suspense, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, type ReactNode } from "react";
 import {
   createBrowserRouter,
   RouterProvider,
   Outlet,
-  ScrollRestoration,
+  useLocation,
   type RouteObject,
 } from "react-router-dom";
 import { Toaster } from "sonner";
@@ -80,14 +80,13 @@ function PublicLayout() {
   );
 }
 
-/** Root layout — renders ScrollRestoration for all routes. */
+/** Root layout — scrolls to top on every route change. */
 function RootLayout() {
-  return (
-    <>
-      <ScrollRestoration />
-      <Outlet />
-    </>
-  );
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return <Outlet />;
 }
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
