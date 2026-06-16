@@ -4,12 +4,22 @@ import { initDb } from "./lib/db";
 import { startAutoImportCron } from "./jobs/auto-import";
 import { initSportsTables, initEventsTables, initSagasTable } from "./routes";
 
+// ── Validate critical environment variables ───────────────────────────────────
+const REQUIRED_ENV_VARS = ["JWT_SECRET", "DATABASE_URL", "PORT"] as const;
+const missing: string[] = [];
+for (const envVar of REQUIRED_ENV_VARS) {
+  if (!process.env[envVar]) {
+    missing.push(envVar);
+  }
+}
+if (missing.length > 0) {
+  throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
+}
+
 const rawPort = process.env["PORT"];
 
 if (!rawPort) {
-  throw new Error(
-    "PORT environment variable is required but was not provided.",
-  );
+  throw new Error("PORT environment variable is required but was not provided.");
 }
 
 const port = Number(rawPort);

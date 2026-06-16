@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { BASE_URL } from "@/lib/api";
 
 interface Props {
   children: ReactNode;
@@ -8,6 +9,29 @@ interface Props {
 interface State {
   hasError: boolean;
   error: Error | null;
+}
+
+/** Report error to backend silently (fire-and-forget) */
+function reportError(error: Error, info: ErrorInfo): void {
+  try {
+    const payload = {
+      message: error.message,
+      stack: error.stack,
+      componentStack: info.componentStack,
+      url: location.href,
+      userAgent: navigator.userAgent,
+      timestamp: new Date().toISOString(),
+    };
+    // Fire-and-forget — no need to await
+    fetch(`${BASE_URL}/api/log-error`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }).catch(() => {});
+  } catch {
+    // Silently fail — we don't want error reporting to cause more errors
+  }
+  console.error("[ErrorBoundary]", error, info.componentStack);
 }
 
 export class ErrorBoundary extends Component<Props, State> {
@@ -21,7 +45,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   override componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error("[ErrorBoundary]", error, info.componentStack);
+    reportError(error, info);
   }
 
   override render() {

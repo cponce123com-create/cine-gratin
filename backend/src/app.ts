@@ -3,6 +3,7 @@ import express, { type Express } from "express";
 import cors from "cors";
 import compression from "compression";
 import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
@@ -49,6 +50,15 @@ app.use(
   }),
 );
 
+// ── Global rate limiter for all API routes ────────────────────────────────────
+const globalApiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Demasiadas peticiones, intenta de nuevo más tarde." },
+});
+
 // ── CORS: validate origins in production ──────────────────────────────────────
 const corsOrigins = process.env["CORS_ORIGINS"];
 if (corsOrigins) {
@@ -86,14 +96,15 @@ app.use(
 
 // CORS: allow known origins in production, all origins in dev
 const allowedOrigins = process.env["CORS_ORIGINS"]
-  ? process.env["CORS_ORIGINS"].split(",")
+  ? process.env["CORS_ORIGINS"].split(",").map((o) => o.trim())
   : ["http://localhost:5173", "http://localhost:4173"];
+const allowedOriginSet = new Set(allowedOrigins);
 app.use(
   cors({
     origin: (origin, callback) => {
       // Allow requests with no origin (non-browser, curl, etc.)
-      if (!origin || allowedOrigins.includes("*")) return callback(null, true);
-      if (allowedOrigins.some((o) => origin.startsWith(o))) return callback(null, true);
+      if (!origin || allowedOriginSet.has("*")) return callback(null, true);
+      if (allowedOriginSet.has(origin)) return callback(null, true);
       callback(null, false);
     },
     credentials: true,
@@ -101,6 +112,9 @@ app.use(
 );
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Global rate limiter applied to all /api routes
+app.use("/api", globalApiLimiter);
 
 // API routes
 app.use("/api", router);
