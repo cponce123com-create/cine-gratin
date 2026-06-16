@@ -29,7 +29,8 @@ export type IptvSource =
   | "tdtchannels"
   | "peru_regional"
   | "infinity"
-  | "all";
+  | "all"
+  | "worldcup";
 
 // ─── Sources map ───────────────────────────────────────────────────────────────
 
@@ -49,6 +50,8 @@ const SOURCES: Record<IptvSource, string> = {
   peru_regional: "https://raw.githubusercontent.com/antholyber1a/lista-iptv-peru/main/iptvperu.m3u",
   infinity: "https://telechancho.github.io/infinity.m3u",
   all: "https://iptv-org.github.io/iptv/index.m3u",
+  // Free-TV/IPTV playlist — canales deportivos y del mundial
+  worldcup: "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8",
 };
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────

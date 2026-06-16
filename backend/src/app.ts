@@ -30,14 +30,8 @@ app.use(
           "https://vidembed.io",
           "https://multiembed.mov",
         ],
-        imgSrc: [
-          "'self'",
-          "data:",
-          "https://image.tmdb.org",
-          "https://i.ytimg.com",
-          "https://*.ytimg.com",
-        ],
-        connectSrc: ["'self'", "https://www.googleapis.com", "https://vidsrc.me"],
+        imgSrc: ["'self'", "data:", "https://image.tmdb.org", "https://i.ytimg.com", "https://*.ytimg.com"],
+        connectSrc: ["'self'", "https://www.googleapis.com", "https://vidsrc.me", "https://image.tmdb.org"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         fontSrc: ["'self'"],
         mediaSrc: ["'self'", "https:", "data:", "blob:"],
@@ -45,7 +39,7 @@ app.use(
     },
     crossOriginEmbedderPolicy: false,
     crossOriginResourcePolicy: { policy: "cross-origin" },
-  })
+  }),
 );
 
 // ── CORS: validate origins in production ──────────────────────────────────────
@@ -71,29 +65,33 @@ app.use(
     },
   }),
 );
-app.use(compression({
-  filter: (req, res) => {
-    // Don't compress SSE (Server-Sent Events) — flushHeaders doesn't work with compression
-    if (req.url?.includes("/vidsrc-scan-stream") || req.url?.includes("/scan-networks-stream")) {
-      return false;
-    }
-    return compression.filter(req, res);
-  },
-}));
+app.use(
+  compression({
+    filter: (req, res) => {
+      // Don't compress SSE (Server-Sent Events) — flushHeaders doesn't work with compression
+      if (req.url?.includes("/vidsrc-scan-stream") || req.url?.includes("/scan-networks-stream")) {
+        return false;
+      }
+      return compression.filter(req, res);
+    },
+  }),
+);
 
 // CORS: allow known origins in production, all origins in dev
 const allowedOrigins = process.env["CORS_ORIGINS"]
   ? process.env["CORS_ORIGINS"].split(",")
   : ["http://localhost:5173", "http://localhost:4173"];
-app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (non-browser, curl, etc.)
-    if (!origin || allowedOrigins.includes("*")) return callback(null, true);
-    if (allowedOrigins.some((o) => origin.startsWith(o))) return callback(null, true);
-    callback(null, false);
-  },
-  credentials: true,
-}));
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (non-browser, curl, etc.)
+      if (!origin || allowedOrigins.includes("*")) return callback(null, true);
+      if (allowedOrigins.some((o) => origin.startsWith(o))) return callback(null, true);
+      callback(null, false);
+    },
+    credentials: true,
+  }),
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
