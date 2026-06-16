@@ -50,6 +50,7 @@ const SPORT_KEYWORDS = [
 ];
 
 const EXTERNAL_LINKS = [
+  { label: "📺 iptv-org — Playlists", url: "https://github.com/iptv-org/iptv#playlists" },
   { label: "🌐 Airwave TV", url: "https://mrpentestrz.github.io/airwavetv" },
   { label: "📡 HumansTV", url: "https://mutmainx.github.io/HumansTV" },
 ];
