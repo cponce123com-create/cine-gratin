@@ -388,6 +388,36 @@ export const MIGRATIONS: Migration[] = [
         ON import_jobs (created_at) WHERE status = 'queued';
     `,
   },
+  {
+    version: 11,
+    name: "catalogue_search_metadata_indexes",
+    optional: true,
+    sql: `
+      CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+      CREATE INDEX IF NOT EXISTS idx_movies_synopsis_trgm
+        ON movies USING GIN (synopsis gin_trgm_ops);
+      CREATE INDEX IF NOT EXISTS idx_movies_genres_trgm
+        ON movies USING GIN ((COALESCE(array_to_string(genres, ' '), '')) gin_trgm_ops);
+      CREATE INDEX IF NOT EXISTS idx_movies_director_trgm
+        ON movies USING GIN ((COALESCE(director, '')) gin_trgm_ops);
+      CREATE INDEX IF NOT EXISTS idx_movies_cast_trgm
+        ON movies USING GIN ((COALESCE(array_to_string(cast_list, ' '), '')) gin_trgm_ops);
+      CREATE INDEX IF NOT EXISTS idx_movies_networks_trgm
+        ON movies USING GIN ((COALESCE(array_to_string(networks, ' '), '')) gin_trgm_ops);
+
+      CREATE INDEX IF NOT EXISTS idx_series_synopsis_trgm
+        ON cv_series USING GIN (synopsis gin_trgm_ops);
+      CREATE INDEX IF NOT EXISTS idx_series_genres_trgm
+        ON cv_series USING GIN ((COALESCE(array_to_string(genres, ' '), '')) gin_trgm_ops);
+      CREATE INDEX IF NOT EXISTS idx_series_creators_trgm
+        ON cv_series USING GIN ((COALESCE(array_to_string(creators, ' '), '')) gin_trgm_ops);
+      CREATE INDEX IF NOT EXISTS idx_series_cast_trgm
+        ON cv_series USING GIN ((COALESCE(array_to_string(cast_list, ' '), '')) gin_trgm_ops);
+      CREATE INDEX IF NOT EXISTS idx_series_networks_trgm
+        ON cv_series USING GIN ((COALESCE(array_to_string(networks, ' '), '')) gin_trgm_ops);
+    `,
+  },
 ];
 
 /**
