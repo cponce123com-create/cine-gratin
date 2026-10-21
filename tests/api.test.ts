@@ -151,6 +151,8 @@ describe.skipIf(skipDatabase)("API · catálogo y base de datos", () => {
   });
 
   it("pagina el catálogo de administración", async () => {
+    await pool.query("DELETE FROM movies WHERE id = 'tt9988701'");
+
     for (let index = 1; index <= 7; index++) {
       await pool.query(`INSERT INTO movies (id, imdb_id, title, year, genres) VALUES ($1, $2, $3, $4, $5)`, [
         `tt000000${index}`,
