@@ -33,6 +33,14 @@ describe("catalogue concept search", () => {
     expect(search.relevanceOrder).toContain("CASE");
   });
 
+  it("uses the initial parameters in the filter so count queries can bind them", () => {
+    const search = buildCatalogueSearch("perro", { title: "title", synopsis: "synopsis" });
+
+    expect(search.condition).toContain("title ILIKE $1");
+    expect(search.condition).toContain("title ILIKE $2");
+    expect(search.condition).toContain("title ILIKE $3");
+  });
+
   it("uses caller-provided parameter offsets and keeps short searches bounded", () => {
     const search = buildCatalogueSearch("ab", { title: "title", synopsis: "synopsis" }, 4);
 

@@ -426,18 +426,6 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE cv_series ADD COLUMN IF NOT EXISTS keywords TEXT[] NOT NULL DEFAULT '{}';
     `,
   },
-  {
-    version: 13,
-    name: "catalogue_keyword_search_indexes",
-    optional: true,
-    sql: `
-      CREATE EXTENSION IF NOT EXISTS pg_trgm;
-      CREATE INDEX IF NOT EXISTS idx_movies_keywords_trgm
-        ON movies USING GIN ((COALESCE(array_to_string(keywords, ' '), '')) gin_trgm_ops);
-      CREATE INDEX IF NOT EXISTS idx_series_keywords_trgm
-        ON cv_series USING GIN ((COALESCE(array_to_string(keywords, ' '), '')) gin_trgm_ops);
-    `,
-  },
 ];
 
 /**

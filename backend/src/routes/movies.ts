@@ -4,7 +4,7 @@ import { rateLimit } from "express-rate-limit";
 import { z } from "zod";
 import { currentClaims, requireAdmin } from "../middlewares/adminAuth";
 import { revokeSession } from "../lib/session-store";
-import { asyncHandler, escapeLikePattern, parseBody, parsePagination, parseStringParam } from "../lib/http";
+import { asyncHandler, parseBody, parsePagination, parseStringParam } from "../lib/http";
 import { buildCatalogueSearch } from "../lib/catalogue-search";
 import { badRequest, notFound, sendError } from "../lib/errors";
 import {
@@ -250,23 +250,27 @@ router.get(
     let relevanceOrder: string | null = null;
 
     if (q) {
-      const search = buildCatalogueSearch(q, {
-        title: "title",
-        synopsis: "synopsis",
-        metadata: [
-          "COALESCE(array_to_string(genres, ' '), '')",
-          "COALESCE(director, '')",
-          "COALESCE(array_to_string(cast_list, ' '), '')",
-          "COALESCE(array_to_string(networks, ' '), '')",
-        ],
-      }, params.length + 1);
+      const search = buildCatalogueSearch(
+        q,
+        {
+          title: "title",
+          synopsis: "synopsis",
+          metadata: [
+            "COALESCE(array_to_string(genres, ' '), '')",
+            "COALESCE(director, '')",
+            "COALESCE(array_to_string(cast_list, ' '), '')",
+            "COALESCE(array_to_string(networks, ' '), '')",
+          ],
+        },
+        params.length + 1,
+      );
       params.push(...search.params);
       conditions.push(search.condition);
       relevanceOrder = search.relevanceOrder;
     }
     if (genre) {
       params.push(genre);
-      conditions.push(`${params.length} = ANY(genres)`);
+      conditions.push(`$${params.length} = ANY(genres)`);
     }
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
@@ -908,11 +912,15 @@ router.get(
           };
 
           const keywordData = keywordsRes.ok
-            ? ((await keywordsRes.json()) as { keywords?: Array<{ name: string }>; results?: Array<{ name: string }> })
+            ? ((await keywordsRes.json()) as {
+                keywords?: Array<{ name: string }>;
+                results?: Array<{ name: string }>;
+              })
             : {};
-          const keywordNames = (type === "series" ? keywordData.results : keywordData.keywords)
-            ?.map((keyword) => keyword.name)
-            .filter(Boolean) ?? [];
+          const keywordNames =
+            (type === "series" ? keywordData.results : keywordData.keywords)
+              ?.map((keyword) => keyword.name)
+              .filter(Boolean) ?? [];
           const castList = (credits.cast ?? []).slice(0, 30).map((person) => person.name);
           const TMDB_IMG = "https://image.tmdb.org/t/p";
           const castFull = (credits.cast ?? [])

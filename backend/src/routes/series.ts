@@ -3,7 +3,7 @@ import { pool } from "../lib/db";
 import { rateLimit } from "express-rate-limit";
 import { z } from "zod";
 import { requireAdmin } from "../middlewares/adminAuth";
-import { asyncHandler, escapeLikePattern, parseBody, parsePagination, parseStringParam } from "../lib/http";
+import { asyncHandler, parseBody, parsePagination, parseStringParam } from "../lib/http";
 import { buildCatalogueSearch } from "../lib/catalogue-search";
 import { badRequest, notFound, sendError } from "../lib/errors";
 
@@ -172,23 +172,27 @@ router.get(
     let relevanceOrder: string | null = null;
 
     if (q) {
-      const search = buildCatalogueSearch(q, {
-        title: "title",
-        synopsis: "synopsis",
-        metadata: [
-          "COALESCE(array_to_string(genres, ' '), '')",
-          "COALESCE(array_to_string(creators, ' '), '')",
-          "COALESCE(array_to_string(cast_list, ' '), '')",
-          "COALESCE(array_to_string(networks, ' '), '')",
-        ],
-      }, params.length + 1);
+      const search = buildCatalogueSearch(
+        q,
+        {
+          title: "title",
+          synopsis: "synopsis",
+          metadata: [
+            "COALESCE(array_to_string(genres, ' '), '')",
+            "COALESCE(array_to_string(creators, ' '), '')",
+            "COALESCE(array_to_string(cast_list, ' '), '')",
+            "COALESCE(array_to_string(networks, ' '), '')",
+          ],
+        },
+        params.length + 1,
+      );
       params.push(...search.params);
       conditions.push(search.condition);
       relevanceOrder = search.relevanceOrder;
     }
     if (genre) {
       params.push(genre);
-      conditions.push(`${params.length} = ANY(genres)`);
+      conditions.push(`$${params.length} = ANY(genres)`);
     }
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";

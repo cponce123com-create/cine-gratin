@@ -2,9 +2,55 @@ import { escapeLikePattern } from "./http";
 
 /** Small, local synonym map for concept searches in Spanish and English. */
 const SEARCH_SYNONYM_GROUPS = [
-  ["perro", "perros", "perrito", "perritos", "can", "canes", "canino", "canina", "caninos", "mascota", "mascotas", "animal", "animales", "dog", "dogs", "puppy", "puppies"],
-  ["gato", "gatos", "gatito", "gatitos", "felino", "felinos", "mascota", "mascotas", "cat", "cats", "kitten", "kittens"],
-  ["ovni", "ovnis", "ufo", "ufos", "extraterrestre", "extraterrestres", "alien", "aliens", "alienigena", "alienigenas", "marciano", "marcianos", "platillo volador", "platillos voladores"],
+  [
+    "perro",
+    "perros",
+    "perrito",
+    "perritos",
+    "can",
+    "canes",
+    "canino",
+    "canina",
+    "caninos",
+    "mascota",
+    "mascotas",
+    "animal",
+    "animales",
+    "dog",
+    "dogs",
+    "puppy",
+    "puppies",
+  ],
+  [
+    "gato",
+    "gatos",
+    "gatito",
+    "gatitos",
+    "felino",
+    "felinos",
+    "mascota",
+    "mascotas",
+    "cat",
+    "cats",
+    "kitten",
+    "kittens",
+  ],
+  [
+    "ovni",
+    "ovnis",
+    "ufo",
+    "ufos",
+    "extraterrestre",
+    "extraterrestres",
+    "alien",
+    "aliens",
+    "alienigena",
+    "alienigenas",
+    "marciano",
+    "marcianos",
+    "platillo volador",
+    "platillos voladores",
+  ],
   ["zombie", "zombies", "zombi", "zombis", "muerto viviente", "muertos vivientes", "undead"],
   ["vampiro", "vampiros", "vampire", "vampires"],
   ["bruja", "brujas", "brujo", "brujos", "witch", "witches"],
@@ -40,7 +86,11 @@ export function expandCatalogueSearchTerms(query: string): string[] {
 
   for (const word of normalized.split(" ").filter(Boolean)) terms.add(word);
   for (const group of SEARCH_SYNONYM_GROUPS) {
-    if (group.some((term) => normalizeTerm(term) === normalized || normalized.split(" ").includes(normalizeTerm(term)))) {
+    if (
+      group.some(
+        (term) => normalizeTerm(term) === normalized || normalized.split(" ").includes(normalizeTerm(term)),
+      )
+    ) {
       group.forEach((term) => terms.add(term));
     }
   }
@@ -74,9 +124,14 @@ export function buildCatalogueSearch(
         `${fields.title} ILIKE ${placeholder(1)} ESCAPE '\\'`,
         `${fields.title} ILIKE ${placeholder(2)} ESCAPE '\\'`,
       ]
-    : searchableFields.flatMap((field) =>
-        containsPlaceholders.map((value) => `${field} ILIKE ${value} ESCAPE '\\'`),
-      );
+    : [
+        `${fields.title} ILIKE ${placeholder(0)} ESCAPE '\\'`,
+        `${fields.title} ILIKE ${placeholder(1)} ESCAPE '\\'`,
+        `${fields.title} ILIKE ${placeholder(2)} ESCAPE '\\'`,
+        ...searchableFields.flatMap((field) =>
+          containsPlaceholders.map((value) => `${field} ILIKE ${value} ESCAPE '\\'`),
+        ),
+      ];
 
   const relevanceOrder = `CASE
     WHEN lower(${fields.title}) = lower(${placeholder(0)}) THEN 0
