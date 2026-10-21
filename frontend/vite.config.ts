@@ -4,6 +4,8 @@ import path from "path";
 import compression from "vite-plugin-compression";
 import { VitePWA } from "vite-plugin-pwa";
 
+const BUILD_TIME = Date.now().toString(36);
+
 export default defineConfig({
   // La marca de compilacion cambia en cada build: el contenido del bundle (y
   // por tanto su hash) cambia, de modo que el service worker detecta el
@@ -12,6 +14,23 @@ export default defineConfig({
     __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
   },
   plugins: [
+    // La marca de compilacion se anade al CSS antes de calcular su hash: en
+    // cada despliegue el CSS cambia (y con el, su nombre), de modo que el
+    // navegador no reutiliza el fichero antiguo de la cache, que podria tener
+    // cabeceras obsoletas.
+    {
+      name: "cine-gratin-build-stamp",
+      enforce: "pre",
+      transform(code: string, id: string) {
+        // El id puede llevar parametros (por ejemplo "?used"): se compara
+        // solo la ruta.
+        const file = id.split("?")[0];
+        if (!file.endsWith(".css") || file.includes("node_modules")) return null;
+        // Una declaracion (y no un comentario): el minificador elimina los
+        // comentarios, pero conserva las propiedades personalizadas.
+        return { code: `${code}\n:root{--cg-build:${BUILD_TIME}}\n`, map: null };
+      },
+    },
     react(),
     compression({ algorithm: "gzip", ext: ".gz" }),
     compression({ algorithm: "brotliCompress", ext: ".br" }),
