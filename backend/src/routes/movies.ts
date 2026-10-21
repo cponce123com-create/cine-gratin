@@ -257,8 +257,10 @@ router.get(
           synopsis: "synopsis",
           metadata: [
             "COALESCE(array_to_string(genres, ' '), '')",
+            "COALESCE(array_to_string(keywords, ' '), '')",
             "COALESCE(director, '')",
             "COALESCE(array_to_string(cast_list, ' '), '')",
+            "COALESCE(cast_full::text, '')",
             "COALESCE(array_to_string(networks, ' '), '')",
           ],
         },
@@ -356,6 +358,7 @@ router.get(
         "COALESCE(array_to_string(keywords, ' '), '')",
         "COALESCE(director, '')",
         "COALESCE(array_to_string(cast_list, ' '), '')",
+        "COALESCE(cast_full::text, '')",
         "COALESCE(array_to_string(networks, ' '), '')",
       ],
     });
