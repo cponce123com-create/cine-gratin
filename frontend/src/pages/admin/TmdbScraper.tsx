@@ -17,6 +17,7 @@ import {
   bulkDeleteSeries,
   previewCleanupImportedCatalog,
   cleanupImportedCatalog,
+  cancelImportJob,
   type TmdbGenre,
   type TmdbDiscoverItem,
   type ImportJob,
@@ -82,6 +83,7 @@ export default function TmdbScraper() {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ imported: number; total: number } | null>(null);
   const [activeJob, setActiveJob] = useState<ImportJob | null>(null);
+  const [cancellingJob, setCancellingJob] = useState(false);
   const [hideExisting, setHideExisting] = useState(false);
   const [localIds, setLocalIds] = useState<Set<number>>(new Set());
   const [catalogQuery, setCatalogQuery] = useState("");
@@ -294,6 +296,24 @@ export default function TmdbScraper() {
       toast.error(err instanceof Error ? err.message : "No se pudo iniciar la importación completa.");
     } finally {
       setImporting(false);
+    }
+  };
+
+  const handleCancelJob = async () => {
+    if (!activeJob || !["queued", "running"].includes(activeJob.status) || cancellingJob) return;
+    setCancellingJob(true);
+    try {
+      const { job } = await cancelImportJob(activeJob.id);
+      setActiveJob(job);
+      toast.success(
+        job.status === "cancelled"
+          ? "Importación detenida. Ya puedes iniciar otra consulta o importación."
+          : "Se solicitó detener la importación.",
+      );
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "No se pudo detener la importación.");
+    } finally {
+      setCancellingJob(false);
     }
   };
 
@@ -657,7 +677,7 @@ export default function TmdbScraper() {
 
               {activeJob && (
                 <div className="px-6 py-3 border-b border-brand-border bg-brand-surface/40 text-sm">
-                  <div className="flex flex-wrap justify-between gap-2 text-gray-300">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-gray-300">
                     <span>
                       Trabajo{" "}
                       {activeJob.status === "queued"
@@ -671,10 +691,22 @@ export default function TmdbScraper() {
                         ? " · avanza en paquetes de 50"
                         : ""}
                     </span>
-                    <span>
-                      {activeJob.processed.toLocaleString()} / {activeJob.total.toLocaleString()} ·{" "}
-                      {activeJob.imported.toLocaleString()} nuevos
-                    </span>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span>
+                        {activeJob.processed.toLocaleString()} / {activeJob.total.toLocaleString()} ·{" "}
+                        {activeJob.imported.toLocaleString()} nuevos
+                      </span>
+                      {(activeJob.status === "queued" || activeJob.status === "running") && (
+                        <button
+                          type="button"
+                          onClick={() => void handleCancelJob()}
+                          disabled={cancellingJob}
+                          className="rounded-md border border-red-500/40 px-2.5 py-1 text-xs font-semibold text-red-300 transition-colors hover:border-red-400 hover:bg-red-500/10 disabled:cursor-wait disabled:opacity-60"
+                        >
+                          {cancellingJob ? "Deteniendo…" : "Detener importación"}
+                        </button>
+                      )}
+                    </div>
                   </div>
                   {(activeJob.status === "queued" || activeJob.status === "running") && (
                     <div
