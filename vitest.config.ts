@@ -52,7 +52,10 @@ export default defineConfig({
       // A dedicated secret for the tests: it never touches the real one.
       JWT_SECRET: "test-only-secret-value-with-32-chars-minimum",
       CORS_ORIGINS: "http://localhost:5173",
-      TMDB_API_KEY: "",
+      // The import tests need a TMDB key. It comes from TEST_TMDB_API_KEY (a
+      // dedicated secret for the tests): with an empty key those tests are
+      // skipped explicitly instead of failing.
+      TMDB_API_KEY: process.env["TEST_TMDB_API_KEY"] ?? "",
       LOG_LEVEL: "silent",
     },
     hookTimeout: 30_000,
