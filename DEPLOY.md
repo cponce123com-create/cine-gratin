@@ -172,6 +172,19 @@ componentes del frontend (jsdom). Para probar también las importaciones reales:
 TEST_TMDB_API_KEY=tu-clave-de-tmdb pnpm test
 ```
 
+## 🔐 Avisos de dependencias
+
+La auditoría de **producción** (`pnpm audit --prod --audit-level high`) no
+detecta ningún aviso y es obligatoria en la pipeline.
+
+En el árbol de **desarrollo** queda un aviso alto sin parche disponible:
+`braces@3.0.3` (GHSA-vfj7-8cjw-p6xm), alcanzado de forma transitiva por
+Tailwind a través de `chokidar` y `micromatch`. No existe versión corregida
+(afecta a todas las publicadas) y sólo se activa con patrones de glob
+profundamente anidados, que en este proyecto sólo provienen de la
+configuración propia. No afecta al código que se ejecuta en producción: por eso
+la pipeline exige la auditoría de producción y informa de la de desarrollo.
+
 ## 🔧 Recuperación ante errores
 
 | Síntoma                          | Causa probable                         | Solución                                                    |

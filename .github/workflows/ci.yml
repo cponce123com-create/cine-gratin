@@ -37,6 +37,24 @@ jobs:
       - name: Validar los workflows
         run: pnpm lint:workflows
 
+      - name: Auditoría de dependencias de producción
+        run: |
+          set +e
+          pnpm audit --prod --audit-level high > audit-prod.log 2>&1
+          status=$?
+          cat audit-prod.log
+          { echo "### Auditoría de dependencias de producción"; echo '<<<'; cat audit-prod.log; echo '>>>'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $status
+
+      - name: Auditoría de dependencias de desarrollo
+        if: always()
+        run: |
+          set +e
+          pnpm audit > audit-dev.log 2>&1
+          cat audit-dev.log
+          { echo "### Auditoría de dependencias de desarrollo"; echo '<<<'; cat audit-dev.log; echo '>>>'; } >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+
       - name: Comprobar el formato
         run: pnpm format:check
 
