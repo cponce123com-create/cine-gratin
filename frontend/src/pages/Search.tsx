@@ -148,7 +148,7 @@ export default function Search() {
                 type="button"
                 onClick={() => {
                   setInputVal("");
-                  if (trimmed) navigate("/search/");
+                  if (trimmed) navigate("/search");
                 }}
                 aria-label="Limpiar la búsqueda"
                 className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white focus-visible:ring-2 focus-visible:ring-brand-red rounded"
@@ -230,7 +230,7 @@ export default function Search() {
               type="button"
               onClick={() => {
                 setInputVal("");
-                navigate("/search/");
+                navigate("/search");
               }}
               className="mt-4 text-brand-red hover:text-red-400 text-sm underline focus-visible:ring-2 focus-visible:ring-brand-red"
             >
