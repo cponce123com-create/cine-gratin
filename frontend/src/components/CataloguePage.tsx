@@ -36,6 +36,12 @@ interface CataloguePageProps {
 }
 
 const PAGE_SIZE = 24;
+const QUICK_CATEGORIES = [
+  { id: "year", order: "desc", label: "Estrenos" },
+  { id: "views", order: "desc", label: "Más vistas" },
+  { id: "rating", order: "desc", label: "Mejor puntuadas" },
+  { id: "date_added", order: "desc", label: "Añadidas recientemente" },
+] as const;
 
 /**
  * Public catalogue page (movies and series).
@@ -176,55 +182,87 @@ export default function CataloguePage({ title, singular, plural, endpoint, media
             )}
           </form>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar por género">
-              <button
-                type="button"
-                onClick={() => updateParams({ genre: null })}
-                aria-pressed={!genre}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors focus-visible:ring-2 focus-visible:ring-brand-red ${
-                  !genre
-                    ? "bg-brand-red text-white border-brand-red"
-                    : "border-brand-border text-gray-400 hover:text-white"
-                }`}
-              >
-                Todos
-              </button>
-              {(genres ?? []).map((genreName) => (
+          <div className="space-y-4">
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                Categorías destacadas
+              </p>
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Categorías destacadas">
+                {QUICK_CATEGORIES.map((category) => {
+                  const selected = sort === category.id && order === category.order && !genre;
+                  return (
+                    <button
+                      key={category.id}
+                      type="button"
+                      onClick={() => updateParams({ sort: category.id, order: category.order, genre: null })}
+                      aria-pressed={selected}
+                      className={`rounded-full border px-4 py-2 text-sm font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-brand-red ${
+                        selected
+                          ? "border-brand-red bg-brand-red text-white"
+                          : "border-brand-border bg-brand-surface text-gray-300 hover:border-gray-500 hover:text-white"
+                      }`}
+                    >
+                      {category.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar por género">
+                <span className="mr-1 self-center text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Géneros
+                </span>
                 <button
-                  key={genreName}
                   type="button"
-                  onClick={() => updateParams({ genre: genreName })}
-                  aria-pressed={genre === genreName}
+                  onClick={() => updateParams({ genre: null })}
+                  aria-pressed={!genre}
                   className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors focus-visible:ring-2 focus-visible:ring-brand-red ${
-                    genre === genreName
+                    !genre
                       ? "bg-brand-red text-white border-brand-red"
                       : "border-brand-border text-gray-400 hover:text-white"
                   }`}
                 >
-                  {genreName}
+                  Todos
                 </button>
-              ))}
-            </div>
+                {(genres ?? []).map((genreName) => (
+                  <button
+                    key={genreName}
+                    type="button"
+                    onClick={() => updateParams({ genre: genreName })}
+                    aria-pressed={genre === genreName}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors focus-visible:ring-2 focus-visible:ring-brand-red ${
+                      genre === genreName
+                        ? "bg-brand-red text-white border-brand-red"
+                        : "border-brand-border text-gray-400 hover:text-white"
+                    }`}
+                  >
+                    {genreName}
+                  </button>
+                ))}
+              </div>
 
-            <label className="flex items-center gap-2 text-xs text-gray-500 ml-auto">
-              <span>Ordenar por</span>
-              <select
-                value={`${sort}:${order}`}
-                onChange={(event) => {
-                  const [nextSort, nextOrder] = event.target.value.split(":");
-                  updateParams({ sort: nextSort, order: nextOrder });
-                }}
-                className="bg-brand-surface border border-brand-border rounded-lg px-2 py-1.5 text-gray-300 text-xs focus-visible:ring-2 focus-visible:ring-brand-red"
-              >
-                <option value="year:desc">Año (más reciente)</option>
-                <option value="year:asc">Año (más antiguo)</option>
-                <option value="title:asc">Título (A-Z)</option>
-                <option value="title:desc">Título (Z-A)</option>
-                <option value="rating:desc">Mejor valoradas</option>
-                <option value="views:desc">Más vistas</option>
-              </select>
-            </label>
+              <label className="ml-auto flex items-center gap-2 text-xs text-gray-500">
+                <span>Ordenar por</span>
+                <select
+                  value={`${sort}:${order}`}
+                  onChange={(event) => {
+                    const [nextSort, nextOrder] = event.target.value.split(":");
+                    updateParams({ sort: nextSort, order: nextOrder });
+                  }}
+                  className="rounded-lg border border-brand-border bg-brand-surface px-2 py-1.5 text-xs text-gray-300 focus-visible:ring-2 focus-visible:ring-brand-red"
+                >
+                  <option value="year:desc">Año (más reciente)</option>
+                  <option value="year:asc">Año (más antiguo)</option>
+                  <option value="date_added:desc">Añadidas recientemente</option>
+                  <option value="title:asc">Título (A-Z)</option>
+                  <option value="title:desc">Título (Z-A)</option>
+                  <option value="rating:desc">Mejor valoradas</option>
+                  <option value="views:desc">Más vistas</option>
+                </select>
+              </label>
+            </div>
           </div>
         </div>
 
