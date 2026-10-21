@@ -33,6 +33,21 @@ describe("catalogue concept search", () => {
     expect(search.relevanceOrder).toContain("CASE");
   });
 
+  it("searches catalogue keywords and the complete cast as metadata", () => {
+    const search = buildCatalogueSearch("Brad Pitt", {
+      title: "title",
+      synopsis: "synopsis",
+      metadata: [
+        "COALESCE(array_to_string(keywords, ' '), '')",
+        "COALESCE(cast_full::text, '')",
+      ],
+    });
+
+    expect(search.condition).toContain("array_to_string(keywords, ' ')");
+    expect(search.condition).toContain("cast_full::text ILIKE");
+    expect(search.condition).toContain("synopsis ILIKE");
+  });
+
   it("uses the initial parameters in the filter so count queries can bind them", () => {
     const search = buildCatalogueSearch("perro", { title: "title", synopsis: "synopsis" });
 
