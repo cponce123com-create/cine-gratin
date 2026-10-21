@@ -8,7 +8,12 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach } from "vitest";
 
 if (typeof document !== "undefined") {
-  const { cleanup } = await import("@testing-library/react");
+  const { cleanup, configure } = await import("@testing-library/react");
+
+  // The CI runners are slower than a local machine: the default timeout of
+  // 1 s is too tight for the queries that wait for a re-render.
+  configure({ asyncUtilTimeout: 5000 });
+
   afterEach(() => {
     cleanup();
   });

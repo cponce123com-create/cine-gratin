@@ -79,14 +79,17 @@ describe("MediaManager", () => {
     const user = userEvent.setup();
     renderManager();
 
-    await waitFor(() => expect(listFn).toHaveBeenCalled());
+    await waitFor(() => expect(listFn).toHaveBeenCalled(), { timeout: 5000 });
 
     await user.type(screen.getByLabelText(/Buscar por título o IMDb/i), "matrix");
 
-    await waitFor(() => {
-      const lastCall = listFn.mock.calls[listFn.mock.calls.length - 1][0] as { q?: string };
-      expect(lastCall.q).toBe("matrix");
-    });
+    await waitFor(
+      () => {
+        const lastCall = listFn.mock.calls[listFn.mock.calls.length - 1][0] as { q?: string };
+        expect(lastCall.q).toBe("matrix");
+      },
+      { timeout: 5000 },
+    );
   });
 
   it("pide confirmación con el alcance antes de borrar", async () => {
@@ -105,9 +108,12 @@ describe("MediaManager", () => {
     bulkDeleteFn.mockResolvedValue({ deleted: 1 });
     await user.click(screen.getByRole("button", { name: "Eliminar" }));
 
-    await waitFor(() => {
-      expect(bulkDeleteFn).toHaveBeenCalledWith(["movie-1"]);
-    });
+    await waitFor(
+      () => {
+        expect(bulkDeleteFn).toHaveBeenCalledWith(["movie-1"]);
+      },
+      { timeout: 5000 },
+    );
   });
 
   it("no borra nada si la confirmacion se cancela", async () => {

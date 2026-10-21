@@ -83,10 +83,11 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Ejecutar la suite de pruebas
-        # La suite incluye las pruebas del backend (supertest) y las de los
-        # componentes del frontend (jsdom + Testing Library).
-        run: pnpm test
+      - name: Pruebas del backend
+        run: pnpm exec vitest run tests/api.test.ts tests/config.test.ts tests/validation.test.ts tests/csrf.test.ts tests/import-jobs.test.ts tests/static-frontend.test.ts
+
+      - name: Pruebas de componentes
+        run: pnpm exec vitest run tests/frontend
 
   build:
     name: Build
