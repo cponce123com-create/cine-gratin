@@ -81,7 +81,6 @@ export default function TmdbScraper() {
 
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<{ imported: number; total: number } | null>(null);
   const [activeJob, setActiveJob] = useState<ImportJob | null>(null);
   const [cancellingJob, setCancellingJob] = useState(false);
   const [hideExisting, setHideExisting] = useState(false);
@@ -134,7 +133,6 @@ export default function TmdbScraper() {
         if (cancelled) return;
         setActiveJob(job);
         if (!["queued", "running"].includes(job.status)) {
-          setImportResult({ imported: job.imported, total: job.total });
           void loadLocalCatalog();
           return;
         }
@@ -152,12 +150,12 @@ export default function TmdbScraper() {
   }, [activeJob?.id, activeJob?.status, loadLocalCatalog]);
 
   useEffect(() => {
-    void listImportJobs(20)
+    void listImportJobs(100)
       .then(({ jobs }) => {
         const running = jobs.find(
           (job) => job.source.startsWith("tmdb-explorer") && ["queued", "running"].includes(job.status),
         );
-        if (running) setActiveJob(running);
+        if (running) setActiveJob((current) => current ?? running);
       })
       .catch(() => undefined);
   }, []);
@@ -170,7 +168,6 @@ export default function TmdbScraper() {
   const handleSearch = useCallback(
     async (p: number, options: { keepSelection?: boolean; count?: number } = {}) => {
       setLoading(true);
-      setImportResult(null);
       setSearchError("");
       try {
         const data = await tmdbDiscover({
@@ -247,7 +244,6 @@ export default function TmdbScraper() {
     });
     if (!accepted) return;
     setImporting(true);
-    setImportResult(null);
     try {
       const { job } = await createImportJob([...selected].map(String), mediaType, "tmdb-explorer-selection");
       setActiveJob(job);
@@ -269,7 +265,6 @@ export default function TmdbScraper() {
     });
     if (!accepted) return;
     setImporting(true);
-    setImportResult(null);
     try {
       const result = await importAllTmdbDiscover({
         type: mediaType,
@@ -412,6 +407,60 @@ export default function TmdbScraper() {
               catálogo.
             </p>
           </div>
+
+          {activeJob && (
+            <div
+              className="rounded-xl border border-brand-border bg-brand-card px-5 py-4 text-sm"
+              role="status"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-3 text-gray-300">
+                <span className="font-semibold">
+                  Importación TMDB:{" "}
+                  {activeJob.status === "queued"
+                    ? "en cola"
+                    : activeJob.status === "running"
+                      ? "en curso"
+                      : activeJob.status === "completed"
+                        ? "completada"
+                        : activeJob.status === "cancelled"
+                          ? "detenida"
+                          : activeJob.status}
+                  {activeJob.status === "queued" || activeJob.status === "running" ? " · paquetes de 50" : ""}
+                </span>
+                <div className="flex flex-wrap items-center gap-3">
+                  <span>
+                    {activeJob.processed.toLocaleString()} / {activeJob.total.toLocaleString()} ·{" "}
+                    {activeJob.imported.toLocaleString()} nuevos
+                  </span>
+                  {(activeJob.status === "queued" || activeJob.status === "running") && (
+                    <button
+                      type="button"
+                      onClick={() => void handleCancelJob()}
+                      disabled={cancellingJob}
+                      className="rounded-md border border-red-500/50 bg-red-500/10 px-3 py-1.5 text-xs font-bold text-red-200 transition-colors hover:bg-red-500/20 disabled:cursor-wait disabled:opacity-60"
+                    >
+                      {cancellingJob ? "Deteniendo…" : "Detener importación"}
+                    </button>
+                  )}
+                </div>
+              </div>
+              {(activeJob.status === "queued" || activeJob.status === "running") && (
+                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-brand-border">
+                  <div
+                    className="h-full bg-emerald-500 transition-all"
+                    style={{
+                      width: `${activeJob.total ? Math.min(100, (activeJob.processed / activeJob.total) * 100) : 0}%`,
+                    }}
+                  />
+                </div>
+              )}
+              {activeJob.status === "cancelled" && (
+                <p className="mt-2 text-amber-300">
+                  El trabajo se detuvo. Ya puedes consultar o iniciar otra importación.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Filters card */}
           <div
@@ -674,61 +723,6 @@ export default function TmdbScraper() {
                   itemLabel="resultados"
                 />
               </div>
-
-              {activeJob && (
-                <div className="px-6 py-3 border-b border-brand-border bg-brand-surface/40 text-sm">
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-gray-300">
-                    <span>
-                      Trabajo{" "}
-                      {activeJob.status === "queued"
-                        ? "en cola"
-                        : activeJob.status === "running"
-                          ? "importando"
-                          : activeJob.status === "completed"
-                            ? "completado"
-                            : activeJob.status}
-                      {activeJob.status === "queued" || activeJob.status === "running"
-                        ? " · avanza en paquetes de 50"
-                        : ""}
-                    </span>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <span>
-                        {activeJob.processed.toLocaleString()} / {activeJob.total.toLocaleString()} ·{" "}
-                        {activeJob.imported.toLocaleString()} nuevos
-                      </span>
-                      {(activeJob.status === "queued" || activeJob.status === "running") && (
-                        <button
-                          type="button"
-                          onClick={() => void handleCancelJob()}
-                          disabled={cancellingJob}
-                          className="rounded-md border border-red-500/40 px-2.5 py-1 text-xs font-semibold text-red-300 transition-colors hover:border-red-400 hover:bg-red-500/10 disabled:cursor-wait disabled:opacity-60"
-                        >
-                          {cancellingJob ? "Deteniendo…" : "Detener importación"}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  {(activeJob.status === "queued" || activeJob.status === "running") && (
-                    <div
-                      className="mt-2 h-1.5 rounded-full bg-brand-border overflow-hidden"
-                      aria-label="Progreso de importación"
-                    >
-                      <div
-                        className="h-full bg-emerald-500 transition-all"
-                        style={{
-                          width: `${activeJob.total ? Math.min(100, (activeJob.processed / activeJob.total) * 100) : 0}%`,
-                        }}
-                      />
-                    </div>
-                  )}
-                  {importResult && activeJob.status !== "queued" && activeJob.status !== "running" && (
-                    <p className="mt-1 text-emerald-400">
-                      Importados {importResult.imported.toLocaleString()} de{" "}
-                      {importResult.total.toLocaleString()} elementos.
-                    </p>
-                  )}
-                </div>
-              )}
 
               {/* Skeleton grid while loading */}
               {loading ? (

@@ -5,21 +5,25 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-const { discoverFn, genresFn, catalogIdsFn, createJobFn, importAllFn, getJobFn } = vi.hoisted(() => ({
-  discoverFn: vi.fn(),
-  genresFn: vi.fn(),
-  catalogIdsFn: vi.fn(),
-  createJobFn: vi.fn(),
-  importAllFn: vi.fn(),
-  getJobFn: vi.fn(),
-}));
+const { discoverFn, genresFn, catalogIdsFn, createJobFn, importAllFn, getJobFn, listJobsFn, cancelJobFn } =
+  vi.hoisted(() => ({
+    discoverFn: vi.fn(),
+    genresFn: vi.fn(),
+    catalogIdsFn: vi.fn(),
+    createJobFn: vi.fn(),
+    importAllFn: vi.fn(),
+    getJobFn: vi.fn(),
+    listJobsFn: vi.fn(),
+    cancelJobFn: vi.fn(),
+  }));
 
 vi.mock("@/lib/api", () => ({
   getTmdbGenres: (...args: unknown[]) => genresFn(...args),
   tmdbDiscover: (...args: unknown[]) => discoverFn(...args),
   createImportJob: (...args: unknown[]) => createJobFn(...args),
   getImportJob: (...args: unknown[]) => getJobFn(...args),
-  listImportJobs: vi.fn().mockResolvedValue({ jobs: [] }),
+  listImportJobs: (...args: unknown[]) => listJobsFn(...args),
+  cancelImportJob: (...args: unknown[]) => cancelJobFn(...args),
   getTmdbCatalogIds: (...args: unknown[]) => catalogIdsFn(...args),
   importAllTmdbDiscover: (...args: unknown[]) => importAllFn(...args),
   adminListMovies: vi.fn(),
@@ -77,6 +81,10 @@ describe("Explorador TMDB", () => {
     createJobFn.mockReset();
     importAllFn.mockReset();
     getJobFn.mockReset();
+    listJobsFn.mockReset().mockResolvedValue({ jobs: [] });
+    cancelJobFn.mockReset().mockResolvedValue({
+      job: { id: "job-pending", status: "cancelled", total: 500, processed: 0, imported: 0 },
+    });
     genresFn.mockResolvedValue([]);
     catalogIdsFn.mockResolvedValue([]);
     createJobFn.mockResolvedValue({
@@ -195,5 +203,28 @@ describe("Explorador TMDB", () => {
       ),
     );
     expect(await screen.findByText(/280 \/ 280 · 280 nuevos/)).toBeInTheDocument();
+  });
+
+  it("muestra y permite detener un trabajo recuperado aunque no haya una búsqueda visible", async () => {
+    const user = userEvent.setup();
+    const job = {
+      id: "job-pending",
+      source: "tmdb-explorer-all",
+      status: "queued",
+      total: 500,
+      processed: 0,
+      imported: 0,
+    };
+    listJobsFn.mockResolvedValue({ jobs: [job] });
+    getJobFn.mockResolvedValue({ job });
+
+    renderScraper();
+
+    const stopButton = await screen.findByRole("button", { name: "Detener importación" });
+    expect(screen.queryByRole("navigation", { name: "Paginación" })).toBeNull();
+    await user.click(stopButton);
+
+    expect(cancelJobFn).toHaveBeenCalledWith("job-pending");
+    expect(await screen.findByText(/El trabajo se detuvo/)).toBeInTheDocument();
   });
 });
