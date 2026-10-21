@@ -194,9 +194,13 @@ export async function runAutoImport(
     const activeSources = sources && sources.length > 0 ? sources : ALL_SOURCES;
 
     const responses = await Promise.all(activeSources.map((source) => tmdbFetch(source)));
-    const data = (await Promise.all(
-      responses.map((response) => (response.ok ? response.json() : { results: [] })),
-    )) as { results: TmdbListItem[] }[];
+    const failedSources = activeSources.filter((_, index) => !responses[index]?.ok);
+    if (failedSources.length > 0) {
+      throw new Error(`TMDB no respondió correctamente para: ${failedSources.join(", ")}`);
+    }
+    const data = (await Promise.all(responses.map((response) => response.json()))) as {
+      results: TmdbListItem[];
+    }[];
 
     const movieIds = new Set<number>();
     const seriesIds = new Set<number>();
@@ -224,14 +228,19 @@ export async function runAutoImport(
       concurrency: 3,
     });
     seriesImported = seriesResults.filter((result) => result.status === "fulfilled" && result.value).length;
+    const failedImports = [...movieResults, ...seriesResults].filter(
+      (result) => result.status === "rejected",
+    ).length;
+    const status = failedImports > 0 ? "partial" : "success";
+    const errorMessage = failedImports > 0 ? `${failedImports} contenido(s) no se pudieron importar` : null;
 
     await pool.query(
-      `INSERT INTO cv_auto_import_log (movies_imported, series_imported, total_checked, status)
-       VALUES ($1, $2, $3, 'success')`,
-      [moviesImported, seriesImported, totalChecked],
+      `INSERT INTO cv_auto_import_log (movies_imported, series_imported, total_checked, status, error_message)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [moviesImported, seriesImported, totalChecked, status, errorMessage],
     );
 
-    logger.info({ moviesImported, seriesImported, totalChecked }, "Auto-import: completed");
+    logger.info({ moviesImported, seriesImported, totalChecked, failedImports }, "Auto-import: completed");
     return { moviesImported, seriesImported, totalChecked };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -243,7 +252,7 @@ export async function runAutoImport(
         [0, 0, 0, msg.slice(0, 500)],
       )
       .catch(() => {});
-    return { moviesImported: 0, seriesImported: 0, totalChecked: 0 };
+    throw err;
   } finally {
     if (locked) {
       await client.query("SELECT pg_advisory_unlock($1)", [AUTO_IMPORT_LOCK_KEY]).catch(() => {});

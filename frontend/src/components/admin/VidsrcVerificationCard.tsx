@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { useConfirm } from "@/components/admin/useConfirm";
-import { getMovies, getSeries, saveVidsrcResults, cleanupNoVidsrc } from "@/lib/api";
+import { verifyVidsrcCatalog, previewCleanupNoVidsrc, cleanupNoVidsrc } from "@/lib/api";
 import { WifiIcon, TrashIcon } from "./icons";
 
 type VidsrcPhase = "idle" | "fetching" | "verifying" | "done" | "cleaning";
@@ -14,37 +14,6 @@ interface VidsrcProgress {
 interface VidsrcCounts {
   active: number;
   inactive: number;
-}
-
-async function fetchVidsrcList(
-  type: "movie" | "series",
-  onProgress: (page: number) => void,
-): Promise<Set<string>> {
-  const available = new Set<string>();
-  const base =
-    type === "series" ? "https://vidsrc.me/tvshows/latest/page-" : "https://vidsrc.me/movies/latest/page-";
-
-  let consecutiveFailures = 0;
-  for (let page = 1; page <= 999; page++) {
-    try {
-      const res = await fetch(`${base}${page}.json`, { credentials: "omit" });
-      if (!res.ok) {
-        consecutiveFailures++;
-        if (consecutiveFailures >= 3) break;
-        continue;
-      }
-      const data = (await res.json()) as { title?: string; imdb_id?: string }[];
-      if (!Array.isArray(data) || data.length === 0) break;
-      consecutiveFailures = 0;
-      for (const item of data) {
-        if (item.imdb_id) available.add(item.imdb_id);
-      }
-      onProgress(page);
-    } catch {
-      break;
-    }
-  }
-  return available;
 }
 
 export default function VidsrcVerificationCard() {
@@ -65,51 +34,10 @@ export default function VidsrcVerificationCard() {
     setCounts({ active: 0, inactive: 0 });
     setCleanResult(null);
     try {
-      const updatePages = (p: number) => {
-        setProgress({ checked: p, total: 0 });
-      };
-
-      const [movieSet, seriesSet] = await Promise.all([
-        fetchVidsrcList("movie", updatePages),
-        fetchVidsrcList("series", updatePages),
-      ]);
-
       setPhase("verifying");
-      const [movies, series] = await Promise.all([getMovies(), getSeries()]);
-      const allItems = [
-        ...movies.filter((m) => m.imdb_id).map((m) => ({ imdb_id: m.imdb_id!, type: "movie" as const })),
-        ...series.filter((s) => s.imdb_id).map((s) => ({ imdb_id: s.imdb_id!, type: "series" as const })),
-      ];
-      const total = allItems.length;
-      setProgress({ checked: 0, total });
-
-      let active = 0,
-        inactive = 0,
-        checked = 0;
-      const SAVE_BATCH = 100;
-      const pendingSave: {
-        imdb_id: string;
-        type: "movie" | "series";
-        available: boolean;
-      }[] = [];
-
-      for (const item of allItems) {
-        const available = item.type === "movie" ? movieSet.has(item.imdb_id) : seriesSet.has(item.imdb_id);
-        if (available) active++;
-        else inactive++;
-        checked++;
-        pendingSave.push({ ...item, available });
-        setProgress({ checked, total });
-        setCounts({ active, inactive });
-
-        if (pendingSave.length >= SAVE_BATCH) {
-          await saveVidsrcResults([...pendingSave]).catch(() => {});
-          pendingSave.length = 0;
-        }
-      }
-      if (pendingSave.length > 0) {
-        await saveVidsrcResults([...pendingSave]).catch(() => {});
-      }
+      const result = await verifyVidsrcCatalog();
+      setProgress({ checked: result.total, total: result.total });
+      setCounts({ active: result.active, inactive: result.inactive });
       setPhase("done");
     } catch (err: unknown) {
       setPhase("idle");
@@ -118,9 +46,21 @@ export default function VidsrcVerificationCard() {
   };
 
   const handleCleanup = async () => {
+    let target = counts.inactive;
+    try {
+      const preview = await previewCleanupNoVidsrc();
+      target = preview.would_delete.movies + preview.would_delete.series;
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo calcular el alcance de la limpieza.");
+      return;
+    }
+    if (target === 0) {
+      toast.info("No hay títulos sin VIDSRC para eliminar.");
+      return;
+    }
     const accepted = await confirm({
       title: "Eliminar títulos sin vídeo",
-      description: `Se eliminarán ${counts.inactive} título(s) sin vídeo en VIDSRC. Esta acción no se puede deshacer.`,
+      description: `Se eliminarán ${target} título(s) sin disponibilidad confirmada en VIDSRC. Esta acción no se puede deshacer.`,
       confirmLabel: "Eliminar",
     });
     if (!accepted) return;

@@ -6,11 +6,20 @@ import { toast } from "sonner";
 import {
   getTmdbGenres,
   tmdbDiscover,
-  importByTmdbIds,
-  getSeries,
-  getMovies,
+  createImportJob,
+  getImportJob,
+  getTmdbCatalogIds,
+  importAllTmdbDiscover,
+  listImportJobs,
+  adminListMovies,
+  adminListSeries,
+  bulkDeleteMovies,
+  bulkDeleteSeries,
+  previewCleanupImportedCatalog,
+  cleanupImportedCatalog,
   type TmdbGenre,
   type TmdbDiscoverItem,
+  type ImportJob,
 } from "@/lib/api";
 
 const SORT_OPTIONS = [
@@ -47,11 +56,7 @@ const LANGUAGE_OPTIONS = [
  * Tamaño de un bloque de resultados. Cada bloque son 20 títulos por página de
  * TMDB, así que estos tamaños mantienen la cuadrícula completa.
  */
-const BLOCK_SIZES = [60, 120, 300, 500];
-
-/** Peticiones del catálogo local para saber qué títulos ya están importados. */
-const CATALOGUE_PAGE_SIZE = 100;
-const CATALOGUE_MAX_PAGES = 20;
+const BLOCK_SIZES = [50, 100, 250, 500, 1000];
 
 export default function TmdbScraper() {
   const { confirm, confirmDialog } = useConfirm();
@@ -62,9 +67,9 @@ export default function TmdbScraper() {
   const [yearTo, setYearTo] = useState("");
   const [sortBy, setSortBy] = useState("popularity.desc");
   const [language, setLanguage] = useState("");
-  const [minVotes, setMinVotes] = useState("50");
+  const [minVotes, setMinVotes] = useState("1000");
   const [page, setPage] = useState(1);
-  const [blockSize, setBlockSize] = useState(BLOCK_SIZES[0]);
+  const [blockSize, setBlockSize] = useState(500);
 
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<TmdbDiscoverItem[]>([]);
@@ -76,46 +81,29 @@ export default function TmdbScraper() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ imported: number; total: number } | null>(null);
+  const [activeJob, setActiveJob] = useState<ImportJob | null>(null);
+  const [hideExisting, setHideExisting] = useState(false);
   const [localIds, setLocalIds] = useState<Set<number>>(new Set());
+  const [catalogQuery, setCatalogQuery] = useState("");
+  const [manualType, setManualType] = useState<"movie" | "series">("movie");
+  const [manualRows, setManualRows] = useState<Array<{ id: string; title: string; year: number }>>([]);
+  const [manualSelected, setManualSelected] = useState<Set<string>>(new Set());
+  const [manualBusy, setManualBusy] = useState(false);
 
   // Referencias para desplazar la vista: la barra de resultados siempre
   // visible y el formulario de filtros.
   const resultsRef = useRef<HTMLDivElement>(null);
   const filtersRef = useRef<HTMLDivElement>(null);
 
-  /**
-   * Recoge los identificadores de TMDB de todo el catálogo local, no solo de
-   * la primera página: así la marca "En catálogo" es fiable.
-   */
-  const collectTmdbIds = useCallback(
-    async (loadPage: (page: number) => Promise<Array<{ tmdb_id?: number | null }>>): Promise<number[]> => {
-      const ids: number[] = [];
-      for (let p = 1; p <= CATALOGUE_MAX_PAGES; p++) {
-        const items = await loadPage(p).catch(() => []);
-        if (items.length === 0) break;
-        for (const item of items) {
-          if (item.tmdb_id) ids.push(item.tmdb_id);
-        }
-        if (items.length < CATALOGUE_PAGE_SIZE) break;
-      }
-      return ids;
-    },
-    [],
-  );
-
-  // Load local catalog (TMDB IDs already imported) to show badges
+  // La API devuelve el conjunto completo, sin depender de páginas públicas.
   const loadLocalCatalog = useCallback(async () => {
     try {
-      const [movieIds, seriesIds] = await Promise.all([
-        collectTmdbIds((p) => getMovies({ page: p, limit: CATALOGUE_PAGE_SIZE })),
-        collectTmdbIds((p) => getSeries({ page: p, limit: CATALOGUE_PAGE_SIZE })),
-      ]);
-      setLocalIds(new Set([...movieIds, ...seriesIds]));
+      setLocalIds(new Set(await getTmdbCatalogIds(mediaType)));
     } catch (err) {
       // Si no se puede leer el catálogo local, la vista sigue funcionando.
       console.warn("No se pudo comprobar el catálogo local", err);
     }
-  }, [collectTmdbIds]);
+  }, [mediaType]);
 
   // Load genres once, without duplicate calls
   useEffect(() => {
@@ -126,6 +114,35 @@ export default function TmdbScraper() {
       .catch(() => {});
     loadLocalCatalog();
   }, [mediaType, loadLocalCatalog]);
+
+  // La importación vive en la cola del servidor; se puede recuperar al volver
+  // al panel y continúa aunque se cierre esta pestaña.
+  useEffect(() => {
+    if (!activeJob || !["queued", "running"].includes(activeJob.status)) return;
+    const timer = window.setInterval(() => {
+      void getImportJob(activeJob.id)
+        .then(({ job }) => {
+          setActiveJob(job);
+          if (!["queued", "running"].includes(job.status)) {
+            setImportResult({ imported: job.imported, total: job.total });
+            void loadLocalCatalog();
+          }
+        })
+        .catch(() => undefined);
+    }, 1500);
+    return () => window.clearInterval(timer);
+  }, [activeJob, loadLocalCatalog]);
+
+  useEffect(() => {
+    void listImportJobs(20)
+      .then(({ jobs }) => {
+        const running = jobs.find(
+          (job) => job.source.startsWith("tmdb-explorer") && ["queued", "running"].includes(job.status),
+        );
+        if (running) setActiveJob(running);
+      })
+      .catch(() => undefined);
+  }, []);
 
   // Reset sort when switching type
   useEffect(() => {
@@ -189,7 +206,7 @@ export default function TmdbScraper() {
 
   /** Selecciona o quita los titulos del bloque que se esta viendo. */
   const toggleSelectAll = () => {
-    const pageIds = results.map((r) => r.tmdb_id);
+    const pageIds = visibleResults.map((r) => r.tmdb_id);
     if (pageIds.length === 0) return;
     const allSelected = pageIds.every((id) => selected.has(id));
     setSelected((prev) => {
@@ -214,14 +231,125 @@ export default function TmdbScraper() {
     setImporting(true);
     setImportResult(null);
     try {
-      const resp = await importByTmdbIds([...selected], mediaType);
-      setImportResult({ imported: resp.summary.imported, total: resp.summary.total });
+      const { job } = await createImportJob([...selected].map(String), mediaType, "tmdb-explorer-selection");
+      setActiveJob(job);
       setSelected(new Set());
-      loadLocalCatalog();
+      toast.success(`Trabajo de importación iniciado para ${job.total} elemento(s)`);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Error al importar.");
     } finally {
       setImporting(false);
+    }
+  };
+
+  const handleImportAll = async () => {
+    if (!hasSearched || totalResults === 0) return;
+    const accepted = await confirm({
+      title: `Importar listado completo de ${mediaType === "movie" ? "películas" : "series"}`,
+      description: `Se consultarán hasta 10 000 resultados de TMDB y se pondrán en cola en paquetes de 50. ${hideExisting ? "Se omitirán los títulos que ya están en tu catálogo." : "La cola evitará duplicados al importar."}`,
+      confirmLabel: "Iniciar importación completa",
+    });
+    if (!accepted) return;
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const result = await importAllTmdbDiscover({
+        type: mediaType,
+        genre_ids: selectedGenres.length ? selectedGenres.join(",") : undefined,
+        year_from: yearFrom ? Number(yearFrom) : undefined,
+        year_to: yearTo ? Number(yearTo) : undefined,
+        sort_by: sortBy,
+        language: language || undefined,
+        min_votes: Number(minVotes) || 0,
+        exclude_existing: hideExisting,
+      });
+      if (!result.job) {
+        toast.info(`No hay elementos nuevos. ${result.skipped_existing} ya estaban en el catálogo.`);
+        return;
+      }
+      setActiveJob(result.job);
+      toast.success(
+        `Importación en cola: ${result.queued.toLocaleString()} de ${result.total_found.toLocaleString()} resultados` +
+          (result.skipped_existing
+            ? ` · ${result.skipped_existing.toLocaleString()} ya estaban en catálogo`
+            : ""),
+      );
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "No se pudo iniciar la importación completa.");
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const searchCatalog = async () => {
+    if (!catalogQuery.trim()) {
+      toast.info("Escribe el título o parte del título que deseas buscar.");
+      return;
+    }
+    setManualBusy(true);
+    setManualSelected(new Set());
+    try {
+      const result =
+        manualType === "movie"
+          ? await adminListMovies({ q: catalogQuery.trim(), page: 1, limit: 100 })
+          : await adminListSeries({ q: catalogQuery.trim(), page: 1, limit: 100 });
+      setManualRows(
+        result.items.map((item) => ({
+          id: String(item.id),
+          title: item.title,
+          year: Number(item.year) || 0,
+        })),
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo buscar en el catálogo.");
+    } finally {
+      setManualBusy(false);
+    }
+  };
+
+  const deleteManualSelected = async () => {
+    if (manualSelected.size === 0) return;
+    const accepted = await confirm({
+      title: "Eliminar títulos seleccionados",
+      description: `Se eliminarán ${manualSelected.size} ${manualType === "movie" ? "película(s)" : "serie(s)"} del catálogo. Esta acción no se puede deshacer.`,
+      confirmLabel: "Eliminar seleccionados",
+    });
+    if (!accepted) return;
+    setManualBusy(true);
+    try {
+      const ids = [...manualSelected];
+      const result = manualType === "movie" ? await bulkDeleteMovies(ids) : await bulkDeleteSeries(ids);
+      setManualRows((rows) => rows.filter((row) => !manualSelected.has(row.id)));
+      setManualSelected(new Set());
+      toast.success(`${result.deleted} título(s) eliminado(s).`);
+      void loadLocalCatalog();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudieron eliminar los títulos.");
+    } finally {
+      setManualBusy(false);
+    }
+  };
+
+  const deleteImportedCatalog = async () => {
+    try {
+      const preview = await previewCleanupImportedCatalog();
+      const count = preview.would_delete.movies + preview.would_delete.series;
+      if (!count) {
+        toast.info("No hay títulos marcados como importados para eliminar.");
+        return;
+      }
+      const accepted = await confirm({
+        title: "Vaciar contenido importado",
+        description: `Se eliminarán ${preview.would_delete.movies} películas y ${preview.would_delete.series} series marcadas como importadas. Los registros manuales se conservarán. Esta acción no se puede deshacer.`,
+        confirmLabel: "Eliminar importados",
+      });
+      if (!accepted) return;
+      const result = await cleanupImportedCatalog();
+      setManualRows([]);
+      toast.success(`Eliminados ${result.summary.total} títulos importados.`);
+      void loadLocalCatalog();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo limpiar el catálogo importado.");
     }
   };
 
@@ -230,9 +358,10 @@ export default function TmdbScraper() {
   // Rango mostrado en el bloque actual.
   const from = totalResults === 0 ? 0 : (page - 1) * blockSize + 1;
   const to = Math.min(page * blockSize, totalResults);
+  const visibleResults = hideExisting ? results.filter((item) => !localIds.has(item.tmdb_id)) : results;
 
   // Si todos los titulos del bloque estan marcados.
-  const allOnPageSelected = results.length > 0 && results.every((r) => selected.has(r.tmdb_id));
+  const allOnPageSelected = visibleResults.length > 0 && visibleResults.every((r) => selected.has(r.tmdb_id));
 
   return (
     <>
@@ -352,6 +481,19 @@ export default function TmdbScraper() {
               </div>
             </div>
 
+            <label className="inline-flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={hideExisting}
+                onChange={(event) => setHideExisting(event.target.checked)}
+                className="accent-red-500"
+              />
+              Ocultar títulos que ya están en mi catálogo
+              <span className="text-xs text-gray-500">
+                ({localIds.size.toLocaleString()} identificadores revisados)
+              </span>
+            </label>
+
             {/* Genres */}
             {genres.length > 0 && (
               <div>
@@ -444,10 +586,22 @@ export default function TmdbScraper() {
                     <button
                       type="button"
                       onClick={toggleSelectAll}
-                      disabled={results.length === 0}
+                      disabled={visibleResults.length === 0}
                       className="text-xs font-semibold text-gray-400 hover:text-white disabled:opacity-40 transition-colors"
                     >
                       {allOnPageSelected ? "Quitar este bloque" : "Seleccionar este bloque"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleImportAll}
+                      disabled={
+                        importing ||
+                        Boolean(activeJob && ["queued", "running"].includes(activeJob.status)) ||
+                        totalResults === 0
+                      }
+                      className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white text-sm font-bold py-1.5 px-4 rounded-lg transition-colors"
+                    >
+                      {importing ? "Preparando listado..." : "Importar todo el listado"}
                     </button>
                     {selected.size > 0 && (
                       <button
@@ -485,10 +639,46 @@ export default function TmdbScraper() {
                 />
               </div>
 
-              {/* Import result banner */}
-              {importResult && (
-                <div className="px-6 py-3 bg-green-900/20 border-b border-green-800/30 text-green-400 text-sm">
-                  Se importaron {importResult.imported} de {importResult.total} título(s) correctamente.
+              {activeJob && (
+                <div className="px-6 py-3 border-b border-brand-border bg-brand-surface/40 text-sm">
+                  <div className="flex flex-wrap justify-between gap-2 text-gray-300">
+                    <span>
+                      Trabajo{" "}
+                      {activeJob.status === "queued"
+                        ? "en cola"
+                        : activeJob.status === "running"
+                          ? "importando"
+                          : activeJob.status === "completed"
+                            ? "completado"
+                            : activeJob.status}
+                      {activeJob.status === "queued" || activeJob.status === "running"
+                        ? " · avanza en paquetes de 50"
+                        : ""}
+                    </span>
+                    <span>
+                      {activeJob.processed.toLocaleString()} / {activeJob.total.toLocaleString()} ·{" "}
+                      {activeJob.imported.toLocaleString()} nuevos
+                    </span>
+                  </div>
+                  {(activeJob.status === "queued" || activeJob.status === "running") && (
+                    <div
+                      className="mt-2 h-1.5 rounded-full bg-brand-border overflow-hidden"
+                      aria-label="Progreso de importación"
+                    >
+                      <div
+                        className="h-full bg-emerald-500 transition-all"
+                        style={{
+                          width: `${activeJob.total ? Math.min(100, (activeJob.processed / activeJob.total) * 100) : 0}%`,
+                        }}
+                      />
+                    </div>
+                  )}
+                  {importResult && activeJob.status !== "queued" && activeJob.status !== "running" && (
+                    <p className="mt-1 text-emerald-400">
+                      Importados {importResult.imported.toLocaleString()} de{" "}
+                      {importResult.total.toLocaleString()} elementos.
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -503,13 +693,15 @@ export default function TmdbScraper() {
                     </div>
                   ))}
                 </div>
-              ) : results.length === 0 ? (
+              ) : visibleResults.length === 0 ? (
                 <div className="px-6 py-16 text-center text-gray-500 text-sm">
-                  No se encontraron resultados para los filtros seleccionados.
+                  {results.length > 0
+                    ? "Todos los resultados de este bloque ya están en el catálogo."
+                    : "No se encontraron resultados para los filtros seleccionados."}
                 </div>
               ) : (
                 <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 rounded-b-2xl overflow-hidden">
-                  {results.map((item) => {
+                  {visibleResults.map((item) => {
                     const isSelected = selected.has(item.tmdb_id);
                     const isImported = localIds.has(item.tmdb_id);
                     return (
@@ -563,6 +755,107 @@ export default function TmdbScraper() {
               )}
             </div>
           )}
+
+          <section className="bg-brand-card border border-brand-border rounded-2xl p-5 space-y-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-white font-bold">Limpieza y eliminación del catálogo</h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  Vacía el contenido marcado como importado o busca títulos para eliminarlos manualmente.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={deleteImportedCatalog}
+                disabled={manualBusy}
+                className="rounded-lg border border-red-800/50 bg-red-900/20 px-3 py-2 text-sm font-semibold text-red-300 hover:bg-red-900/40 disabled:opacity-50"
+              >
+                Vaciar títulos importados
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <select
+                value={manualType}
+                onChange={(event) => setManualType(event.target.value as "movie" | "series")}
+                aria-label="Tipo para eliminar manualmente"
+                className="rounded-lg border border-brand-border bg-brand-surface px-3 py-2 text-sm text-gray-200"
+              >
+                <option value="movie">Películas</option>
+                <option value="series">Series</option>
+              </select>
+              <input
+                value={catalogQuery}
+                onChange={(event) => setCatalogQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") void searchCatalog();
+                }}
+                placeholder="Buscar título del catálogo"
+                aria-label="Buscar título del catálogo para eliminar"
+                className="min-w-[220px] flex-1 rounded-lg border border-brand-border bg-brand-surface px-3 py-2 text-sm text-gray-200"
+              />
+              <button
+                type="button"
+                onClick={() => void searchCatalog()}
+                disabled={manualBusy}
+                className="rounded-lg bg-brand-surface px-4 py-2 text-sm font-semibold text-gray-200 hover:bg-brand-border disabled:opacity-50"
+              >
+                {manualBusy ? "Procesando…" : "Buscar"}
+              </button>
+              {manualSelected.size > 0 && (
+                <button
+                  type="button"
+                  onClick={deleteManualSelected}
+                  disabled={manualBusy}
+                  className="rounded-lg bg-red-700 px-4 py-2 text-sm font-bold text-white hover:bg-red-600 disabled:opacity-50"
+                >
+                  Eliminar seleccionados ({manualSelected.size})
+                </button>
+              )}
+            </div>
+
+            {manualRows.length > 0 ? (
+              <div className="max-h-72 overflow-auto rounded-lg border border-brand-border">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-brand-card text-xs uppercase text-gray-500">
+                    <tr>
+                      <th className="w-10 px-3 py-2" aria-label="Seleccionar" />
+                      <th className="px-3 py-2 text-left">Título</th>
+                      <th className="w-20 px-3 py-2 text-right">Año</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {manualRows.map((row) => (
+                      <tr key={row.id} className="border-t border-brand-border text-gray-300">
+                        <td className="px-3 py-2">
+                          <input
+                            type="checkbox"
+                            checked={manualSelected.has(row.id)}
+                            aria-label={`Seleccionar ${row.title}`}
+                            onChange={() =>
+                              setManualSelected((current) => {
+                                const next = new Set(current);
+                                if (next.has(row.id)) next.delete(row.id);
+                                else next.add(row.id);
+                                return next;
+                              })
+                            }
+                            className="accent-red-500"
+                          />
+                        </td>
+                        <td className="px-3 py-2">{row.title}</td>
+                        <td className="px-3 py-2 text-right text-gray-500">{row.year || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : catalogQuery && !manualBusy ? (
+              <p className="text-sm text-gray-500">
+                No se han cargado coincidencias. Ejecuta la búsqueda para ver resultados.
+              </p>
+            ) : null}
+          </section>
         </div>
       </AdminLayout>
     </>

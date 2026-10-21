@@ -3,10 +3,58 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import AdminPagination from "@/components/admin/AdminPagination";
 import { toast } from "sonner";
 import { useConfirm } from "@/components/admin/useConfirm";
-import { getMovies, getSeries, cleanupNoVidsrc } from "@/lib/api";
+import { adminListMovies, adminListSeries, cleanupNoVidsrc } from "@/lib/api";
 import { BASE_URL } from "@/lib/api";
 import { PlayTriangleIcon } from "@/components/icons";
 import type { Movie, Series } from "@/lib/types";
+
+async function loadScanRows(): Promise<ScanRow[]> {
+  const [movieFirst, seriesFirst] = await Promise.all([
+    adminListMovies({ page: 1, limit: 100 }),
+    adminListSeries({ page: 1, limit: 100 }),
+  ]);
+  const loadAllPages = async <T,>(
+    first: { items: T[]; pages: number },
+    fetchPage: (page: number) => Promise<{ items: T[]; pages: number }>,
+  ): Promise<T[]> => {
+    const items = [...first.items];
+    for (let page = 2; page <= first.pages; page += 5) {
+      const results = await Promise.all(
+        Array.from({ length: Math.min(5, first.pages - page + 1) }, (_, index) => fetchPage(page + index)),
+      );
+      for (const result of results) items.push(...result.items);
+    }
+    return items;
+  };
+  const [movies, series] = await Promise.all([
+    loadAllPages(movieFirst, (page) => adminListMovies({ page, limit: 100 })),
+    loadAllPages(seriesFirst, (page) => adminListSeries({ page, limit: 100 })),
+  ]);
+  return [
+    ...movies
+      .filter((movie) => Boolean((movie as Movie).imdb_id))
+      .map((movie) => {
+        const item = movie as Movie;
+        return {
+          imdb_id: item.imdb_id!,
+          title: item.title,
+          type: "movie" as const,
+          status: (item.vidsrc_status === "active" ? "active" : "pending") as RowStatus,
+        };
+      }),
+    ...series
+      .filter((seriesItem) => Boolean((seriesItem as Series).imdb_id))
+      .map((seriesItem) => {
+        const item = seriesItem as Series;
+        return {
+          imdb_id: item.imdb_id!,
+          title: item.title,
+          type: "series" as const,
+          status: (item.vidsrc_status === "active" ? "active" : "pending") as RowStatus,
+        };
+      }),
+  ];
+}
 
 type RowStatus = "pending" | "active" | "inactive";
 type ScanRow = {
@@ -71,26 +119,7 @@ export default function VidsrcScanner() {
   useEffect(() => {
     (async () => {
       try {
-        const [movies, series] = await Promise.all([getMovies(), getSeries()]);
-        const items: ScanRow[] = [
-          ...movies
-            .filter((m: Movie) => m.imdb_id)
-            .map((m: Movie) => ({
-              imdb_id: m.imdb_id!,
-              title: m.title,
-              type: "movie" as const,
-              status: (m.vidsrc_status === "active" ? "active" : "pending") as RowStatus,
-            })),
-          ...series
-            .filter((s: Series) => s.imdb_id)
-            .map((s: Series) => ({
-              imdb_id: s.imdb_id!,
-              title: s.title,
-              type: "series" as const,
-              status: (s.vidsrc_status === "active" ? "active" : "pending") as RowStatus,
-            })),
-        ];
-        setRows(items);
+        setRows(await loadScanRows());
       } catch {
         // ignore
       } finally {
@@ -172,26 +201,13 @@ export default function VidsrcScanner() {
       // Reload catalog from API to get updated vidsrc_status
       (async () => {
         try {
-          const [movies, series] = await Promise.all([getMovies(), getSeries()]);
-          const updatedItems: ScanRow[] = [
-            ...movies
-              .filter((m: Movie) => m.imdb_id)
-              .map((m: Movie) => ({
-                imdb_id: m.imdb_id!,
-                title: m.title,
-                type: "movie" as const,
-                status: (m.vidsrc_status === "active" ? "active" : "inactive") as RowStatus,
-              })),
-            ...series
-              .filter((s: Series) => s.imdb_id)
-              .map((s: Series) => ({
-                imdb_id: s.imdb_id!,
-                title: s.title,
-                type: "series" as const,
-                status: (s.vidsrc_status === "active" ? "active" : "inactive") as RowStatus,
-              })),
-          ];
-          setRows(updatedItems);
+          const updatedItems = await loadScanRows();
+          setRows(
+            updatedItems.map((item) => ({
+              ...item,
+              status: item.status === "active" ? "active" : "inactive",
+            })),
+          );
         } catch {
           /* keep previous rows */
         }
@@ -328,8 +344,8 @@ export default function VidsrcScanner() {
           <div>
             <h1 className="text-2xl font-black text-white">Escáner VIDSRC</h1>
             <p className="text-gray-500 text-sm mt-0.5">
-              Descarga la lista completa de vidsrc.me en paralelo y cruza con tu catálogo de {rows.length}{" "}
-              títulos. Sin iframes — rápido y preciso.
+              Comprueba el catálogo completo contra las listas de VIDSRC con reintentos, caché temporal y
+              resultados protegidos frente a fallos parciales. {rows.length.toLocaleString()} títulos listos.
             </p>
           </div>
 
@@ -450,8 +466,8 @@ export default function VidsrcScanner() {
 
             {phase === "idle" && rows.length > 0 && !error && (
               <p className="mt-3 text-xs text-gray-600">
-                El escáner descarga la lista pública de vidsrc.me y la cruza con tus {rows.length} títulos.
-                Descarga en paralelo — mucho más rápido que antes.
+                El servidor usa una copia temporal de las listas y solo marca títulos como no disponibles
+                cuando logra completar todas las páginas de ambos tipos.
               </p>
             )}
           </div>

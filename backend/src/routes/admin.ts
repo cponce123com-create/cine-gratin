@@ -1,4 +1,4 @@
-﻿import { Router, type IRouter } from "express";
+import { Router, type IRouter } from "express";
 import { z } from "zod";
 import { pool } from "../lib/db";
 import { runAutoImport, importByImdbId, importMovie, importSeries } from "../jobs/auto-import";
@@ -35,6 +35,7 @@ interface TmdbFindResult {
 import { asyncHandler, parseBody, parseIntParam } from "../lib/http";
 import { badRequest, notFound, sendError } from "../lib/errors";
 import { logger } from "../lib/logger";
+import { getVidsrcIds } from "../lib/vidsrc-client";
 import {
   cancelImportJob,
   createImportJob,
@@ -274,6 +275,59 @@ router.post("/admin/verify-vidsrc", async (req, res) => {
     });
   } catch (e) {
     return sendError(res, e);
+  }
+});
+
+// Verify the whole local catalog on the server. Provider lists are cached and
+// only a complete scan can mark titles unavailable, preventing destructive
+// false negatives when VIDSRC temporarily rate-limits a request.
+router.post("/admin/verify-vidsrc-catalog", async (_req, res) => {
+  try {
+    const [movieIds, seriesIds, movieRows, seriesRows] = await Promise.all([
+      getVidsrcIds("movie"),
+      getVidsrcIds("series"),
+      pool.query("SELECT imdb_id FROM movies WHERE imdb_id IS NOT NULL"),
+      pool.query("SELECT imdb_id FROM cv_series WHERE imdb_id IS NOT NULL"),
+    ]);
+    const updateType = async (
+      table: "movies" | "cv_series",
+      rows: Array<{ imdb_id: string }>,
+      available: Set<string>,
+    ) => {
+      const active: string[] = [];
+      const inactive: string[] = [];
+      for (const row of rows) (available.has(row.imdb_id) ? active : inactive).push(row.imdb_id);
+      const [activeResult, inactiveResult] = await Promise.all([
+        active.length
+          ? pool.query(
+              `UPDATE ${table} SET vidsrc_status = 'active' WHERE imdb_id = ANY($1::text[]) RETURNING id`,
+              [active],
+            )
+          : Promise.resolve({ rowCount: 0 }),
+        inactive.length
+          ? pool.query(
+              `UPDATE ${table} SET vidsrc_status = 'inactive' WHERE imdb_id = ANY($1::text[]) RETURNING id`,
+              [inactive],
+            )
+          : Promise.resolve({ rowCount: 0 }),
+      ]);
+      return { active: activeResult.rowCount ?? 0, inactive: inactiveResult.rowCount ?? 0 };
+    };
+    const [movies, series] = await Promise.all([
+      updateType("movies", movieRows.rows as Array<{ imdb_id: string }>, movieIds),
+      updateType("cv_series", seriesRows.rows as Array<{ imdb_id: string }>, seriesIds),
+    ]);
+    return res.json({
+      ok: true,
+      movies,
+      series,
+      active: movies.active + series.active,
+      inactive: movies.inactive + series.inactive,
+      total: movies.active + movies.inactive + series.active + series.inactive,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "No se pudo completar el escaneo de VIDSRC";
+    return res.status(502).json({ error: message });
   }
 });
 
@@ -615,7 +669,7 @@ router.post("/admin/tmdb-discover", async (req, res) => {
     year_to,
     sort_by = "popularity.desc",
     language,
-    min_votes = 50,
+    min_votes = 1000,
     page = 1,
     count = 2000,
   } = req.body as {
@@ -720,6 +774,171 @@ router.post("/admin/tmdb-discover", async (req, res) => {
     });
   } catch (e) {
     sendError(res, e);
+  }
+});
+
+// Return the complete set of local TMDB IDs. This avoids comparing a TMDB
+// result against a truncated, paginated public catalog in the browser.
+router.get("/admin/tmdb-catalog-ids/:type", async (req, res) => {
+  const type = req.params["type"];
+  if (type !== "movie" && type !== "series") {
+    return res.status(400).json({ error: "Tipo de contenido no válido" });
+  }
+  try {
+    const table = type === "movie" ? "movies" : "cv_series";
+    const { rows } = await pool.query(`SELECT tmdb_id FROM ${table} WHERE tmdb_id IS NOT NULL`);
+    res.setHeader("Cache-Control", "no-store");
+    return res.json({ ids: rows.map((row) => Number(row.tmdb_id)).filter(Number.isFinite) });
+  } catch (e) {
+    return sendError(res, e);
+  }
+});
+
+// Search all TMDB discover pages (up to its 500-page limit) and enqueue one
+// durable background job. The worker processes the IDs in groups of 50.
+router.post("/admin/tmdb-discover-import", async (req, res) => {
+  const schema = z.object({
+    type: z.enum(["movie", "series"]).default("movie"),
+    genre_ids: z.string().max(200).optional(),
+    year_from: z.number().int().min(1800).max(2200).optional(),
+    year_to: z.number().int().min(1800).max(2200).optional(),
+    sort_by: z.string().max(80).default("popularity.desc"),
+    language: z.string().max(10).optional(),
+    min_votes: z.number().int().min(0).max(10_000_000).default(1000),
+    exclude_existing: z.boolean().default(true),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Filtros inválidos", details: parsed.error.issues });
+  }
+
+  const filters = parsed.data;
+  const endpoint = filters.type === "series" ? "/discover/tv" : "/discover/movie";
+  const table = filters.type === "series" ? "cv_series" : "movies";
+  const baseParams = new URLSearchParams({
+    language: "es-MX",
+    sort_by: filters.sort_by,
+    "vote_count.gte": String(filters.min_votes),
+  });
+  if (filters.genre_ids) baseParams.set("with_genres", filters.genre_ids);
+  if (filters.year_from) {
+    baseParams.set(
+      filters.type === "series" ? "first_air_date.gte" : "primary_release_date.gte",
+      `${filters.year_from}-01-01`,
+    );
+  }
+  if (filters.year_to) {
+    baseParams.set(
+      filters.type === "series" ? "first_air_date.lte" : "primary_release_date.lte",
+      `${filters.year_to}-12-31`,
+    );
+  }
+  if (filters.language) baseParams.set("with_original_language", filters.language);
+
+  try {
+    type DiscoverPage = { results?: Array<{ id: number }>; total_pages?: number; total_results?: number };
+    const readPage = async (page: number): Promise<DiscoverPage> => {
+      const params = new URLSearchParams(baseParams);
+      params.set("page", String(page));
+      const response = await tmdbFetch(`${endpoint}?${params.toString()}`);
+      if (!response.ok) throw new Error(`TMDB respondió ${response.status} al consultar la página ${page}`);
+      return (await response.json()) as DiscoverPage;
+    };
+
+    const first = await readPage(1);
+    const totalPages = Math.min(Math.max(1, Number(first.total_pages) || 1), 500);
+    const ids = new Set<number>(
+      (first.results ?? []).map((item) => Number(item.id)).filter(Number.isInteger),
+    );
+    const pages = Array.from({ length: totalPages - 1 }, (_, index) => index + 2);
+    for (let offset = 0; offset < pages.length; offset += 5) {
+      const pageResults = await Promise.all(pages.slice(offset, offset + 5).map(readPage));
+      for (const result of pageResults) {
+        for (const item of result.results ?? []) {
+          if (Number.isInteger(item.id) && item.id > 0) ids.add(item.id);
+        }
+      }
+    }
+
+    const allIds = [...ids];
+    let existing = new Set<number>();
+    if (filters.exclude_existing && allIds.length > 0) {
+      const { rows } = await pool.query(`SELECT tmdb_id FROM ${table} WHERE tmdb_id = ANY($1::int[])`, [
+        allIds,
+      ]);
+      existing = new Set(rows.map((row) => Number(row.tmdb_id)));
+    }
+    const queuedIds = allIds.filter((id) => !existing.has(id));
+    const job = queuedIds.length
+      ? await createImportJob({
+          type: filters.type,
+          source: "tmdb-explorer",
+          items: queuedIds.map(String),
+          maxItems: 10_000,
+        })
+      : null;
+
+    return res.status(job ? 202 : 200).json({
+      ok: true,
+      total_found: allIds.length,
+      skipped_existing: existing.size,
+      queued: queuedIds.length,
+      job,
+    });
+  } catch (e) {
+    return sendError(res, e);
+  }
+});
+
+// Preview/clear only records marked as imported. Manual entries are never
+// included in this operation.
+router.post("/admin/cleanup-imported-catalog", async (req, res) => {
+  const confirm = req.body?.confirm === true;
+  const client = await pool.connect();
+  try {
+    if (!confirm) {
+      const [movies, series] = await Promise.all([
+        client.query("SELECT COUNT(*)::int AS count FROM movies WHERE auto_imported = TRUE"),
+        client.query("SELECT COUNT(*)::int AS count FROM cv_series WHERE auto_imported = TRUE"),
+      ]);
+      const [movieSample, seriesSample] = await Promise.all([
+        client.query(
+          "SELECT id, title FROM movies WHERE auto_imported = TRUE ORDER BY date_added DESC LIMIT 10",
+        ),
+        client.query(
+          "SELECT id, title FROM cv_series WHERE auto_imported = TRUE ORDER BY date_added DESC LIMIT 10",
+        ),
+      ]);
+      return res.json({
+        ok: true,
+        preview: true,
+        would_delete: {
+          movies: Number(movies.rows[0]?.count ?? 0),
+          series: Number(series.rows[0]?.count ?? 0),
+        },
+        sample: { movies: movieSample.rows, series: seriesSample.rows },
+      });
+    }
+
+    await client.query("BEGIN");
+    const [movies, series] = await Promise.all([
+      client.query("DELETE FROM movies WHERE auto_imported = TRUE RETURNING id"),
+      client.query("DELETE FROM cv_series WHERE auto_imported = TRUE RETURNING id"),
+    ]);
+    await client.query("COMMIT");
+    return res.json({
+      ok: true,
+      summary: {
+        movies: movies.rowCount ?? 0,
+        series: series.rowCount ?? 0,
+        total: (movies.rowCount ?? 0) + (series.rowCount ?? 0),
+      },
+    });
+  } catch (e) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    return sendError(res, e);
+  } finally {
+    client.release();
   }
 });
 
@@ -904,86 +1123,18 @@ router.get("/admin/vidsrc-scan-stream", async (req, res) => {
     const localMovies = movieRows.rows as { imdb_id: string; title: string }[];
     const localSeries = seriesRows.rows as { imdb_id: string; title: string }[];
     const totalItems = localMovies.length + localSeries.length;
-
     send("start", { totalMovies: localMovies.length, totalSeries: localSeries.length, totalItems });
-
-    // 2. Descargar lista de vidsrc.me
-    const buildVidsrcSet = async (type: "movie" | "series"): Promise<Set<string>> => {
-      const pathType = type === "series" ? "tvshows" : "movies";
-      const available = new Set<string>();
-      const CONCURRENCY = 10;
-      const RETRIES = 2;
-
-      // Página 1 para obtener totalPages
-      let totalPages: number;
-      try {
-        const r1 = await fetch(`https://vidsrc.me/${pathType}/latest/page-1.json`, {
-          headers: { "User-Agent": "Mozilla/5.0", Accept: "application/json" },
-          signal: AbortSignal.timeout(15_000),
-        });
-        if (!r1.ok) return available;
-        const d1 = (await r1.json()) as { result?: { imdb_id?: string }[]; pages?: number };
-        totalPages = d1.pages ?? 0;
-        for (const item of d1.result ?? []) {
-          if (item.imdb_id) available.add(item.imdb_id);
-        }
-      } catch {
-        send("error", { message: `Error al obtener página 1 de ${type}` });
-        return available;
-      }
-
-      send("page_progress", { type, pagesLoaded: 1, totalPages });
-
-      // Descargar páginas restantes en paralelo (CONCURRENCY a la vez)
-      const pages = Array.from({ length: totalPages - 1 }, (_, i) => i + 2);
-      for (let i = 0; i < pages.length; i += CONCURRENCY) {
-        if (req.destroyed) break;
-        const batch = pages.slice(i, i + CONCURRENCY);
-        const results = await Promise.allSettled(
-          batch.map(async (page) => {
-            for (let attempt = 0; attempt <= RETRIES; attempt++) {
-              try {
-                const r = await fetch(`https://vidsrc.me/${pathType}/latest/page-${page}.json`, {
-                  headers: { "User-Agent": "Mozilla/5.0", Accept: "application/json" },
-                  signal: AbortSignal.timeout(15_000),
-                });
-                if (!r.ok) {
-                  if (attempt < RETRIES) await new Promise((r) => setTimeout(r, 1000));
-                  continue;
-                }
-                const data = (await r.json()) as { result?: { imdb_id?: string }[] };
-                const ids = (data.result ?? []).map((item) => item.imdb_id).filter(Boolean) as string[];
-                return ids;
-              } catch {
-                if (attempt < RETRIES) await new Promise((r) => setTimeout(r, 1000));
-              }
-            }
-            return [] as string[];
-          }),
-        );
-
-        for (const result of results) {
-          if (result.status === "fulfilled") {
-            for (const id of result.value) available.add(id);
-          }
-        }
-
-        send("page_progress", {
-          type,
-          pagesLoaded: 1 + Math.min(i + CONCURRENCY, totalPages - 1),
-          totalPages,
-        });
-      }
-
-      return available;
-    };
-
     send("phase", { phase: "downloading" });
 
-    // Descargar ambas listas en paralelo
+    // Cached, bounded-concurrency scan with retries. A failed page aborts the
+    // run before any record is marked unavailable.
     const [movieVidsrcSet, seriesVidsrcSet] = await Promise.all([
-      buildVidsrcSet("movie"),
-      buildVidsrcSet("series"),
+      getVidsrcIds("movie", (pagesLoaded, totalPages) => {
+        send("page_progress", { type: "movie", pagesLoaded, totalPages });
+      }),
+      getVidsrcIds("series", (pagesLoaded, totalPages) => {
+        send("page_progress", { type: "series", pagesLoaded, totalPages });
+      }),
     ]);
 
     if (req.destroyed) {
