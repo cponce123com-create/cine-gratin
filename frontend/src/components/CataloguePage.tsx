@@ -36,13 +36,16 @@ interface CataloguePageProps {
   mediaType: "movie" | "series";
 }
 
-const PAGE_SIZE = 24;
+// The API caps catalogue pages at 60. The initial shelves together show at
+// least 120 category results; the full category view uses the largest page.
+const PAGE_SIZE = 60;
 const SHELF_SIZE = 24;
 const QUICK_CATEGORIES = [
-  { id: "year", order: "desc", label: "Estrenos" },
-  { id: "views", order: "desc", label: "Más vistas" },
-  { id: "rating", order: "desc", label: "Mejor puntuadas" },
-  { id: "date_added", order: "desc", label: "Añadidas recientemente" },
+  { id: "releases", label: "Estrenos" },
+  { id: "views", label: "Más vistas" },
+  { id: "recommended", label: "Recomendadas" },
+  { id: "classics", label: "Clásicos" },
+  { id: "recent", label: "Añadidas recientemente" },
 ] as const;
 
 const FEATURED_SHELVES = [
@@ -50,6 +53,7 @@ const FEATURED_SHELVES = [
   { id: "views", title: "Más vistas", sort: "views", order: "desc" },
   { id: "recommended", title: "Recomendadas", sort: "rating", order: "desc" },
   { id: "classics", title: "Clásicos", sort: "year", order: "asc" },
+  { id: "recent", title: "Añadidas recientemente", sort: "date_added", order: "desc" },
 ] as const;
 
 interface CatalogueShelf {
@@ -65,6 +69,12 @@ function normalizeGenre(value: string) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
+}
+
+function genreId(value: string) {
+  return `genre-${normalizeGenre(value)
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")}`;
 }
 
 function CategoryShelf({
@@ -89,7 +99,12 @@ function CategoryShelf({
   const baseUrl = isMovie ? "/pelicula" : "/serie";
 
   return (
-    <section className="mb-9" data-shelf-id={shelf.id} aria-labelledby={`shelf-${shelf.id}`}>
+    <section
+      id={`catalogue-shelf-${shelf.id}`}
+      className="mb-9 scroll-mt-24"
+      data-shelf-id={shelf.id}
+      aria-labelledby={`shelf-${shelf.id}`}
+    >
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <h2 id={`shelf-${shelf.id}`} className="text-lg font-bold text-white sm:text-xl">
@@ -192,6 +207,7 @@ export default function CataloguePage({ title, singular, plural, endpoint, media
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState(searchParams.get("q") ?? "");
   const [debouncedSearch, setDebouncedSearch] = useState(searchParams.get("q") ?? "");
+  const [activeCategory, setActiveCategory] = useState("releases");
 
   const q = searchParams.get("q") ?? "";
   const genre = searchParams.get("genre") ?? "";
@@ -238,14 +254,18 @@ export default function CataloguePage({ title, singular, plural, endpoint, media
   });
 
   const shelves = useMemo<CatalogueShelf[]>(() => {
-    const genreShelves = GENRE_SECTIONS.flatMap((section) => {
-      const available = (genres ?? []).find((name) =>
-        section.keywords.some((keyword) => normalizeGenre(name).includes(normalizeGenre(keyword))),
+    const usedGenres = new Set<string>();
+    const featuredGenres = GENRE_SECTIONS.flatMap((section) => {
+      const available = (genres ?? []).find(
+        (name) =>
+          !usedGenres.has(name) &&
+          section.keywords.some((keyword) => normalizeGenre(name).includes(normalizeGenre(keyword))),
       );
+      if (available) usedGenres.add(available);
       return available
         ? [
             {
-              id: `genre-${section.id}`,
+              id: genreId(available),
               title: section.label,
               genre: available,
               sort: "views",
@@ -254,19 +274,35 @@ export default function CataloguePage({ title, singular, plural, endpoint, media
           ]
         : [];
     });
-    const genrePriority = ["terror", "drama", "scifi", "accion", "suspenso", "crimen", "comedia", "romance"];
-    genreShelves.sort((a, b) => {
-      const aRank = genrePriority.indexOf(a.id.replace("genre-", ""));
-      const bRank = genrePriority.indexOf(b.id.replace("genre-", ""));
+    const genrePriority = [
+      "Terror",
+      "Drama",
+      "Ciencia ficción",
+      "Acción",
+      "Suspenso",
+      "Crimen",
+      "Comedia",
+      "Romance",
+    ];
+    featuredGenres.sort((a, b) => {
+      const aRank = genrePriority.indexOf(a.title);
+      const bRank = genrePriority.indexOf(b.title);
       return (aRank === -1 ? genrePriority.length : aRank) - (bRank === -1 ? genrePriority.length : bRank);
     });
-    return [...FEATURED_SHELVES, ...genreShelves];
+    const otherGenres = (genres ?? [])
+      .filter((name) => !usedGenres.has(name))
+      .map((name) => ({ id: genreId(name), title: name, genre: name, sort: "views", order: "desc" }));
+    return [...FEATURED_SHELVES, ...featuredGenres, ...otherGenres];
   }, [genres]);
 
   const [visibleShelves, setVisibleShelves] = useState<Set<string>>(
-    () => new Set(FEATURED_SHELVES.slice(0, 3).map((shelf) => shelf.id)),
+    () => new Set(FEATURED_SHELVES.map((shelf) => shelf.id)),
   );
   const shelvesContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setVisibleShelves((current) => new Set([...current, ...shelves.slice(0, 6).map((shelf) => shelf.id)]));
+  }, [shelves]);
 
   useEffect(() => {
     if (showBrowseGrid) return;
@@ -350,6 +386,19 @@ export default function CataloguePage({ title, singular, plural, endpoint, media
     updateParams({ sort: shelf.sort, order: shelf.order, genre: shelf.genre ?? null, browse: "1" });
   };
 
+  const jumpToShelf = (id: string) => {
+    setActiveCategory(id);
+    if (showBrowseGrid) {
+      setSearch("");
+      updateParams({ q: null, genre: null, browse: null });
+    }
+    window.setTimeout(() => {
+      document
+        .getElementById(`catalogue-shelf-${id}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 80);
+  };
+
   return (
     <div className="min-h-screen bg-brand-dark pt-20 pb-16">
       <Helmet>
@@ -361,14 +410,30 @@ export default function CataloguePage({ title, singular, plural, endpoint, media
       </Helmet>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-black text-white mb-2">{title}</h1>
-          <p className="text-gray-400 text-sm" aria-live="polite">
-            {isLoading && !data ? "Cargando…" : `${total} ${total === 1 ? singular : plural}`}
-          </p>
+        <div className="mb-7 overflow-hidden rounded-2xl border border-brand-border bg-gradient-to-br from-brand-surface via-brand-dark to-red-950/40 px-5 py-6 sm:px-8 sm:py-8">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.24em] text-brand-red">
+                Explora el catálogo
+              </p>
+              <h1 className="text-3xl font-black text-white sm:text-4xl">{title}</h1>
+              <p className="mt-2 max-w-2xl text-sm text-gray-400">
+                Estrenos, favoritos del público, recomendaciones y géneros para encontrar qué ver.
+              </p>
+            </div>
+            <p
+              className="rounded-full border border-white/10 bg-black/20 px-4 py-2 text-sm text-gray-300"
+              aria-live="polite"
+            >
+              <span className="font-bold text-white">
+                {isLoading && !data ? "…" : total.toLocaleString("es-PE")}
+              </span>{" "}
+              {total === 1 ? singular : plural}
+            </p>
+          </div>
         </div>
 
-        <div className="mb-8 space-y-4">
+        <div className="mb-8 space-y-5 rounded-2xl border border-brand-border bg-brand-surface/60 p-4 sm:p-5">
           <form
             role="search"
             className="relative max-w-md"
@@ -413,14 +478,12 @@ export default function CataloguePage({ title, singular, plural, endpoint, media
               </p>
               <div className="flex flex-wrap gap-2" role="group" aria-label="Categorías destacadas">
                 {QUICK_CATEGORIES.map((category) => {
-                  const selected = sort === category.id && order === category.order && !genre;
+                  const selected = activeCategory === category.id && !showBrowseGrid;
                   return (
                     <button
                       key={category.id}
                       type="button"
-                      onClick={() =>
-                        updateParams({ sort: category.id, order: category.order, genre: null, browse: "1" })
-                      }
+                      onClick={() => jumpToShelf(category.id)}
                       aria-pressed={selected}
                       className={`rounded-full border px-4 py-2 text-sm font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-brand-red ${
                         selected
@@ -442,7 +505,10 @@ export default function CataloguePage({ title, singular, plural, endpoint, media
                 </span>
                 <button
                   type="button"
-                  onClick={() => updateParams({ genre: null, browse: null })}
+                  onClick={() => {
+                    setActiveCategory("releases");
+                    updateParams({ genre: null, browse: null });
+                  }}
                   aria-pressed={!genre}
                   className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors focus-visible:ring-2 focus-visible:ring-brand-red ${
                     !genre
@@ -456,8 +522,8 @@ export default function CataloguePage({ title, singular, plural, endpoint, media
                   <button
                     key={genreName}
                     type="button"
-                    onClick={() => updateParams({ genre: genreName, browse: "1" })}
-                    aria-pressed={genre === genreName}
+                    onClick={() => jumpToShelf(genreId(genreName))}
+                    aria-pressed={activeCategory === genreId(genreName) && !showBrowseGrid}
                     className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors focus-visible:ring-2 focus-visible:ring-brand-red ${
                       genre === genreName
                         ? "bg-brand-red text-white border-brand-red"
@@ -511,6 +577,16 @@ export default function CataloguePage({ title, singular, plural, endpoint, media
               );
             })}
           </div>
+        )}
+
+        {showBrowseGrid && !hasFilters && (
+          <button
+            type="button"
+            onClick={() => updateParams({ browse: null })}
+            className="mb-5 rounded-full border border-brand-border bg-brand-surface px-4 py-2 text-sm font-semibold text-gray-200 hover:border-brand-red hover:text-white"
+          >
+            ← Volver a las filas de categorías
+          </button>
         )}
 
         {showBrowseGrid && isLoading && !data && <SkeletonGrid />}
