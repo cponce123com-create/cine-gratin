@@ -652,11 +652,15 @@ router.post(
 
 // ── Servers ──────────────────────────────────────────────────────────────────
 
+// La configuracion de servidores es del panel: no se expone publicamente.
 router.get(
   "/servers",
+  requireAdmin,
   asyncHandler(async (_req: Request, res: Response) => {
-    const { rows } = await pool.query("SELECT * FROM cv_servers ORDER BY sort_order");
-    res.setHeader("Cache-Control", "public, max-age=300");
+    const { rows } = await pool.query(
+      "SELECT id, name, base_url, active, sort_order FROM cv_servers ORDER BY sort_order",
+    );
+    res.setHeader("Cache-Control", "no-store");
     res.json(rows);
   }),
 );

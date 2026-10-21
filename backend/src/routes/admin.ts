@@ -6,6 +6,7 @@ import { fetchMovieByTmdbId, fetchSeriesByTmdbId, tmdbFetch } from "../lib/tmdb-
 import { requireAdmin } from "../middlewares/adminAuth";
 import { asyncHandler, parseBody, parseIntParam } from "../lib/http";
 import { badRequest, notFound, sendError } from "../lib/errors";
+import { logger } from "../lib/logger";
 import {
   cancelImportJob,
   createImportJob,
@@ -480,8 +481,9 @@ router.get("/admin/m3u-proxy", async (_req, res) => {
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     res.setHeader("Cache-Control", "public, max-age=3600");
     res.send(text);
-  } catch (err: any) {
-    res.status(502).json({ error: err.message || "Failed to fetch M3U" });
+  } catch (err) {
+    logger.error({ err }, "M3U proxy failed");
+    res.status(502).json({ error: "No se pudo obtener la lista de canales" });
   }
 });
 

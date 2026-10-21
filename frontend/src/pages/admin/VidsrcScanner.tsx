@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
+import AdminPagination from "@/components/admin/AdminPagination";
 import { toast } from "sonner";
 import { useConfirm } from "@/components/admin/useConfirm";
 import { getMovies, getSeries, cleanupNoVidsrc } from "@/lib/api";
@@ -57,6 +58,7 @@ export default function VidsrcScanner() {
     seriesInactive: 0,
   });
   const [cleaning, setCleaning] = useState(false);
+  const [page, setPage] = useState(1);
   const [cleanResult, setCleanResult] = useState<{ movies: number; series: number; total: number } | null>(
     null,
   );
@@ -257,6 +259,17 @@ export default function VidsrcScanner() {
     if (statusFilter === "pending") return r.status === "pending";
     return true;
   });
+
+  // La tabla se pagina: con miles de titulos renderizarlos todos era
+  // inviable para el navegador.
+  const PAGE_SIZE = 50;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const visibleRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  // Al cambiar los filtros se vuelve a la primera pagina.
+  useEffect(() => {
+    setPage(1);
+  }, [typeFilter, statusFilter]);
 
   const pendingCount = rows.filter((r) => r.status === "pending").length;
   const isScanning = phase === "downloading" || phase === "matching" || phase === "saving";
@@ -482,7 +495,7 @@ export default function VidsrcScanner() {
                       </td>
                     </tr>
                   ) : (
-                    filtered.map((row) => (
+                    visibleRows.map((row) => (
                       <tr
                         key={row.imdb_id}
                         className="border-b border-brand-border last:border-0 hover:bg-brand-surface/40 transition-colors"
@@ -524,6 +537,19 @@ export default function VidsrcScanner() {
                 </tbody>
               </table>
             </div>
+
+            {filtered.length > PAGE_SIZE && (
+              <div className="mt-3">
+                <AdminPagination
+                  page={page}
+                  pages={totalPages}
+                  total={filtered.length}
+                  limit={PAGE_SIZE}
+                  onPageChange={setPage}
+                  itemLabel="títulos"
+                />
+              </div>
+            )}
           </div>
         </div>
       </AdminLayout>
