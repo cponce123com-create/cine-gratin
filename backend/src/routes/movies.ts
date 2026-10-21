@@ -250,16 +250,20 @@ router.get(
     let relevanceOrder: string | null = null;
 
     if (q) {
-      const search = buildCatalogueSearch(q, {
-        title: "title",
-        synopsis: "synopsis",
-        metadata: [
-          "COALESCE(array_to_string(genres, ' '), '')",
-          "COALESCE(director, '')",
-          "COALESCE(array_to_string(cast_list, ' '), '')",
-          "COALESCE(array_to_string(networks, ' '), '')",
-        ],
-      }, params.length + 1);
+      const search = buildCatalogueSearch(
+        q,
+        {
+          title: "title",
+          synopsis: "synopsis",
+          metadata: [
+            "COALESCE(array_to_string(genres, ' '), '')",
+            "COALESCE(director, '')",
+            "COALESCE(array_to_string(cast_list, ' '), '')",
+            "COALESCE(array_to_string(networks, ' '), '')",
+          ],
+        },
+        params.length + 1,
+      );
       params.push(...search.params);
       conditions.push(search.condition);
       relevanceOrder = search.relevanceOrder;
@@ -908,11 +912,15 @@ router.get(
           };
 
           const keywordData = keywordsRes.ok
-            ? ((await keywordsRes.json()) as { keywords?: Array<{ name: string }>; results?: Array<{ name: string }> })
+            ? ((await keywordsRes.json()) as {
+                keywords?: Array<{ name: string }>;
+                results?: Array<{ name: string }>;
+              })
             : {};
-          const keywordNames = (type === "series" ? keywordData.results : keywordData.keywords)
-            ?.map((keyword) => keyword.name)
-            .filter(Boolean) ?? [];
+          const keywordNames =
+            (type === "series" ? keywordData.results : keywordData.keywords)
+              ?.map((keyword) => keyword.name)
+              .filter(Boolean) ?? [];
           const castList = (credits.cast ?? []).slice(0, 30).map((person) => person.name);
           const TMDB_IMG = "https://image.tmdb.org/t/p";
           const castFull = (credits.cast ?? [])

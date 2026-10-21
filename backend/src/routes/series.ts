@@ -172,16 +172,20 @@ router.get(
     let relevanceOrder: string | null = null;
 
     if (q) {
-      const search = buildCatalogueSearch(q, {
-        title: "title",
-        synopsis: "synopsis",
-        metadata: [
-          "COALESCE(array_to_string(genres, ' '), '')",
-          "COALESCE(array_to_string(creators, ' '), '')",
-          "COALESCE(array_to_string(cast_list, ' '), '')",
-          "COALESCE(array_to_string(networks, ' '), '')",
-        ],
-      }, params.length + 1);
+      const search = buildCatalogueSearch(
+        q,
+        {
+          title: "title",
+          synopsis: "synopsis",
+          metadata: [
+            "COALESCE(array_to_string(genres, ' '), '')",
+            "COALESCE(array_to_string(creators, ' '), '')",
+            "COALESCE(array_to_string(cast_list, ' '), '')",
+            "COALESCE(array_to_string(networks, ' '), '')",
+          ],
+        },
+        params.length + 1,
+      );
       params.push(...search.params);
       conditions.push(search.condition);
       relevanceOrder = search.relevanceOrder;

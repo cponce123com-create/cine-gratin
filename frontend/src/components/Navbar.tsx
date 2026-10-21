@@ -65,10 +65,7 @@ export default function Navbar() {
     }
     setSearching(true);
     try {
-      const [movies, series] = await Promise.all([
-        searchMovies(q, 6, signal),
-        searchSeries(q, 4, signal),
-      ]);
+      const [movies, series] = await Promise.all([searchMovies(q, 6, signal), searchSeries(q, 4, signal)]);
       if (signal.aborted) return;
       const combined: SearchResult[] = [
         ...movies.map((m): SearchResult => ({ kind: "movie", item: m })),

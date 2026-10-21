@@ -91,7 +91,12 @@ export default function TmdbScraper() {
   const [manualRows, setManualRows] = useState<Array<{ id: string; title: string; year: number }>>([]);
   const [manualSelected, setManualSelected] = useState<Set<string>>(new Set());
   const [manualBusy, setManualBusy] = useState(false);
-  const [searchBackfill, setSearchBackfill] = useState({ running: false, total: 0, processed: 0, current: "" });
+  const [searchBackfill, setSearchBackfill] = useState({
+    running: false,
+    total: 0,
+    processed: 0,
+    current: "",
+  });
 
   // Referencias para desplazar la vista: la barra de resultados siempre
   // visible y el formulario de filtros.
@@ -322,11 +327,11 @@ export default function TmdbScraper() {
 
     try {
       for (const type of ["movie", "series"] as const) {
-        const response = await fetch(
-          `${BASE_URL}/api/movies/admin/backfill-cast-stream?type=${type}`,
-          { credentials: "include" },
-        );
-        if (!response.ok || !response.body) throw new Error("No se pudo iniciar la actualización del índice.");
+        const response = await fetch(`${BASE_URL}/api/movies/admin/backfill-cast-stream?type=${type}`, {
+          credentials: "include",
+        });
+        if (!response.ok || !response.body)
+          throw new Error("No se pudo iniciar la actualización del índice.");
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
@@ -342,12 +347,22 @@ export default function TmdbScraper() {
             const eventName = block.match(/^event:\s*(.+)$/m)?.[1]?.trim();
             const dataLine = block.match(/^data:\s*(.+)$/m)?.[1];
             if (!eventName || !dataLine) continue;
-            const data = JSON.parse(dataLine) as { total?: number; i?: number; title?: string; updated?: number; error?: number };
+            const data = JSON.parse(dataLine) as {
+              total?: number;
+              i?: number;
+              title?: string;
+              updated?: number;
+              error?: number;
+            };
             if (eventName === "error") {
               throw new Error("No se pudo completar la actualización del índice.");
             } else if (eventName === "start") {
               total += data.total ?? 0;
-              setSearchBackfill((current) => ({ ...current, total, current: type === "movie" ? "Películas" : "Series" }));
+              setSearchBackfill((current) => ({
+                ...current,
+                total,
+                current: type === "movie" ? "Películas" : "Series",
+              }));
             } else if (eventName === "progress") {
               processed += 1;
               setSearchBackfill((current) => ({
@@ -362,7 +377,11 @@ export default function TmdbScraper() {
         }
         reader.releaseLock();
       }
-      setSearchBackfill((current) => ({ ...current, running: false, current: "Índice de búsqueda actualizado" }));
+      setSearchBackfill((current) => ({
+        ...current,
+        running: false,
+        current: "Índice de búsqueda actualizado",
+      }));
       toast.success("Se completó la actualización de búsqueda para películas y series.");
     } catch (err: unknown) {
       setSearchBackfill((current) => ({ ...current, running: false }));
@@ -470,7 +489,8 @@ export default function TmdbScraper() {
             <div>
               <h2 className="font-bold text-white">Índice inteligente del catálogo</h2>
               <p className="mt-1 text-xs text-gray-400">
-                Completa palabras clave de TMDB y reparto faltante para buscar por trama, actores, actrices y conceptos.
+                Completa palabras clave de TMDB y reparto faltante para buscar por trama, actores, actrices y
+                conceptos.
                 {searchBackfill.running && (
                   <span className="ml-2 text-brand-light">
                     {searchBackfill.processed.toLocaleString()} / {searchBackfill.total.toLocaleString()}
