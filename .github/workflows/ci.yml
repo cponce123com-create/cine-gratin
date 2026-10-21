@@ -87,13 +87,14 @@ jobs:
         run: |
           pnpm exec vitest run tests/api.test.ts tests/config.test.ts tests/validation.test.ts \
             tests/csrf.test.ts tests/import-jobs.test.ts tests/static-frontend.test.ts \
-            > vitest-backend.log 2>&1; status=$?
+            --reporter=default --reporter=github-actions > vitest-backend.log 2>&1; status=$?
           { echo "### Pruebas del backend"; echo '<<<'; cat vitest-backend.log; echo '>>>'; } >> "$GITHUB_STEP_SUMMARY"
           exit $status
 
       - name: Pruebas de componentes
         run: |
-          pnpm exec vitest run tests/frontend > vitest-frontend.log 2>&1; status=$?
+          pnpm exec vitest run tests/frontend --reporter=default --reporter=github-actions \
+            > vitest-frontend.log 2>&1; status=$?
           { echo "### Pruebas de componentes"; echo '<<<'; cat vitest-frontend.log; echo '>>>'; } >> "$GITHUB_STEP_SUMMARY"
           exit $status
 
