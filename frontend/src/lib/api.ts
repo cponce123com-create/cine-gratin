@@ -389,7 +389,7 @@ export const createImportJob = (
   adminPost("/api/admin/import-jobs", { items, type, source });
 
 export const getImportJob = (id: string): Promise<{ job: ImportJob }> =>
-  adminFetch(`/api/admin/import-jobs/${id}`);
+  adminFetch(`/api/admin/import-jobs/${id}`, { cache: "no-store" });
 
 export const listImportJobs = (limit = 20): Promise<{ jobs: ImportJob[] }> =>
   adminFetch(`/api/admin/import-jobs?limit=${limit}`);

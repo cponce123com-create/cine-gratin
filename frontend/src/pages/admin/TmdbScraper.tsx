@@ -119,19 +119,35 @@ export default function TmdbScraper() {
   // al panel y continúa aunque se cierre esta pestaña.
   useEffect(() => {
     if (!activeJob || !["queued", "running"].includes(activeJob.status)) return;
-    const timer = window.setInterval(() => {
-      void getImportJob(activeJob.id)
-        .then(({ job }) => {
-          setActiveJob(job);
-          if (!["queued", "running"].includes(job.status)) {
-            setImportResult({ imported: job.imported, total: job.total });
-            void loadLocalCatalog();
-          }
-        })
-        .catch(() => undefined);
-    }, 1500);
-    return () => window.clearInterval(timer);
-  }, [activeJob, loadLocalCatalog]);
+
+    const jobId = activeJob.id;
+    let cancelled = false;
+    let timer: number | undefined;
+
+    // Poll again only after the previous request settles. This avoids overlap
+    // and keeps progress updates from restarting the polling loop each time.
+    const poll = async () => {
+      try {
+        const { job } = await getImportJob(jobId);
+        if (cancelled) return;
+        setActiveJob(job);
+        if (!["queued", "running"].includes(job.status)) {
+          setImportResult({ imported: job.imported, total: job.total });
+          void loadLocalCatalog();
+          return;
+        }
+      } catch {
+        // A temporary network failure should not stop progress polling.
+      }
+      if (!cancelled) timer = window.setTimeout(() => void poll(), 1000);
+    };
+
+    void poll();
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [activeJob?.id, activeJob?.status, loadLocalCatalog]);
 
   useEffect(() => {
     void listImportJobs(20)

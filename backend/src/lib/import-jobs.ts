@@ -467,7 +467,9 @@ export async function processImportJob(id: string): Promise<ImportJob | null> {
             processed = start + completed;
             if (!cancelled) cancelled = await isCancelled();
             const now = Date.now();
-            if (now - lastProgressAt < PROGRESS_THROTTLE_MS && processed !== items.length) return;
+            const isChunkComplete = completed === chunk.length;
+            if (now - lastProgressAt < PROGRESS_THROTTLE_MS && !isChunkComplete && processed !== items.length)
+              return;
             lastProgressAt = now;
 
             // The lease is renewed with the progress, so a slow import is not
