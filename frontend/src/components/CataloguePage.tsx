@@ -218,7 +218,10 @@ export default function CataloguePage({ title, singular, plural, endpoint, media
   const showBrowseGrid = hasFilters || searchParams.get("browse") === "1";
 
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    const timer = setTimeout(() => {
+      const value = search.trim();
+      setDebouncedSearch(value.length >= 2 ? value : "");
+    }, 300);
     return () => clearTimeout(timer);
   }, [search]);
 
