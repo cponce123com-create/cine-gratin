@@ -466,9 +466,11 @@ export default function VidsrcScanner() {
                   : ""}
               </span>
             </div>
-            <div className="overflow-x-auto">
+            {/* La tabla tiene su propio scroll: la paginacion queda siempre
+                visible sin tener que bajar hasta el final de las 50 filas. */}
+            <div className="max-h-[55vh] overflow-auto">
               <table className="w-full text-sm">
-                <thead>
+                <thead className="sticky top-0 z-10 bg-brand-card">
                   <tr className="border-b border-brand-border">
                     <th className="text-left px-5 py-3 text-gray-500 font-medium text-xs uppercase tracking-wider">
                       Título

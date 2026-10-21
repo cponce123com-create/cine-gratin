@@ -8,6 +8,10 @@ interface AdminPaginationProps {
   onPageChange: (page: number) => void;
   onLimitChange?: (limit: number) => void;
   itemLabel?: string;
+  /** Sizes offered in the selector (defaults to the usual table sizes). */
+  pageSizes?: number[];
+  /** Label of the size selector. */
+  limitLabel?: string;
 }
 
 const PAGE_SIZES = [10, 25, 50, 100];
@@ -24,6 +28,8 @@ export default function AdminPagination({
   onPageChange,
   onLimitChange,
   itemLabel = "elementos",
+  pageSizes = PAGE_SIZES,
+  limitLabel = "Por página",
 }: AdminPaginationProps) {
   const from = total === 0 ? 0 : (page - 1) * limit + 1;
   const to = Math.min(page * limit, total);
@@ -48,13 +54,14 @@ export default function AdminPagination({
       <div className="flex items-center gap-2">
         {onLimitChange && (
           <label className="flex items-center gap-1.5 text-xs text-gray-500">
-            <span>Por página</span>
+            <span>{limitLabel}</span>
             <select
               value={limit}
               onChange={(event) => onLimitChange(Number(event.target.value))}
+              aria-label={limitLabel}
               className="bg-brand-surface border border-brand-border rounded-md px-2 py-1 text-gray-300 text-xs focus-visible:ring-2 focus-visible:ring-brand-red"
             >
-              {PAGE_SIZES.map((size) => (
+              {pageSizes.map((size) => (
                 <option key={size} value={size}>
                   {size}
                 </option>

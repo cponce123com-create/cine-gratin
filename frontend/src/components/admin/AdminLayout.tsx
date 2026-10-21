@@ -353,8 +353,13 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           </div>
         </aside>
 
-        {/* Main content */}
-        <main className="flex-1 min-w-0 overflow-y-auto">
+        {/*
+          Main content. It must not be a scroll container: an element with
+          `overflow` becomes the reference for the `sticky` descendants, and the
+          results toolbar of the TMDB explorer has to stay visible while
+          scrolling through the list.
+        */}
+        <main className="flex-1 min-w-0">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">{children}</div>
         </main>
       </div>

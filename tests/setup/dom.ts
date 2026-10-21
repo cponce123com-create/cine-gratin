@@ -14,6 +14,12 @@ if (typeof document !== "undefined") {
   // 1 s is too tight for the queries that wait for a re-render.
   configure({ asyncUtilTimeout: 5000 });
 
+  // jsdom does not implement scrollIntoView: the components that scroll to a
+  // section need a stub (the real one depends on the browser).
+  if (!Element.prototype.scrollIntoView) {
+    Element.prototype.scrollIntoView = () => undefined;
+  }
+
   afterEach(() => {
     cleanup();
   });

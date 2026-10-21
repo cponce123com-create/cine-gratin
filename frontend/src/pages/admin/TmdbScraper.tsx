@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
+import AdminPagination from "@/components/admin/AdminPagination";
 import { useConfirm } from "@/components/admin/useConfirm";
 import { toast } from "sonner";
 import {
@@ -11,7 +12,6 @@ import {
   type TmdbGenre,
   type TmdbDiscoverItem,
 } from "@/lib/api";
-import type { Series, Movie } from "@/lib/types";
 
 const SORT_OPTIONS = [
   { value: "popularity.desc", label: "Popularidad" },
@@ -43,6 +43,16 @@ const LANGUAGE_OPTIONS = [
   { value: "ar", label: "Árabe" },
 ];
 
+/**
+ * Tamaño de un bloque de resultados. Cada bloque son 20 títulos por página de
+ * TMDB, así que estos tamaños mantienen la cuadrícula completa.
+ */
+const BLOCK_SIZES = [60, 120, 300, 500];
+
+/** Peticiones del catálogo local para saber qué títulos ya están importados. */
+const CATALOGUE_PAGE_SIZE = 100;
+const CATALOGUE_MAX_PAGES = 20;
+
 export default function TmdbScraper() {
   const { confirm, confirmDialog } = useConfirm();
   const [mediaType, setMediaType] = useState<"movie" | "series">("movie");
@@ -54,6 +64,7 @@ export default function TmdbScraper() {
   const [language, setLanguage] = useState("");
   const [minVotes, setMinVotes] = useState("50");
   const [page, setPage] = useState(1);
+  const [blockSize, setBlockSize] = useState(BLOCK_SIZES[0]);
 
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<TmdbDiscoverItem[]>([]);
@@ -67,26 +78,44 @@ export default function TmdbScraper() {
   const [importResult, setImportResult] = useState<{ imported: number; total: number } | null>(null);
   const [localIds, setLocalIds] = useState<Set<number>>(new Set());
 
+  // Referencias para desplazar la vista: la barra de resultados siempre
+  // visible y el formulario de filtros.
+  const resultsRef = useRef<HTMLDivElement>(null);
+  const filtersRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * Recoge los identificadores de TMDB de todo el catálogo local, no solo de
+   * la primera página: así la marca "En catálogo" es fiable.
+   */
+  const collectTmdbIds = useCallback(
+    async (loadPage: (page: number) => Promise<Array<{ tmdb_id?: number | null }>>): Promise<number[]> => {
+      const ids: number[] = [];
+      for (let p = 1; p <= CATALOGUE_MAX_PAGES; p++) {
+        const items = await loadPage(p).catch(() => []);
+        if (items.length === 0) break;
+        for (const item of items) {
+          if (item.tmdb_id) ids.push(item.tmdb_id);
+        }
+        if (items.length < CATALOGUE_PAGE_SIZE) break;
+      }
+      return ids;
+    },
+    [],
+  );
+
   // Load local catalog (TMDB IDs already imported) to show badges
   const loadLocalCatalog = useCallback(async () => {
     try {
-      const [movies, series] = await Promise.all([
-        getMovies({ page: 1, limit: 100 }).catch(() => [] as Movie[]),
-        getSeries({ page: 1, limit: 100 }).catch(() => [] as Series[]),
+      const [movieIds, seriesIds] = await Promise.all([
+        collectTmdbIds((p) => getMovies({ page: p, limit: CATALOGUE_PAGE_SIZE })),
+        collectTmdbIds((p) => getSeries({ page: p, limit: CATALOGUE_PAGE_SIZE })),
       ]);
-      const ids = new Set<number>();
-      movies.forEach((m) => {
-        if (m.tmdb_id) ids.add(m.tmdb_id);
-      });
-      series.forEach((s) => {
-        if (s.tmdb_id) ids.add(s.tmdb_id);
-      });
-      setLocalIds(ids);
+      setLocalIds(new Set([...movieIds, ...seriesIds]));
     } catch (err) {
       // Si no se puede leer el catálogo local, la vista sigue funcionando.
       console.warn("No se pudo comprobar el catálogo local", err);
     }
-  }, []);
+  }, [collectTmdbIds]);
 
   // Load genres once, without duplicate calls
   useEffect(() => {
@@ -104,7 +133,7 @@ export default function TmdbScraper() {
   }, [mediaType]);
 
   const handleSearch = useCallback(
-    async (p: number) => {
+    async (p: number, options: { keepSelection?: boolean; count?: number } = {}) => {
       setLoading(true);
       setImportResult(null);
       setSearchError("");
@@ -118,13 +147,16 @@ export default function TmdbScraper() {
           language: language || undefined,
           min_votes: Number(minVotes) || 0,
           page: p,
-          count: 300,
+          count: options.count ?? blockSize,
         });
         setResults(data.results);
         setTotalResults(data.total_results);
         setTotalPages(data.total_pages);
         setPage(p);
-        setSelected(new Set());
+        // Al cambiar de filtros se descarta la seleccion: al pasar de bloque se
+        // conserva, para poder marcar titulos en varias paginas e importarlos
+        // de una sola vez.
+        if (!options.keepSelection) setSelected(new Set());
         setHasSearched(true);
       } catch (err: unknown) {
         setSearchError(err instanceof Error ? err.message : "Error al buscar en TMDB.");
@@ -132,8 +164,15 @@ export default function TmdbScraper() {
         setLoading(false);
       }
     },
-    [mediaType, selectedGenres, yearFrom, yearTo, sortBy, language, minVotes],
+    [mediaType, selectedGenres, yearFrom, yearTo, sortBy, language, minVotes, blockSize],
   );
+
+  // Al buscar o al cambiar de bloque, la vista vuelve a los resultados: si no,
+  // el usuario se queda en la parte baja de la lista anterior.
+  useEffect(() => {
+    if (!hasSearched) return;
+    resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [hasSearched, page]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") handleSearch(1);
@@ -148,12 +187,19 @@ export default function TmdbScraper() {
     });
   };
 
+  /** Selecciona o quita los titulos del bloque que se esta viendo. */
   const toggleSelectAll = () => {
-    if (selected.size === results.length) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(results.map((r) => r.tmdb_id)));
-    }
+    const pageIds = results.map((r) => r.tmdb_id);
+    if (pageIds.length === 0) return;
+    const allSelected = pageIds.every((id) => selected.has(id));
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const id of pageIds) {
+        if (allSelected) next.delete(id);
+        else next.add(id);
+      }
+      return next;
+    });
   };
 
   const handleImport = async () => {
@@ -181,6 +227,13 @@ export default function TmdbScraper() {
 
   const sortOptions = mediaType === "series" ? SORT_OPTIONS_TV : SORT_OPTIONS;
 
+  // Rango mostrado en el bloque actual.
+  const from = totalResults === 0 ? 0 : (page - 1) * blockSize + 1;
+  const to = Math.min(page * blockSize, totalResults);
+
+  // Si todos los titulos del bloque estan marcados.
+  const allOnPageSelected = results.length > 0 && results.every((r) => selected.has(r.tmdb_id));
+
   return (
     <>
       {confirmDialog}
@@ -197,6 +250,7 @@ export default function TmdbScraper() {
 
           {/* Filters card */}
           <div
+            ref={filtersRef}
             className="bg-brand-card border border-brand-border rounded-2xl p-6 space-y-5"
             onKeyDown={handleKeyDown}
           >
@@ -209,6 +263,7 @@ export default function TmdbScraper() {
                     setMediaType(t);
                     setResults([]);
                     setHasSearched(false);
+                    setSelected(new Set());
                   }}
                   className={`px-5 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
                     mediaType === t
@@ -360,41 +415,74 @@ export default function TmdbScraper() {
 
           {/* Results */}
           {hasSearched && (
-            <div className="bg-brand-card border border-brand-border rounded-2xl overflow-hidden">
-              {/* Results header */}
-              <div className="px-6 py-4 border-b border-brand-border flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <span className="text-white font-bold">{totalResults.toLocaleString()} resultados</span>
-                  <span className="text-gray-500 text-sm ml-2">
-                    · {results.length} visibles · bloque {page}/{totalPages}
-                  </span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={toggleSelectAll}
-                    className="text-xs font-semibold text-gray-400 hover:text-white transition-colors"
-                  >
-                    {selected.size === results.length && results.length > 0
-                      ? "Deseleccionar todo"
-                      : "Seleccionar todo"}
-                  </button>
-                  {selected.size > 0 && (
+            <div ref={resultsRef} className="bg-brand-card border border-brand-border rounded-2xl">
+              {/*
+                Barra de resultados: queda fija al hacer scroll, de modo que la
+                paginacion y el boton de importar estan siempre a mano sin
+                tener que bajar hasta el final de la lista.
+              */}
+              <div className="sticky top-14 z-20 bg-brand-card/95 backdrop-blur-sm border-b border-brand-border px-4 sm:px-6 py-3 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-baseline gap-2 min-w-0">
+                    <span className="text-white font-bold">{totalResults.toLocaleString()}</span>
+                    <span className="text-gray-500 text-sm">resultados</span>
+                    <span className="text-gray-500 text-xs">
+                      · {from}–{to} · bloque {page}/{totalPages}
+                    </span>
                     <button
-                      onClick={handleImport}
-                      disabled={importing}
-                      className="flex items-center gap-2 bg-brand-red hover:bg-red-700 disabled:opacity-50 text-white text-sm font-bold py-1.5 px-4 rounded-lg transition-colors"
+                      type="button"
+                      onClick={() =>
+                        filtersRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+                      }
+                      className="text-xs font-semibold text-gray-500 hover:text-white transition-colors"
                     >
-                      {importing ? (
-                        <>
-                          <span className="w-3 h-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                          Importando...
-                        </>
-                      ) : (
-                        `Importar ${selected.size} seleccionado${selected.size !== 1 ? "s" : ""}`
-                      )}
+                      ↑ Filtros
                     </button>
-                  )}
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={toggleSelectAll}
+                      disabled={results.length === 0}
+                      className="text-xs font-semibold text-gray-400 hover:text-white disabled:opacity-40 transition-colors"
+                    >
+                      {allOnPageSelected ? "Quitar este bloque" : "Seleccionar este bloque"}
+                    </button>
+                    {selected.size > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleImport}
+                        disabled={importing}
+                        className="flex items-center gap-2 bg-brand-red hover:bg-red-700 disabled:opacity-50 text-white text-sm font-bold py-1.5 px-4 rounded-lg transition-colors"
+                      >
+                        {importing ? (
+                          <>
+                            <span className="w-3 h-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                            Importando...
+                          </>
+                        ) : (
+                          `Importar ${selected.size} seleccionado${selected.size !== 1 ? "s" : ""}`
+                        )}
+                      </button>
+                    )}
+                  </div>
                 </div>
+
+                <AdminPagination
+                  page={page}
+                  pages={totalPages}
+                  total={totalResults}
+                  limit={blockSize}
+                  onPageChange={(next) => handleSearch(next, { keepSelection: true })}
+                  onLimitChange={(size) => {
+                    setBlockSize(size);
+                    void handleSearch(1, { keepSelection: true, count: size });
+                  }}
+                  pageSizes={BLOCK_SIZES}
+                  limitLabel="Por bloque"
+                  itemLabel="resultados"
+                />
               </div>
 
               {/* Import result banner */}
@@ -406,7 +494,7 @@ export default function TmdbScraper() {
 
               {/* Skeleton grid while loading */}
               {loading ? (
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5">
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 rounded-b-2xl overflow-hidden">
                   {Array.from({ length: 15 }).map((_, i) => (
                     <div key={i} className="p-3 border-r border-b border-brand-border animate-pulse">
                       <div className="aspect-[2/3] w-full mb-2 rounded bg-brand-surface" />
@@ -420,7 +508,7 @@ export default function TmdbScraper() {
                   No se encontraron resultados para los filtros seleccionados.
                 </div>
               ) : (
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5">
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 rounded-b-2xl overflow-hidden">
                   {results.map((item) => {
                     const isSelected = selected.has(item.tmdb_id);
                     const isImported = localIds.has(item.tmdb_id);
@@ -471,47 +559,6 @@ export default function TmdbScraper() {
                       </button>
                     );
                   })}
-                </div>
-              )}
-
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="px-6 py-4 border-t border-brand-border flex items-center justify-between gap-4">
-                  <button
-                    onClick={() => handleSearch(page - 1)}
-                    disabled={page <= 1 || loading}
-                    className="flex items-center gap-1.5 text-sm font-semibold text-gray-400 hover:text-white disabled:opacity-30 transition-colors"
-                  >
-                    ◀ Anterior
-                  </button>
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-500 text-sm">Página</span>
-                    <input
-                      type="number"
-                      min={1}
-                      max={totalPages}
-                      defaultValue={page}
-                      onBlur={(e) => {
-                        const v = Number(e.target.value);
-                        if (v >= 1 && v <= totalPages && v !== page) handleSearch(v);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          const v = Number((e.target as HTMLInputElement).value);
-                          if (v >= 1 && v <= totalPages && v !== page) handleSearch(v);
-                        }
-                      }}
-                      className="w-16 bg-brand-surface border border-brand-border rounded px-2 py-1 text-gray-200 text-sm text-center focus:outline-none focus:border-gray-500"
-                    />
-                    <span className="text-gray-500 text-sm">/ {totalPages}</span>
-                  </div>
-                  <button
-                    onClick={() => handleSearch(page + 1)}
-                    disabled={page >= totalPages || loading}
-                    className="flex items-center gap-1.5 text-sm font-semibold text-gray-400 hover:text-white disabled:opacity-30 transition-colors"
-                  >
-                    Siguiente ▶
-                  </button>
                 </div>
               )}
             </div>
