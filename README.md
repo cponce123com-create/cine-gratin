@@ -116,6 +116,8 @@ proceso de autenticación y la recuperación ante errores.
 - 👤 Panel de administración con catálogo paginado, importaciones guiadas y
   tareas persistentes
 - 📥 Importación desde YouTube y TMDB (manual, por lotes y automática)
+- 🧭 Explorador de TMDB con la paginación siempre visible, selección entre
+  bloques y tamaño de bloque configurable (60, 120, 300 o 500 por página)
 - 📱 Diseño responsive, navegable por teclado y con soporte para
   `prefers-reduced-motion`
 - 📦 Instalable como PWA con iconos y manifiesto válidos
