@@ -87,6 +87,7 @@ interface RawMedia {
   rating?: number | null;
   runtime?: number | null;
   genres?: string[] | null;
+  keywords?: string[] | null;
   language?: string | null;
   synopsis?: string | null;
   director?: string | null;
@@ -148,9 +149,9 @@ export async function importMovieByTmdbId(tmdbId: number): Promise<ImportOutcome
 
     await pool.query(
       `INSERT INTO movies (id, imdb_id, tmdb_id, title, year, rating, runtime, genres, language, synopsis,
-        director, cast_list, cast_full, networks, poster_url, background_url, yt_trailer_code, videos, reviews,
+        director, cast_list, cast_full, networks, keywords, poster_url, background_url, yt_trailer_code, videos, reviews,
         mpa_rating, slug, featured, video_sources, torrents, views, date_added, auto_imported)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,FALSE,'[]','[]',0,NOW(),TRUE)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,FALSE,'[]','[]',0,NOW(),TRUE)
        ON CONFLICT (id) DO NOTHING`,
       [
         id,
@@ -167,6 +168,7 @@ export async function importMovieByTmdbId(tmdbId: number): Promise<ImportOutcome
         asStringArray(data.cast_list),
         JSON.stringify(Array.isArray(data.cast_full) ? data.cast_full : []),
         asStringArray(data.networks),
+        asStringArray(data.keywords),
         data.poster_url ?? "",
         data.background_url ?? "",
         data.yt_trailer_code ?? "",
@@ -219,9 +221,9 @@ export async function importSeriesByTmdbId(tmdbId: number): Promise<ImportOutcom
 
     await pool.query(
       `INSERT INTO cv_series (id, imdb_id, tmdb_id, title, year, end_year, rating, genres, language,
-        synopsis, creators, cast_list, cast_full, networks, poster_url, background_url, yt_trailer_code,
+        synopsis, creators, cast_list, cast_full, networks, keywords, poster_url, background_url, yt_trailer_code,
         videos, reviews, status, total_seasons, seasons_data, video_sources, slug, featured, views, date_added, auto_imported)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,'[]',$23,FALSE,0,NOW(),TRUE)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,'[]',$24,FALSE,0,NOW(),TRUE)
        ON CONFLICT (id) DO NOTHING`,
       [
         id,
@@ -238,6 +240,7 @@ export async function importSeriesByTmdbId(tmdbId: number): Promise<ImportOutcom
         asStringArray(data.cast_list),
         JSON.stringify(Array.isArray(data.cast_full) ? data.cast_full : []),
         asStringArray(data.networks),
+        asStringArray(data.keywords),
         data.poster_url ?? "",
         data.background_url ?? "",
         data.yt_trailer_code ?? "",
@@ -272,31 +275,57 @@ export async function importSeriesByTmdbId(tmdbId: number): Promise<ImportOutcom
  */
 async function fillMissingMovieFields(id: string, data: RawMedia, tmdbId: number): Promise<void> {
   const castFull = Array.isArray(data.cast_full) ? data.cast_full : [];
-  if (castFull.length === 0) return;
 
   await pool.query(
     `UPDATE movies
-        SET cast_full = $1,
+        SET cast_full = CASE WHEN jsonb_array_length($1::jsonb) > 0 THEN $1::jsonb ELSE cast_full END,
             tmdb_id = COALESCE(tmdb_id, $2),
             poster_url = COALESCE(NULLIF(poster_url, ''), $3),
-            background_url = COALESCE(NULLIF(background_url, ''), $4)
-      WHERE id = $5`,
-    [JSON.stringify(castFull), tmdbId, data.poster_url ?? "", data.background_url ?? "", id],
+            background_url = COALESCE(NULLIF(background_url, ''), $4),
+            keywords = CASE WHEN cardinality(keywords) = 0 THEN $5 ELSE keywords END,
+            cast_list = CASE WHEN cardinality(cast_list) = 0 THEN $6 ELSE cast_list END,
+            synopsis = CASE WHEN synopsis = '' THEN $7 ELSE synopsis END,
+            genres = CASE WHEN cardinality(genres) = 0 THEN $8 ELSE genres END
+      WHERE id = $9`,
+    [
+      JSON.stringify(castFull),
+      tmdbId,
+      data.poster_url ?? "",
+      data.background_url ?? "",
+      asStringArray(data.keywords),
+      asStringArray(data.cast_list),
+      data.synopsis ?? "",
+      asStringArray(data.genres),
+      id,
+    ],
   );
 }
 
 async function fillMissingSeriesFields(id: string, data: RawMedia, tmdbId: number): Promise<void> {
   const castFull = Array.isArray(data.cast_full) ? data.cast_full : [];
-  if (castFull.length === 0) return;
 
   await pool.query(
     `UPDATE cv_series
-        SET cast_full = $1,
+        SET cast_full = CASE WHEN jsonb_array_length($1::jsonb) > 0 THEN $1::jsonb ELSE cast_full END,
             tmdb_id = COALESCE(tmdb_id, $2),
             poster_url = COALESCE(NULLIF(poster_url, ''), $3),
-            background_url = COALESCE(NULLIF(background_url, ''), $4)
-      WHERE id = $5`,
-    [JSON.stringify(castFull), tmdbId, data.poster_url ?? "", data.background_url ?? "", id],
+            background_url = COALESCE(NULLIF(background_url, ''), $4),
+            keywords = CASE WHEN cardinality(keywords) = 0 THEN $5 ELSE keywords END,
+            cast_list = CASE WHEN cardinality(cast_list) = 0 THEN $6 ELSE cast_list END,
+            synopsis = CASE WHEN synopsis = '' THEN $7 ELSE synopsis END,
+            genres = CASE WHEN cardinality(genres) = 0 THEN $8 ELSE genres END
+      WHERE id = $9`,
+    [
+      JSON.stringify(castFull),
+      tmdbId,
+      data.poster_url ?? "",
+      data.background_url ?? "",
+      asStringArray(data.keywords),
+      asStringArray(data.cast_list),
+      data.synopsis ?? "",
+      asStringArray(data.genres),
+      id,
+    ],
   );
 }
 

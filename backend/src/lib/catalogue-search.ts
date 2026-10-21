@@ -2,7 +2,7 @@ import { escapeLikePattern } from "./http";
 
 /** Small, local synonym map for concept searches in Spanish and English. */
 const SEARCH_SYNONYM_GROUPS = [
-  ["perro", "perros", "perrito", "perritos", "canino", "canina", "caninos", "mascota", "mascotas", "dog", "dogs", "puppy", "puppies"],
+  ["perro", "perros", "perrito", "perritos", "can", "canes", "canino", "canina", "caninos", "mascota", "mascotas", "animal", "animales", "dog", "dogs", "puppy", "puppies"],
   ["gato", "gatos", "gatito", "gatitos", "felino", "felinos", "mascota", "mascotas", "cat", "cats", "kitten", "kittens"],
   ["ovni", "ovnis", "ufo", "ufos", "extraterrestre", "extraterrestres", "alien", "aliens", "alienigena", "alienigenas", "marciano", "marcianos", "platillo volador", "platillos voladores"],
   ["zombie", "zombies", "zombi", "zombis", "muerto viviente", "muertos vivientes", "undead"],
