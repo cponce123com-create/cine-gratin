@@ -12,7 +12,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  NODE_VERSION: 20
+  # Node 22 LTS: jsdom/undici (pruebas de componentes) exigen >= 22.19
+  NODE_VERSION: 22
   PNPM_VERSION: 9.15.4
 
 jobs:

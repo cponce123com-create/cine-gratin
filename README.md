@@ -15,7 +15,7 @@ cine-gratin/
 
 ## Requisitos
 
-- **Node.js** 20+
+- **Node.js** 22.19+ (LTS): las pruebas de componentes usan jsdom, que exige Node ≥ 22.19
 - **pnpm** 9.15.4 (la versión exacta está fijada en `package.json`)
 - **PostgreSQL** 16+
 

@@ -154,6 +154,9 @@ probe y contra `/api/readyz` para el readiness probe.
 
 ## 🧪 Pruebas en local
 
+> Requiere **Node.js 22.19 o superior**: las pruebas de componentes del frontend
+> usan jsdom, que depende de undici 8 (Node ≥ 22.19).
+
 ```bash
 # Base de datos de pruebas aislada (nunca la de producción)
 createdb cine-gratin-test
