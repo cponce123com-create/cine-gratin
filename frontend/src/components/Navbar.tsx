@@ -20,6 +20,7 @@ export default function Navbar() {
   const navigate = useNavigate();
   const searchRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -28,10 +29,22 @@ export default function Navbar() {
   }, []);
 
   useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    searchAbortRef.current?.abort();
     setMenuOpen(false);
     setSearchOpen(false);
     setQuery("");
+    setResults([]);
+    setSearching(false);
   }, [location.pathname]);
+
+  useEffect(
+    () => () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      searchAbortRef.current?.abort();
+    },
+    [],
+  );
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -44,24 +57,28 @@ export default function Navbar() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const doSearch = useCallback(async (q: string) => {
-    if (!q.trim()) {
+  const doSearch = useCallback(async (q: string, signal: AbortSignal) => {
+    if (q.trim().length < 2) {
       setResults([]);
       setSearching(false);
       return;
     }
     setSearching(true);
     try {
-      const [movies, series] = await Promise.all([searchMovies(q, 6), searchSeries(q, 4)]);
+      const [movies, series] = await Promise.all([
+        searchMovies(q, 6, signal),
+        searchSeries(q, 4, signal),
+      ]);
+      if (signal.aborted) return;
       const combined: SearchResult[] = [
         ...movies.map((m): SearchResult => ({ kind: "movie", item: m })),
         ...series.map((s): SearchResult => ({ kind: "series", item: s })),
       ];
       setResults(combined);
     } catch {
-      setResults([]);
+      if (!signal.aborted) setResults([]);
     } finally {
-      setSearching(false);
+      if (!signal.aborted) setSearching(false);
     }
   }, []);
 
@@ -69,7 +86,18 @@ export default function Navbar() {
     setQuery(val);
     setSearchOpen(true);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => doSearch(val), 300);
+    searchAbortRef.current?.abort();
+    if (val.trim().length < 2) {
+      setResults([]);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    debounceRef.current = setTimeout(() => {
+      const controller = new AbortController();
+      searchAbortRef.current = controller;
+      void doSearch(val, controller.signal);
+    }, 250);
   };
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -162,8 +190,7 @@ export default function Navbar() {
                   <button
                     type="button"
                     onClick={() => {
-                      setQuery("");
-                      setResults([]);
+                      handleQueryChange("");
                       setSearchOpen(false);
                     }}
                     aria-label="Limpiar la búsqueda"
@@ -188,7 +215,9 @@ export default function Navbar() {
                     <div className="w-5 h-5 rounded-full border-2 border-brand-red border-t-transparent animate-spin" />
                   </div>
                 ) : results.length === 0 ? (
-                  <p className="text-gray-500 text-sm text-center py-6">Sin resultados</p>
+                  <p className="text-gray-500 text-sm text-center py-6">
+                    {query.trim().length < 2 ? "Escribe al menos 2 caracteres" : "Sin resultados"}
+                  </p>
                 ) : (
                   <>
                     <div className="max-h-80 overflow-y-auto">
@@ -281,8 +310,7 @@ export default function Navbar() {
                   <button
                     type="button"
                     onClick={() => {
-                      setQuery("");
-                      setResults([]);
+                      handleQueryChange("");
                     }}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white text-xs"
                   >
@@ -300,7 +328,9 @@ export default function Navbar() {
                     <div className="w-5 h-5 rounded-full border-2 border-brand-red border-t-transparent animate-spin" />
                   </div>
                 ) : results.length === 0 ? (
-                  <p className="text-gray-500 text-sm text-center py-5">Sin resultados</p>
+                  <p className="text-gray-500 text-sm text-center py-5">
+                    {query.trim().length < 2 ? "Escribe al menos 2 caracteres" : "Sin resultados"}
+                  </p>
                 ) : (
                   <>
                     <div className="max-h-64 overflow-y-auto">

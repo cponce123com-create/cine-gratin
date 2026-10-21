@@ -4,6 +4,7 @@ import { rateLimit } from "express-rate-limit";
 import { z } from "zod";
 import { requireAdmin } from "../middlewares/adminAuth";
 import { asyncHandler, escapeLikePattern, parseBody, parsePagination, parseStringParam } from "../lib/http";
+import { buildCatalogueSearch } from "../lib/catalogue-search";
 import { badRequest, notFound, sendError } from "../lib/errors";
 
 const router = Router();
@@ -168,16 +169,26 @@ router.get(
 
     const conditions: string[] = [];
     const params: unknown[] = [];
+    let relevanceOrder: string | null = null;
 
     if (q) {
-      params.push(`%${escapeLikePattern(q)}%`);
-      conditions.push(
-        `(title ILIKE $${params.length} ESCAPE '\\' OR synopsis ILIKE $${params.length} ESCAPE '\\')`,
-      );
+      const search = buildCatalogueSearch(q, {
+        title: "title",
+        synopsis: "synopsis",
+        metadata: [
+          "COALESCE(array_to_string(genres, ' '), '')",
+          "COALESCE(array_to_string(creators, ' '), '')",
+          "COALESCE(array_to_string(cast_list, ' '), '')",
+          "COALESCE(array_to_string(networks, ' '), '')",
+        ],
+      }, params.length + 1);
+      params.push(...search.params);
+      conditions.push(search.condition);
+      relevanceOrder = search.relevanceOrder;
     }
     if (genre) {
       params.push(genre);
-      conditions.push(`$${params.length} = ANY(genres)`);
+      conditions.push(`${params.length} = ANY(genres)`);
     }
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
@@ -193,7 +204,7 @@ router.get(
               '[]'::jsonb AS videos, '[]'::jsonb AS reviews, '[]'::jsonb AS seasons_data,
               '[]'::jsonb AS cast_full
        FROM cv_series ${where}
-       ORDER BY ${sortColumn} ${sortOrder} NULLS LAST, id ASC
+       ORDER BY ${relevanceOrder ? `${relevanceOrder}, ` : ""}${sortColumn} ${sortOrder} NULLS LAST, id ASC
        LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
       [...params, limit, offset],
     );
@@ -232,11 +243,21 @@ router.get(
   seriesLimit,
   asyncHandler(async (req: Request, res: Response) => {
     const q = parseStringParam(req.query["q"], { maxLength: 120, name: "q" });
-    if (!q) {
+    if (!q || q.trim().length < 2) {
       res.json([]);
       return;
     }
-    const { limit } = parsePagination(req.query, { defaultLimit: 20, maxLimit: 50 });
+    const { limit, offset } = parsePagination(req.query, { defaultLimit: 20, maxLimit: 50 });
+    const search = buildCatalogueSearch(q, {
+      title: "title",
+      synopsis: "synopsis",
+      metadata: [
+        "COALESCE(array_to_string(genres, ' '), '')",
+        "COALESCE(array_to_string(creators, ' '), '')",
+        "COALESCE(array_to_string(cast_list, ' '), '')",
+        "COALESCE(array_to_string(networks, ' '), '')",
+      ],
+    });
 
     const { rows } = await pool.query(
       `SELECT id, imdb_id, tmdb_id, title, year, end_year, rating, genres, language, synopsis,
@@ -245,9 +266,9 @@ router.get(
               vidsrc_status, auto_imported,
               '[]'::jsonb AS videos, '[]'::jsonb AS reviews, '[]'::jsonb AS seasons_data,
               '[]'::jsonb AS cast_full
-       FROM cv_series WHERE title ILIKE $1 ESCAPE '\\' OR synopsis ILIKE $1 ESCAPE '\\'
-       ORDER BY views DESC, date_added DESC LIMIT $2`,
-      [`%${escapeLikePattern(q)}%`, limit],
+       FROM cv_series WHERE ${search.condition}
+       ORDER BY ${search.relevanceOrder}, views DESC, date_added DESC LIMIT $${search.params.length + 1} OFFSET $${search.params.length + 2}`,
+      [...search.params, limit, offset],
     );
     res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
     res.json(rows.map(toSeries));
