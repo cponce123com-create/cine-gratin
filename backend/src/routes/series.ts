@@ -3,7 +3,7 @@ import { pool } from "../lib/db";
 import { rateLimit } from "express-rate-limit";
 import { z } from "zod";
 import { requireAdmin } from "../middlewares/adminAuth";
-import { asyncHandler, escapeLikePattern, parseBody, parsePagination, parseStringParam } from "../lib/http";
+import { asyncHandler, parseBody, parsePagination, parseStringParam } from "../lib/http";
 import { buildCatalogueSearch } from "../lib/catalogue-search";
 import { badRequest, notFound, sendError } from "../lib/errors";
 

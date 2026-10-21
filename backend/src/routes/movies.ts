@@ -4,7 +4,7 @@ import { rateLimit } from "express-rate-limit";
 import { z } from "zod";
 import { currentClaims, requireAdmin } from "../middlewares/adminAuth";
 import { revokeSession } from "../lib/session-store";
-import { asyncHandler, escapeLikePattern, parseBody, parsePagination, parseStringParam } from "../lib/http";
+import { asyncHandler, parseBody, parsePagination, parseStringParam } from "../lib/http";
 import { buildCatalogueSearch } from "../lib/catalogue-search";
 import { badRequest, notFound, sendError } from "../lib/errors";
 import {

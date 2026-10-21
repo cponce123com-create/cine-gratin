@@ -46,7 +46,7 @@ export default function VidsrcVerificationCard() {
   };
 
   const handleCleanup = async () => {
-    let target = counts.inactive;
+    let target: number;
     try {
       const preview = await previewCleanupNoVidsrc();
       target = preview.would_delete.movies + preview.would_delete.series;
