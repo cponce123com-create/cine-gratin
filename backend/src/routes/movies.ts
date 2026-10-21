@@ -847,7 +847,7 @@ router.get(
       const { rows } = await pool.query(
         `SELECT id, imdb_id, title FROM ${table}
          WHERE imdb_id IS NOT NULL AND imdb_id != ''
-           AND (cast_full IS NULL OR cast_full = '[]'::jsonb)
+           AND ((cast_full IS NULL OR cast_full = '[]'::jsonb) OR cardinality(keywords) = 0)
          ORDER BY date_added DESC`,
       );
 
@@ -882,10 +882,16 @@ router.get(
             continue;
           }
 
-          const creditsRes = await fetch(
-            `https://api.themoviedb.org/3/${type === "series" ? "tv" : "movie"}/${tmdbId}/credits?language=es-MX&api_key=${getConfig().tmdbApiKey ?? ""}`,
-            { signal: AbortSignal.timeout(12_000) },
-          );
+          const [creditsRes, keywordsRes] = await Promise.all([
+            fetch(
+              `https://api.themoviedb.org/3/${type === "series" ? "tv" : "movie"}/${tmdbId}/credits?language=es-MX&api_key=${getConfig().tmdbApiKey ?? ""}`,
+              { signal: AbortSignal.timeout(12_000) },
+            ),
+            fetch(
+              `https://api.themoviedb.org/3/${type === "series" ? "tv" : "movie"}/${tmdbId}/keywords?api_key=${getConfig().tmdbApiKey ?? ""}`,
+              { signal: AbortSignal.timeout(12_000) },
+            ),
+          ]);
           if (!creditsRes.ok) {
             skipped++;
             continue;
@@ -901,6 +907,13 @@ router.get(
             }>;
           };
 
+          const keywordData = keywordsRes.ok
+            ? ((await keywordsRes.json()) as { keywords?: Array<{ name: string }>; results?: Array<{ name: string }> })
+            : {};
+          const keywordNames = (type === "series" ? keywordData.results : keywordData.keywords)
+            ?.map((keyword) => keyword.name)
+            .filter(Boolean) ?? [];
+          const castList = (credits.cast ?? []).slice(0, 30).map((person) => person.name);
           const TMDB_IMG = "https://image.tmdb.org/t/p";
           const castFull = (credits.cast ?? [])
             .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
@@ -912,10 +925,22 @@ router.get(
               profile_url: c.profile_path ? `${TMDB_IMG}/w185${c.profile_path}` : null,
             }));
 
-          await pool.query(`UPDATE ${table} SET cast_full = $1 WHERE id = $2`, [
-            JSON.stringify(castFull),
-            row.id,
-          ]);
+          await pool.query(
+            `UPDATE ${table}
+                SET cast_full = CASE WHEN jsonb_array_length($1::jsonb) > 0 THEN $1::jsonb ELSE cast_full END,
+                    keywords = CASE WHEN cardinality(keywords) = 0 THEN $2 ELSE keywords END,
+                    cast_list = CASE
+                      WHEN cardinality(cast_list) >= 30 THEN cast_list
+                      ELSE cast_list || ARRAY(
+                        SELECT person_name
+                          FROM unnest($3::text[]) AS t(person_name)
+                         WHERE NOT (person_name = ANY(cast_list))
+                         LIMIT 30 - cardinality(cast_list)
+                      )
+                    END
+              WHERE id = $4`,
+            [JSON.stringify(castFull), keywordNames, castList, row.id],
+          );
 
           updated++;
           send("progress", {
@@ -924,6 +949,7 @@ router.get(
             title: row.title,
             status: "updated",
             cast_count: castFull.length,
+            keyword_count: keywordNames.length,
             updated,
             skipped,
             error: errorCount,

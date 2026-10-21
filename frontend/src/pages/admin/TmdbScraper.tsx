@@ -4,6 +4,7 @@ import AdminPagination from "@/components/admin/AdminPagination";
 import { useConfirm } from "@/components/admin/useConfirm";
 import { toast } from "sonner";
 import {
+  BASE_URL,
   getTmdbGenres,
   tmdbDiscover,
   createImportJob,
@@ -90,6 +91,7 @@ export default function TmdbScraper() {
   const [manualRows, setManualRows] = useState<Array<{ id: string; title: string; year: number }>>([]);
   const [manualSelected, setManualSelected] = useState<Set<string>>(new Set());
   const [manualBusy, setManualBusy] = useState(false);
+  const [searchBackfill, setSearchBackfill] = useState({ running: false, total: 0, processed: 0, current: "" });
 
   // Referencias para desplazar la vista: la barra de resultados siempre
   // visible y el formulario de filtros.
@@ -312,6 +314,60 @@ export default function TmdbScraper() {
     }
   };
 
+  const runSearchMetadataBackfill = async () => {
+    if (searchBackfill.running) return;
+    setSearchBackfill({ running: true, total: 0, processed: 0, current: "" });
+    let total = 0;
+    let processed = 0;
+
+    try {
+      for (const type of ["movie", "series"] as const) {
+        const response = await fetch(
+          `${BASE_URL}/api/movies/admin/backfill-cast-stream?type=${type}`,
+          { credentials: "include" },
+        );
+        if (!response.ok || !response.body) throw new Error("No se pudo iniciar la actualización del índice.");
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let finished = false;
+        while (!finished) {
+          const chunk = await reader.read();
+          if (chunk.done) break;
+          buffer += decoder.decode(chunk.value, { stream: true });
+          const blocks = buffer.split(/\r?\n\r?\n/);
+          buffer = blocks.pop() ?? "";
+          for (const block of blocks) {
+            const eventName = block.match(/^event:\s*(.+)$/m)?.[1]?.trim();
+            const dataLine = block.match(/^data:\s*(.+)$/m)?.[1];
+            if (!eventName || !dataLine) continue;
+            const data = JSON.parse(dataLine) as { total?: number; i?: number; title?: string; updated?: number; error?: number };
+            if (eventName === "start") {
+              total += data.total ?? 0;
+              setSearchBackfill((current) => ({ ...current, total, current: type === "movie" ? "Películas" : "Series" }));
+            } else if (eventName === "progress") {
+              processed += 1;
+              setSearchBackfill((current) => ({
+                ...current,
+                processed,
+                current: `${type === "movie" ? "Películas" : "Series"}: ${data.title ?? ""}`,
+              }));
+            } else if (eventName === "done") {
+              finished = true;
+            }
+          }
+        }
+        reader.releaseLock();
+      }
+      setSearchBackfill((current) => ({ ...current, running: false, current: "Índice de búsqueda actualizado" }));
+      toast.success("Se completó la actualización de búsqueda para películas y series.");
+    } catch (err: unknown) {
+      setSearchBackfill((current) => ({ ...current, running: false }));
+      toast.error(err instanceof Error ? err.message : "No se pudo actualizar la búsqueda.");
+    }
+  };
+
   const searchCatalog = async () => {
     if (!catalogQuery.trim()) {
       toast.info("Escribe el título o parte del título que deseas buscar.");
@@ -407,6 +463,29 @@ export default function TmdbScraper() {
               catálogo.
             </p>
           </div>
+
+          <section className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-brand-border bg-brand-card px-5 py-4">
+            <div>
+              <h2 className="font-bold text-white">Índice inteligente del catálogo</h2>
+              <p className="mt-1 text-xs text-gray-400">
+                Completa palabras clave de TMDB y reparto faltante para buscar por trama, actores, actrices y conceptos.
+                {searchBackfill.running && (
+                  <span className="ml-2 text-brand-light">
+                    {searchBackfill.processed.toLocaleString()} / {searchBackfill.total.toLocaleString()}
+                    {searchBackfill.current ? ` · ${searchBackfill.current}` : ""}
+                  </span>
+                )}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void runSearchMetadataBackfill()}
+              disabled={searchBackfill.running}
+              className="rounded-lg bg-brand-primary px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-brand-primary/80 disabled:cursor-wait disabled:opacity-60"
+            >
+              {searchBackfill.running ? "Actualizando índice…" : "Actualizar búsqueda de películas y series"}
+            </button>
+          </section>
 
           {activeJob && (
             <div
