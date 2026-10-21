@@ -226,6 +226,18 @@ export const saveVidsrcResults = (
   results: { imdb_id: string; type: "movie" | "series"; available: boolean }[],
 ): Promise<VidsrcResult[]> => adminPost("/api/admin/verify-vidsrc", { results });
 
+export interface VidsrcCatalogVerification {
+  ok: boolean;
+  movies: { active: number; inactive: number };
+  series: { active: number; inactive: number };
+  active: number;
+  inactive: number;
+  total: number;
+}
+
+export const verifyVidsrcCatalog = (): Promise<VidsrcCatalogVerification> =>
+  adminPost("/api/admin/verify-vidsrc-catalog", {});
+
 // verifyVidsrc: verifica disponibilidad de IDs específicos descargando la
 // lista completa de vidsrc.me desde el navegador (para la función "Verificar
 // seleccionados" en ManageMovies/ManageSeries).
@@ -479,6 +491,36 @@ export const tmdbDiscover = (params: {
   page?: number;
   count?: number;
 }): Promise<TmdbDiscoverResult> => adminPost("/api/admin/tmdb-discover", params);
+
+export const getTmdbCatalogIds = async (type: "movie" | "series"): Promise<number[]> => {
+  const response = await adminFetch<{ ids: number[] }>(`/api/admin/tmdb-catalog-ids/${type}`);
+  return response.ids;
+};
+
+export interface TmdbDiscoverImportResponse {
+  ok: boolean;
+  total_found: number;
+  skipped_existing: number;
+  queued: number;
+  job: ImportJob | null;
+}
+
+export const importAllTmdbDiscover = (params: {
+  type: "movie" | "series";
+  genre_ids?: string;
+  year_from?: number;
+  year_to?: number;
+  sort_by?: string;
+  language?: string;
+  min_votes?: number;
+  exclude_existing?: boolean;
+}): Promise<TmdbDiscoverImportResponse> => adminPost("/api/admin/tmdb-discover-import", params);
+
+export const previewCleanupImportedCatalog = (): Promise<CleanupPreviewResponse> =>
+  adminPost("/api/admin/cleanup-imported-catalog", {});
+
+export const cleanupImportedCatalog = (): Promise<CleanupResponse> =>
+  adminPost("/api/admin/cleanup-imported-catalog", { confirm: true });
 
 export const importByTmdbIds = (
   tmdb_ids: number[],

@@ -5,18 +5,29 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-const { discoverFn, genresFn, importFn } = vi.hoisted(() => ({
+const { discoverFn, genresFn, catalogIdsFn, createJobFn, importAllFn, getJobFn } = vi.hoisted(() => ({
   discoverFn: vi.fn(),
   genresFn: vi.fn(),
-  importFn: vi.fn(),
+  catalogIdsFn: vi.fn(),
+  createJobFn: vi.fn(),
+  importAllFn: vi.fn(),
+  getJobFn: vi.fn(),
 }));
 
 vi.mock("@/lib/api", () => ({
   getTmdbGenres: (...args: unknown[]) => genresFn(...args),
   tmdbDiscover: (...args: unknown[]) => discoverFn(...args),
-  importByTmdbIds: (...args: unknown[]) => importFn(...args),
-  getMovies: vi.fn().mockResolvedValue([]),
-  getSeries: vi.fn().mockResolvedValue([]),
+  createImportJob: (...args: unknown[]) => createJobFn(...args),
+  getImportJob: (...args: unknown[]) => getJobFn(...args),
+  listImportJobs: vi.fn().mockResolvedValue({ jobs: [] }),
+  getTmdbCatalogIds: (...args: unknown[]) => catalogIdsFn(...args),
+  importAllTmdbDiscover: (...args: unknown[]) => importAllFn(...args),
+  adminListMovies: vi.fn(),
+  adminListSeries: vi.fn(),
+  bulkDeleteMovies: vi.fn(),
+  bulkDeleteSeries: vi.fn(),
+  previewCleanupImportedCatalog: vi.fn(),
+  cleanupImportedCatalog: vi.fn(),
 }));
 
 import TmdbScraper from "@/pages/admin/TmdbScraper";
@@ -62,9 +73,19 @@ describe("Explorador TMDB", () => {
   beforeEach(() => {
     discoverFn.mockReset();
     genresFn.mockReset();
-    importFn.mockReset();
+    catalogIdsFn.mockReset();
+    createJobFn.mockReset();
+    importAllFn.mockReset();
+    getJobFn.mockReset();
     genresFn.mockResolvedValue([]);
-    importFn.mockResolvedValue({ ok: true, summary: { imported: 0, existed_or_error: 0, total: 0 } });
+    catalogIdsFn.mockResolvedValue([]);
+    createJobFn.mockResolvedValue({
+      job: { id: "job-1", status: "queued", total: 2, processed: 0, imported: 0 },
+      invalid: [],
+    });
+    getJobFn.mockResolvedValue({
+      job: { id: "job-1", status: "completed", total: 2, processed: 2, imported: 1 },
+    });
     discoverFn.mockImplementation((params: { page: number }) =>
       Promise.resolve({
         ok: true,
@@ -72,7 +93,7 @@ describe("Explorador TMDB", () => {
         total_results: 400,
         total_pages: 4,
         page: params.page,
-        count: 60,
+        count: 500,
       }),
     );
   });
@@ -124,11 +145,13 @@ describe("Explorador TMDB", () => {
     renderScraper();
     await search(user);
 
-    expect(discoverFn).toHaveBeenCalledWith(expect.objectContaining({ count: 60 }));
+    expect(discoverFn).toHaveBeenCalledWith(expect.objectContaining({ count: 500, min_votes: 1000 }));
 
-    await user.selectOptions(screen.getByLabelText("Por bloque"), "120");
+    await user.selectOptions(screen.getByLabelText("Por bloque"), "1000");
 
-    await waitFor(() => expect(discoverFn).toHaveBeenLastCalledWith(expect.objectContaining({ count: 120 })));
+    await waitFor(() =>
+      expect(discoverFn).toHaveBeenLastCalledWith(expect.objectContaining({ count: 1000 })),
+    );
   });
 
   it("selecciona y quita solo los titulos del bloque visible", async () => {
@@ -141,5 +164,36 @@ describe("Explorador TMDB", () => {
 
     await user.click(screen.getByRole("button", { name: "Quitar este bloque" }));
     expect(screen.queryByRole("button", { name: /Importar 2 seleccionados/ })).toBeNull();
+  });
+
+  it("oculta el contenido ya existente y permite iniciar la importación completa", async () => {
+    const user = userEvent.setup();
+    catalogIdsFn.mockResolvedValue([101]);
+    importAllFn.mockResolvedValue({
+      ok: true,
+      total_found: 400,
+      skipped_existing: 120,
+      queued: 280,
+      job: { id: "job-all", status: "completed", total: 280, processed: 280, imported: 280 },
+    });
+    renderScraper();
+    await search(user);
+    await waitFor(() => expect(screen.getByRole("button", { name: /Película 101/ })).toBeInTheDocument());
+    await user.click(screen.getByLabelText(/Ocultar títulos que ya están/));
+    await waitFor(() => expect(screen.queryByRole("button", { name: /Película 101/ })).toBeNull());
+
+    await user.click(screen.getByRole("button", { name: "Importar todo el listado" }));
+    await user.click(await screen.findByRole("button", { name: "Iniciar importación completa" }));
+
+    await waitFor(() =>
+      expect(importAllFn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "movie",
+          min_votes: 1000,
+          exclude_existing: true,
+        }),
+      ),
+    );
+    expect(await screen.findByText(/280 \/ 280 · 280 nuevos/)).toBeInTheDocument();
   });
 });

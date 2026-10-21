@@ -83,6 +83,8 @@ export interface CreateJobInput {
   type: "movie" | "series";
   source: string;
   items: string[];
+  /** Internal callers may raise the limit for a bounded TMDB discover job. */
+  maxItems?: number;
 }
 
 /** Validates and normalises the list of identifiers of a job. */
@@ -123,11 +125,15 @@ export function normalizeJobItems(items: unknown): { valid: string[]; invalid: s
 export async function createImportJob(input: CreateJobInput): Promise<ImportJob> {
   const config = getConfig();
 
-  if (input.items.length > config.importBatchLimit) {
-    throw badRequest(
-      `La importación supera el límite configurado (${config.importBatchLimit} elementos por trabajo)`,
-      { limit: config.importBatchLimit, received: input.items.length },
-    );
+  const limit =
+    input.maxItems === undefined
+      ? config.importBatchLimit
+      : Math.min(10_000, Math.max(config.importBatchLimit, input.maxItems));
+  if (input.items.length > limit) {
+    throw badRequest(`La importación supera el límite configurado (${limit} elementos por trabajo)`, {
+      limit,
+      received: input.items.length,
+    });
   }
 
   const id = randomUUID();
@@ -443,53 +449,63 @@ export async function processImportJob(id: string): Promise<ImportJob | null> {
       return rows[0]?.status === "cancelled";
     };
 
-    const outcomes = await mapWithConcurrency(
-      items,
-      async (input) => importItemWithRetry(input, job.type, config.importMaxRetries),
-      {
-        concurrency: config.importConcurrency,
-        shouldStop: () => cancelled,
-        onProgress: async (completed) => {
-          processed = completed;
-          if (!cancelled) cancelled = await isCancelled();
-          const now = Date.now();
-          if (now - lastProgressAt < PROGRESS_THROTTLE_MS && completed !== items.length) return;
-          lastProgressAt = now;
+    // Import large catalog jobs in predictable groups of 50. This bounds the
+    // amount of in-flight work and lets cancellation take effect between
+    // groups while retaining the configured per-item concurrency.
+    const JOB_CHUNK_SIZE = 50;
+    for (let start = 0; start < items.length; start += JOB_CHUNK_SIZE) {
+      if (!cancelled) cancelled = await isCancelled();
+      if (cancelled) break;
+      const chunk = items.slice(start, start + JOB_CHUNK_SIZE);
+      const outcomes = await mapWithConcurrency(
+        chunk,
+        async (input) => importItemWithRetry(input, job.type, config.importMaxRetries),
+        {
+          concurrency: config.importConcurrency,
+          shouldStop: () => cancelled,
+          onProgress: async (completed) => {
+            processed = start + completed;
+            if (!cancelled) cancelled = await isCancelled();
+            const now = Date.now();
+            if (now - lastProgressAt < PROGRESS_THROTTLE_MS && processed !== items.length) return;
+            lastProgressAt = now;
 
-          // The lease is renewed with the progress, so a slow import is not
-          // considered abandoned.
-          await pool.query(
-            `UPDATE import_jobs
-                SET processed = $2,
-                    lease_expires_at = NOW() + ($3 || ' seconds')::interval,
-                    updated_at = NOW()
-              WHERE id = $1`,
-            [id, processed, String(config.importJobLeaseSeconds)],
-          );
+            // The lease is renewed with the progress, so a slow import is not
+            // considered abandoned.
+            await pool.query(
+              `UPDATE import_jobs
+                  SET processed = $2,
+                      lease_expires_at = NOW() + ($3 || ' seconds')::interval,
+                      updated_at = NOW()
+                WHERE id = $1`,
+              [id, processed, String(config.importJobLeaseSeconds)],
+            );
+          },
         },
-      },
-    );
+      );
 
-    for (const outcome of outcomes) {
-      if (wasSkipped(outcome)) {
-        // Not started: it is pending, not an error.
-        continue;
-      }
-      if (outcome.status === "fulfilled") {
-        const item = outcome.value;
-        results.push(item);
-        if (item.status === "imported") imported += 1;
-        else if (item.status === "error") failed += 1;
-        else skipped += 1;
-      } else {
-        failed += 1;
-        results.push({
-          input: items[results.length] ?? "desconocido",
-          title: null,
-          year: null,
-          status: "error",
-          error: "Error inesperado durante la importación",
-        });
+      for (let index = 0; index < outcomes.length; index++) {
+        const outcome = outcomes[index]!;
+        if (wasSkipped(outcome)) {
+          // Not started: it is pending, not an error.
+          continue;
+        }
+        if (outcome.status === "fulfilled") {
+          const item = outcome.value;
+          results.push(item);
+          if (item.status === "imported") imported += 1;
+          else if (item.status === "error") failed += 1;
+          else skipped += 1;
+        } else {
+          failed += 1;
+          results.push({
+            input: chunk[index] ?? "desconocido",
+            title: null,
+            year: null,
+            status: "error",
+            error: "Error inesperado durante la importación",
+          });
+        }
       }
     }
 
