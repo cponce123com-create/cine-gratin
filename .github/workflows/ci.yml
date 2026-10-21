@@ -58,6 +58,9 @@ jobs:
       - name: Comprobar el formato
         run: pnpm format:check
 
+      - name: Análisis estático (ESLint)
+        run: pnpm lint
+
       - name: TypeScript (raíz)
         run: pnpm typecheck
 

@@ -70,7 +70,7 @@ export default function Home() {
         title: item.title,
         poster_url: item.poster_url,
         ...(item.type === "series" && item.season && item.episode
-          ? { year: `T${item.season} E${item.episode}` as any }
+          ? { year: `T${item.season} E${item.episode}` }
           : {}),
       };
       return { item: base, type: item.type } as MixedItem;

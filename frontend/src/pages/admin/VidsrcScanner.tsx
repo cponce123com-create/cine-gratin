@@ -276,7 +276,7 @@ export default function VidsrcScanner() {
 
   const phaseLabel = () => {
     switch (phase) {
-      case "downloading":
+      case "downloading": {
         const moviePages = progress.pagesLoaded.movie;
         const seriesPages = progress.pagesLoaded.series;
         const movieTotal = progress.totalPages.movie;
@@ -288,6 +288,7 @@ export default function VidsrcScanner() {
         if (movieTotal > 0 && seriesTotal > 0)
           return `Descargando: películas ${moviePages}/${movieTotal} · series ${seriesPages}/${seriesTotal}`;
         return "Descargando listas de vidsrc.me...";
+      }
       case "matching":
         return `Cruzando catálogo: ${progress.matched} de ${progress.total} títulos`;
       case "saving":

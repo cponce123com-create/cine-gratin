@@ -183,8 +183,8 @@ export default function AdminSagas() {
       await importByTmdbIds([tmdbId], "movie");
       await refetchDetail();
       toast.success("Película importada correctamente");
-    } catch (err: any) {
-      toast.error(err.message || "Error al importar película");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Error al importar película");
     } finally {
       setImportingParts((prev) => {
         const next = new Set(prev);
@@ -230,8 +230,8 @@ export default function AdminSagas() {
           ? `Saga sincronizada. ${result.imported} películas importadas.`
           : "Saga sincronizada correctamente",
       );
-    } catch (err: any) {
-      toast.error(err.message || "Error al sincronizar saga");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Error al sincronizar saga");
     } finally {
       setRefreshing(false);
     }
@@ -253,8 +253,8 @@ export default function AdminSagas() {
       queryClient.invalidateQueries({ queryKey: ["sagas"] });
       queryClient.invalidateQueries({ queryKey: ["admin-sagas"] });
       setSelectedId(cid);
-    } catch (err: any) {
-      toast.error(err.message || "Error al agregar saga");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Error al agregar saga");
     } finally {
       setAddingSaga(false);
     }
@@ -276,8 +276,8 @@ export default function AdminSagas() {
       }
       queryClient.invalidateQueries({ queryKey: ["sagas"] });
       queryClient.invalidateQueries({ queryKey: ["admin-sagas"] });
-    } catch (err: any) {
-      toast.error(err.message || "Error al eliminar saga");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Error al eliminar saga");
     }
   };
 

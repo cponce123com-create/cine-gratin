@@ -4,6 +4,34 @@ import { pool } from "../lib/db";
 import { runAutoImport, importByImdbId, importMovie, importSeries } from "../jobs/auto-import";
 import { fetchMovieByTmdbId, fetchSeriesByTmdbId, tmdbFetch } from "../lib/tmdb-client";
 import { requireAdmin } from "../middlewares/adminAuth";
+
+/** Parte de una coleccion de TMDB. */
+interface TmdbCollectionPart {
+  id: number;
+  title: string;
+  poster_path: string | null;
+  backdrop_path: string | null;
+  release_date: string;
+  vote_average: number;
+  overview: string;
+}
+
+/** Coleccion de TMDB con sus partes. */
+interface TmdbCollection {
+  id: number;
+  name: string;
+  poster_path: string | null;
+  backdrop_path: string | null;
+  overview: string;
+  parts: TmdbCollectionPart[];
+}
+
+/** Resultado de /find de TMDB. */
+interface TmdbFindResult {
+  movie_results?: Array<{ id: number; title?: string; release_date?: string }>;
+  tv_results?: Array<{ id: number; name?: string; first_air_date?: string }>;
+}
+
 import { asyncHandler, parseBody, parseIntParam } from "../lib/http";
 import { badRequest, notFound, sendError } from "../lib/errors";
 import { logger } from "../lib/logger";
@@ -307,7 +335,7 @@ router.get("/admin/scan-networks-stream", async (req, res) => {
           });
           continue;
         }
-        const findData = (await findRes.json()) as any;
+        const findData = (await findRes.json()) as TmdbFindResult;
         const tmdbResults = type === "series" ? findData.tv_results : findData.movie_results;
         if (!tmdbResults?.length) {
           error++;
@@ -369,7 +397,7 @@ router.get("/admin/scan-networks-stream", async (req, res) => {
             error,
           });
         }
-      } catch (err) {
+      } catch {
         error++;
         send("progress", {
           i: i + 1,
@@ -385,7 +413,7 @@ router.get("/admin/scan-networks-stream", async (req, res) => {
 
     send("done", { total: items.length, updated, no_change, error });
     res.end();
-  } catch (e) {
+  } catch {
     send("error", { message: "Error inesperado durante la operacion" });
     res.end();
   }
@@ -414,7 +442,7 @@ router.post("/admin/scan-networks", async (req, res) => {
           results.push({ id: item.id, title: item.title, status: "error", error: "TMDB find failed" });
           continue;
         }
-        const findData = (await findRes.json()) as any;
+        const findData = (await findRes.json()) as TmdbFindResult;
         const tmdbResults = type === "series" ? findData.tv_results : findData.movie_results;
         if (!tmdbResults?.length) {
           results.push({ id: item.id, title: item.title, status: "error", error: "Not found on TMDB" });
@@ -448,7 +476,7 @@ router.post("/admin/scan-networks", async (req, res) => {
             status: "no_change",
           });
         }
-      } catch (err) {
+      } catch {
         results.push({ id: item.id, title: item.title, status: "error", error: "Error inesperado" });
       }
     }
@@ -887,7 +915,7 @@ router.get("/admin/vidsrc-scan-stream", async (req, res) => {
       const RETRIES = 2;
 
       // Página 1 para obtener totalPages
-      let totalPages = 0;
+      let totalPages: number;
       try {
         const r1 = await fetch(`https://vidsrc.me/${pathType}/latest/page-1.json`, {
           headers: { "User-Agent": "Mozilla/5.0", Accept: "application/json" },
@@ -1043,7 +1071,7 @@ router.get("/admin/vidsrc-scan-stream", async (req, res) => {
     }
 
     res.end();
-  } catch (e) {
+  } catch {
     if (!req.destroyed) {
       send("error", { message: "Error inesperado durante la operacion" });
       res.end();
@@ -1065,7 +1093,7 @@ router.post("/admin/import-by-tmdb-ids", async (req, res) => {
       const importer = type === "movie" ? importMovie : importSeries;
       const ok = await importer(tmdbId);
       results.push({ tmdb_id: tmdbId, status: ok ? "imported" : "existed_or_error" });
-    } catch (e) {
+    } catch {
       results.push({ tmdb_id: tmdbId, status: "error", error: "Error inesperado" });
     }
   }
@@ -1094,33 +1122,18 @@ router.post("/admin/sagas/:id/refresh", async (req, res) => {
     if (!tmdbRes.ok) {
       return res.status(404).json({ error: "Collection not found on TMDB" });
     }
-    const collection = (await tmdbRes.json()) as {
-      id: number;
-      name: string;
-      overview: string;
-      poster_path: string | null;
-      backdrop_path: string | null;
-      parts: Array<{
-        id: number;
-        title: string;
-        poster_path: string | null;
-        backdrop_path: string | null;
-        release_date: string;
-        vote_average: number;
-        overview: string;
-      }>;
-    };
+    const collection = (await tmdbRes.json()) as TmdbCollection;
 
     const TMDB_IMG = "https://image.tmdb.org/t/p";
     const parts = collection.parts
-      .filter((p: any) => p.title)
-      .sort((a: any, b: any) => {
+      .filter((p) => p.title)
+      .sort((a, b) => {
         const yearA = a.release_date ? Number(a.release_date.slice(0, 4)) : 0;
         const yearB = b.release_date ? Number(b.release_date.slice(0, 4)) : 0;
         return yearA - yearB;
       });
 
-    const tmdbIds = parts.map((p: any) => p.id);
+    const tmdbIds = parts.map((p) => p.id);
 
     // Find which movies exist locally
     const localResult = await pool.query(
@@ -1132,7 +1145,7 @@ router.post("/admin/sagas/:id/refresh", async (req, res) => {
       localMap.set(Number(row.tmdb_id), row.id);
     }
 
-    const enrichedParts = parts.map((p: any) => {
+    const enrichedParts = parts.map((p) => {
       const localId = localMap.get(p.id) || null;
       return {
         id: p.id,

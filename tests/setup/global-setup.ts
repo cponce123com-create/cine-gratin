@@ -22,7 +22,6 @@ export async function setup(): Promise<void> {
     await pool.query("SELECT 1");
   } catch {
     process.env["SKIP_DATABASE_TESTS"] = "true";
-    // eslint-disable-next-line no-console
     console.warn("[tests] Base de datos de pruebas no disponible: se ejecutan solo las pruebas unitarias.");
     return;
   }

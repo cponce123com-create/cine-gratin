@@ -1,4 +1,4 @@
-export default function SectionSkeleton({ title }: { title: string }) {
+export default function SectionSkeleton({ title: _title }: { title?: string }) {
   return (
     <div className="px-4 sm:px-6 lg:px-8 mb-10">
       <div className="flex items-center gap-3 mb-4">

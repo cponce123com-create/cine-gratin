@@ -82,7 +82,10 @@ export default function TmdbScraper() {
         if (s.tmdb_id) ids.add(s.tmdb_id);
       });
       setLocalIds(ids);
-    } catch {}
+    } catch (err) {
+      // Si no se puede leer el catálogo local, la vista sigue funcionando.
+      console.warn("No se pudo comprobar el catálogo local", err);
+    }
   }, []);
 
   // Load genres once, without duplicate calls

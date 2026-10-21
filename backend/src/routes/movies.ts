@@ -915,7 +915,7 @@ router.get(
 
       send("done", { total: rows.length, updated, skipped, error: errorCount });
       res.end();
-    } catch (err) {
+    } catch {
       send("error", { message: "Error durante el relleno del reparto" });
       res.end();
     }

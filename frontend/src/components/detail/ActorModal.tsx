@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchPerson } from "./helpers";
 import { FALLBACK_PERSON } from "./constants";
@@ -17,10 +17,21 @@ export function ActorModal({ personId, onClose }: { personId: number; onClose: (
     staleTime: 60 * 60 * 1000,
   });
 
-  const age =
-    person?.birthday && !person.deathday
-      ? Math.floor((Date.now() - new Date(person.birthday).getTime()) / (365.25 * 24 * 3600 * 1000))
-      : null;
+  // La edad se calcula con useMemo: Date.now() durante el render es una
+  // funcion impura (React lo descarta).
+  // La edad depende del reloj: se calcula al montar el componente (no
+  // durante el render) para no ejecutar funciones impuras en el renderizado.
+  const [age, setAge] = useState<number | null>(null);
+  useEffect(() => {
+    if (!person?.birthday || person.deathday) {
+      setAge(null);
+      return;
+    }
+    const years = Math.floor(
+      (Date.now() - new Date(person.birthday).getTime()) / (365.25 * 24 * 3600 * 1000),
+    );
+    setAge(years);
+  }, [person?.birthday, person?.deathday]);
 
   const creditsToShow = person ? (showAllCredits ? person.all_credits : person.all_credits.slice(0, 10)) : [];
 

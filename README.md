@@ -47,6 +47,7 @@ falta ejecutar ningún script de esquema por separado.
 
 ```bash
 pnpm lint:workflows  # Valida los workflows de GitHub Actions
+pnpm lint            # ESLint (0 errores; avisos informativos permitidos)
 pnpm format:check    # Prettier
 pnpm typecheck       # TypeScript (raíz) + frontend + backend
 pnpm test            # Suite de pruebas (Vitest)

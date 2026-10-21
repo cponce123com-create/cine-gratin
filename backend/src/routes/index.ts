@@ -29,6 +29,9 @@ const errorReportLimiter = rateLimit({
 
 const MAX_ERROR_FIELD_LENGTH = 2000;
 /** Control characters (including newlines) are stripped so log lines stay intact. */
+// Se eliminan los caracteres de control para que un cliente no pueda
+// falsificar lineas del registro.
+// eslint-disable-next-line no-control-regex
 const CONTROL_CHARS = /[\u0000-\u001f\u007f]/g;
 
 function sanitizeLogValue(value: unknown, maxLength = MAX_ERROR_FIELD_LENGTH): string {

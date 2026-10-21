@@ -896,7 +896,14 @@ router.get("/tmdb/collections/search", async (req, res) => {
       return;
     }
 
-    const data = (await searchRes.json()) as { results: any[] };
+    const data = (await searchRes.json()) as {
+      results: Array<{
+        id: number;
+        name?: string;
+        poster_path?: string | null;
+        backdrop_path?: string | null;
+      }>;
+    };
     const results = data.results.map((c) => ({
       id: c.id,
       name: c.name,

@@ -8,7 +8,8 @@ interface ConfirmDialogProps {
   cancelLabel?: string;
   tone?: "danger" | "default";
   busy?: boolean;
-  onConfirm: () => void;
+  /** Opcional: un dialogo sin accion de confirmacion es informativo. */
+  onConfirm?: () => void;
   onCancel: () => void;
 }
 
