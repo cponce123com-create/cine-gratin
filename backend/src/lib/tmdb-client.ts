@@ -171,23 +171,26 @@ export async function fetchMovieByTmdbId(tmdbId: number): Promise<Record<string,
   if (cached) return cached;
 
   try {
-    const [detailsRes, creditsRes, videosRes, extIdsRes, reviewsRes] = await Promise.all([
+    const [detailsRes, creditsRes, videosRes, extIdsRes, reviewsRes, keywordsRes] = await Promise.all([
       tmdbFetch(`/movie/${tmdbId}?language=es-MX`),
       tmdbFetch(`/movie/${tmdbId}/credits?language=es-MX`),
       tmdbFetch(`/movie/${tmdbId}/videos?language=es-MX&include_video_language=es,en`),
       tmdbFetch(`/movie/${tmdbId}/external_ids`),
       tmdbFetch(`/movie/${tmdbId}/reviews?language=es-MX`),
+      tmdbFetch(`/movie/${tmdbId}/keywords`),
     ]);
 
     if (!detailsRes.ok || !extIdsRes.ok) return null;
 
-    const [details, credits, videos, extIds, reviews] = (await Promise.all([
+    const [details, credits, videos, extIds, reviews, keywords] = (await Promise.all([
       detailsRes.json(),
       creditsRes.ok ? creditsRes.json() : Promise.resolve({ crew: [], cast: [] }),
       videosRes.ok ? videosRes.json() : Promise.resolve({ results: [] }),
       extIdsRes.json(),
       reviewsRes.ok ? reviewsRes.json() : Promise.resolve({ results: [] }),
+      keywordsRes.ok ? keywordsRes.json() : Promise.resolve({ keywords: [] }),
     ])) as [
+      Record<string, unknown>,
       Record<string, unknown>,
       Record<string, unknown>,
       Record<string, unknown>,
@@ -217,7 +220,7 @@ export async function fetchMovieByTmdbId(tmdbId: number): Promise<Record<string,
         profile_path: string | null;
         order: number;
       }>) || [];
-    const castList = castRaw.slice(0, 12).map((c) => c.name);
+    const castList = castRaw.slice(0, 30).map((c) => c.name);
     const castFull = castRaw.slice(0, 15).map((c) => ({
       id: c.id,
       name: c.name,
@@ -236,6 +239,8 @@ export async function fetchMovieByTmdbId(tmdbId: number): Promise<Record<string,
     const allReviews = parseReviews(reviewList);
 
     const genreList = (details.genres as Array<{ name: string }>) || [];
+    const keywordList = (keywords.keywords as Array<{ name: string }>) || [];
+    const keywordNames = keywordList.map((keyword) => keyword.name).filter(Boolean);
     const posterPath = details.poster_path as string | null;
     const backdropPath = details.backdrop_path as string | null;
     const releaseDate = (details.release_date as string) || "";
@@ -255,6 +260,7 @@ export async function fetchMovieByTmdbId(tmdbId: number): Promise<Record<string,
       rating,
       runtime,
       genres: genreList.map((g) => g.name),
+      keywords: keywordNames,
       language: (details.original_language as string) || "en",
       synopsis,
       director,
@@ -283,23 +289,26 @@ export async function fetchSeriesByTmdbId(tmdbId: number): Promise<Record<string
   if (cached) return cached;
 
   try {
-    const [detailsRes, creditsRes, videosRes, extIdsRes, reviewsRes] = await Promise.all([
+    const [detailsRes, creditsRes, videosRes, extIdsRes, reviewsRes, keywordsRes] = await Promise.all([
       tmdbFetch(`/tv/${tmdbId}?language=es-MX`),
       tmdbFetch(`/tv/${tmdbId}/credits?language=es-MX`),
       tmdbFetch(`/tv/${tmdbId}/videos?language=es-MX&include_video_language=es,en`),
       tmdbFetch(`/tv/${tmdbId}/external_ids`),
       tmdbFetch(`/tv/${tmdbId}/reviews?language=es-MX`),
+      tmdbFetch(`/tv/${tmdbId}/keywords`),
     ]);
 
     if (!detailsRes.ok || !extIdsRes.ok) return null;
 
-    const [details, credits, videos, extIds, reviews] = (await Promise.all([
+    const [details, credits, videos, extIds, reviews, keywords] = (await Promise.all([
       detailsRes.json(),
       creditsRes.ok ? creditsRes.json() : Promise.resolve({ crew: [], cast: [] }),
       videosRes.ok ? videosRes.json() : Promise.resolve({ results: [] }),
       extIdsRes.json(),
       reviewsRes.ok ? reviewsRes.json() : Promise.resolve({ results: [] }),
+      keywordsRes.ok ? keywordsRes.json() : Promise.resolve({ results: [] }),
     ])) as [
+      Record<string, unknown>,
       Record<string, unknown>,
       Record<string, unknown>,
       Record<string, unknown>,
@@ -351,6 +360,8 @@ export async function fetchSeriesByTmdbId(tmdbId: number): Promise<Record<string
     const allReviews = parseReviews(reviewList);
 
     const genreList = (details.genres as Array<{ name: string }>) || [];
+    const keywordList = (keywords.results as Array<{ name: string }>) || [];
+    const keywordNames = keywordList.map((keyword) => keyword.name).filter(Boolean);
     const posterPath = details.poster_path as string | null;
     const backdropPath = details.backdrop_path as string | null;
     const firstAir = (details.first_air_date as string) || "";
@@ -389,10 +400,11 @@ export async function fetchSeriesByTmdbId(tmdbId: number): Promise<Record<string
       end_year: endYear,
       rating: Math.round(((details.vote_average as number) || 0) * 10) / 10,
       genres: genreList.map((g) => g.name),
+      keywords: keywordNames,
       language: (details.original_language as string) || "en",
       synopsis,
       creators: creatorNames,
-      cast_list: castRaw.slice(0, 12).map((c) => c.name),
+      cast_list: castRaw.slice(0, 30).map((c) => c.name),
       cast_full: seriesCastFull,
       networks,
       poster_url: posterPath ? `${TMDB_IMG}/w500${posterPath}` : "",
