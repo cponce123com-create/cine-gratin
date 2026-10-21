@@ -250,7 +250,7 @@ router.get(
     if (q) {
       params.push(`%${escapeLikePattern(q)}%`);
       conditions.push(
-        `(title ILIKE ${params.length} ESCAPE '\\' OR synopsis ILIKE ${params.length} ESCAPE '\\')`,
+        `(title ILIKE $${params.length} ESCAPE '\\' OR synopsis ILIKE $${params.length} ESCAPE '\\')`,
       );
     }
     if (genre) {
