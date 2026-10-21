@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Helmet } from "react-helmet-async";
 import { getSportMatches } from "@/lib/sports-api";
@@ -125,13 +125,16 @@ export default function Sports() {
     setSelectedYtId(null);
   };
 
-  const handleIptvNext = () => {
+  // The callback is memoised on purpose: the HLS player effect depends on it,
+  // and an unstable reference tears the stream down and reloads it on every
+  // render of the page.
+  const handleIptvNext = useCallback(() => {
     if (!selectedIptvChannel) return;
     const idx = sportChannels.findIndex((c) => c.id === selectedIptvChannel.id);
     if (idx < sportChannels.length - 1) {
       setSelectedIptvChannel(sportChannels[idx + 1]);
     }
-  };
+  }, [selectedIptvChannel, sportChannels]);
 
   // ── Render ───────────────────────────────────────────────────────────────────
 

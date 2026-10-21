@@ -20,6 +20,12 @@
     overflow-x: hidden;
   }
 
+  /* Visible focus for keyboard users on every interactive element. */
+  :focus-visible {
+    outline: 2px solid #e50914;
+    outline-offset: 2px;
+  }
+
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -40,6 +46,16 @@
 }
 
 @layer components {
+  /* Horizontal scrollers without a visible scrollbar. */
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
   .carousel-scroll {
     scrollbar-width: none;
     -ms-overflow-style: none;
@@ -107,5 +123,31 @@
     -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
+  }
+}
+
+/* ── Reduced motion ──────────────────────────────────────────────────────────
+   Users who ask the system to reduce motion get no animation, no smooth
+   scrolling and no transform effects. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .card-hover:hover {
+    transform: none;
+  }
+
+  .carousel-scroll {
+    scroll-behavior: auto;
   }
 }

@@ -1,7 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { getMovies, getSeries, cleanupNoVidsrc } from "@/lib/api";
-import { getToken } from "@/lib/auth";
 import { BASE_URL } from "@/lib/api";
 import { PlayTriangleIcon } from "@/components/icons";
 import type { Movie, Series } from "@/lib/types";
@@ -121,9 +120,9 @@ export default function VidsrcScanner() {
       total: 0,
     });
 
-    const token = getToken();
-    const url = `${BASE_URL}/api/admin/vidsrc-scan-stream${token ? `?token=${encodeURIComponent(token)}` : ""}`;
-    const es = new EventSource(url);
+    const url = `${BASE_URL}/api/admin/vidsrc-scan-stream`;
+    // The session cookie is sent automatically (same-origin) or with credentials.
+    const es = new EventSource(url, { withCredentials: true });
     eventSourceRef.current = es;
 
     es.addEventListener("start", (e: MessageEvent) => {

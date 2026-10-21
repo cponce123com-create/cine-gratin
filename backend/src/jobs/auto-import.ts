@@ -1,137 +1,24 @@
+/**
+ * Automatic catalogue import.
+ *
+ * The scheduled run is protected by a PostgreSQL advisory lock so several
+ * instances (Render can run more than one) never import at the same time.
+ * The heavy lifting is delegated to `lib/catalog-import`, which contains the
+ * idempotent write logic.
+ */
 import cron from "node-cron";
 import { pool } from "../lib/db";
 import { logger } from "../lib/logger";
-import { tmdbFetch, fetchMovieByTmdbId, fetchSeriesByTmdbId, makeSlug } from "../lib/tmdb-client";
+import { tmdbFetch } from "../lib/tmdb-client";
+import { mapWithConcurrency } from "../lib/concurrency";
+import { findExisting, importMovieByTmdbId, importSeriesByTmdbId, makeSlug } from "../lib/catalog-import";
+
+/** Advisory lock that serialises the automatic import across instances. */
+const AUTO_IMPORT_LOCK_KEY = 918_273_648;
 
 interface TmdbListItem {
   id: number;
   media_type?: string;
-}
-
-async function getImdbIdExists(imdbId: string, table: "movies" | "cv_series"): Promise<boolean> {
-  const col = table === "movies" ? "imdb_id" : "imdb_id";
-  const { rows } = await pool.query(`SELECT 1 FROM ${table} WHERE ${col} = $1 LIMIT 1`, [imdbId]);
-  return rows.length > 0;
-}
-
-export async function importMovie(tmdbId: number): Promise<boolean> {
-  try {
-    const data = await fetchMovieByTmdbId(tmdbId);
-    if (!data || !data.imdb_id) return false;
-
-    // Skip movies shorter than 30 minutes (cortometrajes)
-    if ((data.runtime as number) > 0 && (data.runtime as number) < 30) {
-      logger.info({ tmdbId, title: data.title, runtime: data.runtime }, "Skip: movie shorter than 30 min");
-      return false;
-    }
-
-    const exists = await getImdbIdExists(data.imdb_id as string, "movies");
-    if (exists) return false;
-
-    const id = `auto_${data.imdb_id}`;
-    const slug = makeSlug(data.title as string, data.year as number);
-
-    await pool.query(
-      `INSERT INTO movies (id, imdb_id, tmdb_id, title, year, rating, runtime, genres, language, synopsis,
-        director, cast_list, cast_full, networks, poster_url, background_url, yt_trailer_code, videos, reviews,
-        mpa_rating, slug, featured, video_sources, torrents, views, date_added, auto_imported)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
-       ON CONFLICT (id) DO UPDATE SET
-         cast_full = EXCLUDED.cast_full,
-         tmdb_id = COALESCE(movies.tmdb_id, EXCLUDED.tmdb_id),
-         poster_url = COALESCE(NULLIF(movies.poster_url, ''), EXCLUDED.poster_url),
-         background_url = COALESCE(NULLIF(movies.background_url, ''), EXCLUDED.background_url)`,
-      [
-        id,
-        data.imdb_id,
-        tmdbId,
-        data.title,
-        data.year,
-        data.rating,
-        data.runtime,
-        data.genres,
-        data.language,
-        data.synopsis,
-        data.director,
-        data.cast_list,
-        JSON.stringify(data.cast_full ?? []),
-        data.networks ?? [],
-        data.poster_url,
-        data.background_url,
-        data.yt_trailer_code,
-        JSON.stringify(data.videos ?? []),
-        JSON.stringify(data.reviews ?? []),
-        data.mpa_rating,
-        slug,
-        false,
-        "[]",
-        "[]",
-        0,
-        new Date().toISOString(),
-        true,
-      ],
-    );
-    return true;
-  } catch (err) {
-    logger.warn({ err, tmdbId }, "Failed to import movie");
-    return false;
-  }
-}
-
-export async function importSeries(tmdbId: number): Promise<boolean> {
-  try {
-    const data = await fetchSeriesByTmdbId(tmdbId);
-    if (!data || !data.imdb_id) return false;
-
-    const exists = await getImdbIdExists(data.imdb_id as string, "cv_series");
-    if (exists) return false;
-
-    const id = `auto_${data.imdb_id}`;
-
-    await pool.query(
-      `INSERT INTO cv_series (id, imdb_id, tmdb_id, title, year, end_year, rating, genres, language,
-        synopsis, creators, cast_list, cast_full, networks, poster_url, background_url, yt_trailer_code,
-        videos, reviews, status, total_seasons, seasons_data, video_sources,
-        featured, views, date_added, auto_imported)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
-       ON CONFLICT (id) DO UPDATE SET
-         cast_full = EXCLUDED.cast_full,
-         tmdb_id = COALESCE(cv_series.tmdb_id, EXCLUDED.tmdb_id)`,
-      [
-        id,
-        data.imdb_id,
-        data.tmdb_id,
-        data.title,
-        data.year,
-        data.end_year || null,
-        data.rating,
-        data.genres,
-        data.language,
-        data.synopsis,
-        data.creators,
-        data.cast_list,
-        JSON.stringify(data.cast_full ?? []),
-        data.networks ?? [],
-        data.poster_url,
-        data.background_url,
-        data.yt_trailer_code,
-        JSON.stringify(data.videos ?? []),
-        JSON.stringify(data.reviews ?? []),
-        data.status,
-        data.total_seasons,
-        JSON.stringify(data.seasons_data || []),
-        "[]",
-        false,
-        0,
-        new Date().toISOString(),
-        true,
-      ],
-    );
-    return true;
-  } catch (err) {
-    logger.warn({ err, tmdbId }, "Failed to import series");
-    return false;
-  }
 }
 
 export type IdImportStatus = "imported" | "existed" | "not_found" | "error";
@@ -144,23 +31,35 @@ export interface IdImportResult {
   error?: string;
 }
 
+/** Imports a movie by TMDB id. Returns true when a new entry was created. */
+export async function importMovie(tmdbId: number): Promise<boolean> {
+  const outcome = await importMovieByTmdbId(tmdbId);
+  return outcome.status === "imported";
+}
+
+/** Imports a series by TMDB id. Returns true when a new entry was created. */
+export async function importSeries(tmdbId: number): Promise<boolean> {
+  const outcome = await importSeriesByTmdbId(tmdbId);
+  return outcome.status === "imported";
+}
+
+/**
+ * Imports a title by IMDb id.
+ * Sports events use custom identifiers (`ev...`) that do not exist in TMDB;
+ * those are stored as placeholder entries.
+ */
 export async function importByImdbId(imdbId: string, type: "movie" | "series"): Promise<IdImportResult> {
-  const apiKey = process.env["TMDB_API_KEY"];
-  if (!apiKey) {
-    return { imdb_id: imdbId, title: null, status: "error", error: "TMDB_API_KEY not configured" };
+  if (!process.env["TMDB_API_KEY"]) {
+    return { imdb_id: imdbId, title: null, status: "error", error: "TMDB_API_KEY no configurada" };
   }
 
   try {
-    // If it's a custom ID (like "ev"), we might not find it on TMDB
-    // For now, let's allow it to be added manually if it doesn't exist
     if (imdbId.startsWith("ev")) {
-      const table = type === "movie" ? "movies" : "cv_series";
-      const exists = await getImdbIdExists(imdbId, table);
-      if (exists) {
+      const existing = await findExisting(type, { imdbId });
+      if (existing) {
         return { imdb_id: imdbId, title: "Evento Deportivo", status: "existed" };
       }
 
-      // Create a placeholder entry for custom IDs
       const id = `custom_${imdbId}`;
       const title = `Evento ${imdbId}`;
       const slug = makeSlug(title, new Date().getFullYear());
@@ -207,7 +106,6 @@ export async function importByImdbId(imdbId: string, type: "movie" | "series"): 
       return { imdb_id: imdbId, title, status: "imported" };
     }
 
-    // Find the TMDB entry by IMDb ID
     const findRes = await tmdbFetch(`/find/${imdbId}?external_source=imdb_id`);
     if (!findRes.ok) {
       return { imdb_id: imdbId, title: null, status: "not_found" };
@@ -234,87 +132,97 @@ export async function importByImdbId(imdbId: string, type: "movie" | "series"): 
       : ((results[0] as { first_air_date?: string }).first_air_date ?? "");
     const year = rawDate ? Number(rawDate.slice(0, 4)) : null;
 
-    // Check if already in DB
-    const table = isMovie ? "movies" : "cv_series";
-    const exists = await getImdbIdExists(imdbId, table);
-    if (exists) {
+    const existing = await findExisting(type, { imdbId });
+    if (existing) {
       return { imdb_id: imdbId, title: rawTitle, year, status: "existed" };
     }
 
-    // Import it
-    const imported = isMovie ? await importMovie(tmdbId) : await importSeries(tmdbId);
+    const outcome = isMovie ? await importMovieByTmdbId(tmdbId) : await importSeriesByTmdbId(tmdbId);
+
     return {
       imdb_id: imdbId,
-      title: rawTitle,
-      year,
-      status: imported ? "imported" : "error",
+      title: outcome.title ?? rawTitle,
+      year: outcome.year ?? year,
+      status: outcome.status === "imported" ? "imported" : outcome.status === "existed" ? "existed" : "error",
+      ...(outcome.error ? { error: outcome.error } : {}),
     };
   } catch (err) {
-    return { imdb_id: imdbId, title: null, status: "error", error: String(err) };
+    logger.warn({ err, imdbId, type }, "Failed to import by IMDb id");
+    return { imdb_id: imdbId, title: null, status: "error", error: "Error al importar" };
   }
 }
 
+const ALL_SOURCES = [
+  "/trending/movie/day",
+  "/trending/movie/week",
+  "/trending/tv/day",
+  "/trending/tv/week",
+  "/movie/upcoming?language=es-MX&region=MX",
+  "/movie/top_rated?language=es-MX",
+  "/tv/top_rated?language=es-MX",
+  "/movie/popular?language=es-MX",
+  "/tv/popular?language=es-MX",
+];
+
+/**
+ * Runs the automatic import over the configured TMDB sources.
+ * Safe to call concurrently: the advisory lock guarantees a single run.
+ */
 export async function runAutoImport(
   sources?: string[],
 ): Promise<{ moviesImported: number; seriesImported: number; totalChecked: number }> {
-  const apiKey = process.env["TMDB_API_KEY"];
-  if (!apiKey) {
+  if (!process.env["TMDB_API_KEY"]) {
     logger.warn("TMDB_API_KEY not set, skipping auto-import");
     return { moviesImported: 0, seriesImported: 0, totalChecked: 0 };
   }
 
-  logger.info({ sources }, "Auto-import: starting");
-  let moviesImported = 0;
-  let seriesImported = 0;
-  let totalChecked = 0;
-
-  const ALL_SOURCES = [
-    "/trending/movie/day",
-    "/trending/movie/week",
-    "/trending/tv/day",
-    "/trending/tv/week",
-    "/movie/upcoming?language=es-MX&region=MX",
-    "/movie/top_rated?language=es-MX",
-    "/tv/top_rated?language=es-MX",
-    "/movie/popular?language=es-MX",
-    "/tv/popular?language=es-MX",
-  ];
-
-  const activeSources = sources && sources.length > 0 ? sources : ALL_SOURCES;
+  const client = await pool.connect();
+  let locked = false;
 
   try {
-    const responses = await Promise.all(activeSources.map((s) => tmdbFetch(s)));
-    const data = (await Promise.all(responses.map((r) => (r.ok ? r.json() : { results: [] })))) as {
-      results: TmdbListItem[];
-    }[];
+    const lockResult = await client.query("SELECT pg_try_advisory_lock($1) AS locked", [
+      AUTO_IMPORT_LOCK_KEY,
+    ]);
+    locked = Boolean((lockResult.rows[0] as { locked: boolean }).locked);
+    if (!locked) {
+      logger.info("Auto-import already running in another instance, skipping");
+      return { moviesImported: 0, seriesImported: 0, totalChecked: 0 };
+    }
+
+    logger.info({ sources }, "Auto-import: starting");
+    const activeSources = sources && sources.length > 0 ? sources : ALL_SOURCES;
+
+    const responses = await Promise.all(activeSources.map((source) => tmdbFetch(source)));
+    const data = (await Promise.all(
+      responses.map((response) => (response.ok ? response.json() : { results: [] })),
+    )) as { results: TmdbListItem[] }[];
 
     const movieIds = new Set<number>();
     const seriesIds = new Set<number>();
 
     activeSources.forEach((source, index) => {
-      const results = data[index].results || [];
+      const results = data[index]?.results || [];
       const isTv = source.includes("/tv/");
-
       results.forEach((item) => {
-        if (isTv) {
-          seriesIds.add(item.id);
-        } else {
-          movieIds.add(item.id);
-        }
+        if (isTv) seriesIds.add(item.id);
+        else movieIds.add(item.id);
       });
     });
 
-    totalChecked = movieIds.size + seriesIds.size;
+    const totalChecked = movieIds.size + seriesIds.size;
+    let moviesImported = 0;
+    let seriesImported = 0;
 
-    for (const tmdbId of movieIds) {
-      const imported = await importMovie(tmdbId);
-      if (imported) moviesImported++;
-    }
+    // Bounded concurrency keeps the TMDB quota and the API latency under control.
+    const movieResults = await mapWithConcurrency([...movieIds], async (tmdbId) => importMovie(tmdbId), {
+      concurrency: 3,
+    });
+    moviesImported = movieResults.filter((result) => result.status === "fulfilled" && result.value).length;
 
-    for (const tmdbId of seriesIds) {
-      const imported = await importSeries(tmdbId);
-      if (imported) seriesImported++;
-    }
+    const seriesResults = await mapWithConcurrency([...seriesIds], async (tmdbId) => importSeries(tmdbId), {
+      concurrency: 3,
+    });
+    seriesImported = seriesResults.filter((result) => result.status === "fulfilled" && result.value).length;
 
     await pool.query(
       `INSERT INTO cv_auto_import_log (movies_imported, series_imported, total_checked, status)
@@ -325,24 +233,35 @@ export async function runAutoImport(
     logger.info({ moviesImported, seriesImported, totalChecked }, "Auto-import: completed");
     return { moviesImported, seriesImported, totalChecked };
   } catch (err) {
-    const msg = String(err);
+    const msg = err instanceof Error ? err.message : String(err);
     logger.error({ err }, "Auto-import: failed");
-    await pool.query(
-      `INSERT INTO cv_auto_import_log (movies_imported, series_imported, total_checked, status, error_message)
-       VALUES ($1, $2, $3, 'error', $4)`,
-      [moviesImported, seriesImported, totalChecked, msg],
-    );
-    return { moviesImported, seriesImported, totalChecked };
+    await pool
+      .query(
+        `INSERT INTO cv_auto_import_log (movies_imported, series_imported, total_checked, status, error_message)
+         VALUES ($1, $2, $3, 'error', $4)`,
+        [0, 0, 0, msg.slice(0, 500)],
+      )
+      .catch(() => {});
+    return { moviesImported: 0, seriesImported: 0, totalChecked: 0 };
+  } finally {
+    if (locked) {
+      await client.query("SELECT pg_advisory_unlock($1)", [AUTO_IMPORT_LOCK_KEY]).catch(() => {});
+    }
+    client.release();
   }
 }
 
+/** True when the automatic import is enabled in the settings table. */
+async function isAutoImportEnabled(): Promise<boolean> {
+  const { rows } = await pool.query("SELECT value FROM cv_settings WHERE key = 'auto_import_enabled'");
+  return rows[0]?.value !== "false";
+}
+
+/** Schedules the daily automatic import and triggers one run at startup. */
 export function startAutoImportCron(): void {
-  // Run every 24 hours at 3:00 AM
   cron.schedule("0 3 * * *", async () => {
     try {
-      const { rows } = await pool.query("SELECT value FROM cv_settings WHERE key = 'auto_import_enabled'");
-      const enabled = rows[0]?.value !== "false";
-      if (!enabled) {
+      if (!(await isAutoImportEnabled())) {
         logger.info("Auto-import: disabled, skipping scheduled run");
         return;
       }
@@ -354,17 +273,13 @@ export function startAutoImportCron(): void {
 
   logger.info("Auto-import cron scheduled (daily at 03:00)");
 
-  // Also run once at startup in the background
   setTimeout(async () => {
     try {
-      const { rows } = await pool.query("SELECT value FROM cv_settings WHERE key = 'auto_import_enabled'");
-      const enabled = rows[0]?.value !== "false";
-      if (enabled) {
-        logger.info("Auto-import: running initial import at startup");
-        await runAutoImport();
-      }
+      if (!(await isAutoImportEnabled())) return;
+      logger.info("Auto-import: running initial import at startup");
+      await runAutoImport();
     } catch (err) {
       logger.error({ err }, "Auto-import startup run error");
     }
-  }, 10000); // 10s delay after startup
+  }, 10_000);
 }

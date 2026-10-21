@@ -1,8 +1,58 @@
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useEffect, useRef } from "react";
 
+/**
+ * Origins allowed to be embedded.
+ *
+ * The player receives the media URL from the query string, so it must never
+ * embed an arbitrary origin: that would turn the player into a frame for any
+ * website. The list matches the providers used by the catalogue.
+ */
+const ALLOWED_EMBED_ORIGINS = [
+  "https://www.youtube.com",
+  "https://youtube.com",
+  "https://www.youtube-nocookie.com",
+  "https://youtube-nocookie.com",
+  "https://youtu.be",
+  "https://vidsrc.me",
+  "https://vidsrc.xyz",
+  "https://vidsrc.to",
+  "https://vidsrc.mov",
+  "https://www.2embed.cc",
+  "https://2embed.org",
+  "https://vidembed.io",
+  "https://multiembed.mov",
+];
+
+/** Returns the URL when its origin is allowed, or null otherwise. */
+function allowedUrl(url: string): string | null {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
+    const origin = parsed.origin.toLowerCase();
+    const permitted = ALLOWED_EMBED_ORIGINS.some(
+      (allowed) => origin === allowed || origin.endsWith(`.${allowed.replace(/^https?:\/\//, "")}`),
+    );
+    return permitted ? url : null;
+  } catch {
+    return null;
+  }
+}
+
 function isYouTube(url: string): boolean {
-  return url.includes("youtube.com") || url.includes("youtu.be") || url.includes("youtube-nocookie.com");
+  try {
+    const { hostname } = new URL(url);
+    return (
+      hostname === "youtube.com" ||
+      hostname.endsWith(".youtube.com") ||
+      hostname === "youtu.be" ||
+      hostname === "youtube-nocookie.com" ||
+      hostname.endsWith(".youtube-nocookie.com")
+    );
+  } catch {
+    return false;
+  }
 }
 
 function toEmbedUrl(url: string): string {
@@ -23,8 +73,11 @@ export default function Player() {
   const title = params.get("title") ?? "Reproduciendo";
   const label = params.get("label") ?? "";
 
-  const youtube = isYouTube(rawUrl);
-  const embedUrl = youtube ? toEmbedUrl(rawUrl) : rawUrl;
+  // Only allowed origins are embedded; anything else is refused.
+  const safeUrl = allowedUrl(rawUrl);
+  const blocked = rawUrl.length > 0 && safeUrl === null;
+  const youtube = safeUrl ? isYouTube(safeUrl) : false;
+  const embedUrl = safeUrl ? (youtube ? toEmbedUrl(safeUrl) : safeUrl) : "";
 
   // Auto-focus video on mount
   useEffect(() => {
@@ -60,13 +113,30 @@ export default function Player() {
       </div>
 
       {/* Player */}
-      {!rawUrl ? (
+      {blocked ? (
+        <div className="flex-1 flex items-center justify-center px-6">
+          <div className="text-center max-w-md">
+            <p className="text-red-400 text-lg mb-2">Origen de reproducción no permitido</p>
+            <p className="text-gray-500 text-sm mb-4">
+              La URL solicitada no pertenece a ninguno de los proveedores de streaming compatibles.
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              className="text-brand-red hover:text-red-400 underline text-sm focus-visible:ring-2 focus-visible:ring-brand-red"
+            >
+              Volver
+            </button>
+          </div>
+        </div>
+      ) : !rawUrl ? (
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <p className="text-gray-400 text-lg mb-4">No hay contenido para reproducir.</p>
             <button
+              type="button"
               onClick={() => navigate(-1)}
-              className="text-brand-red hover:text-red-400 underline text-sm"
+              className="text-brand-red hover:text-red-400 underline text-sm focus-visible:ring-2 focus-visible:ring-brand-red"
             >
               Volver
             </button>

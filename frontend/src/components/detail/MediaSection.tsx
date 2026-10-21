@@ -186,14 +186,28 @@ export function RecommendationsSection({
 }) {
   const { data: allMovies = [] } = useQuery({
     queryKey: ["movies"],
-    queryFn: () => import("@/lib/api").then((m) => m.getMovies({ limit: 5000 })),
+    queryFn: () =>
+      import("@/lib/api").then(async (m) => {
+        const pages = await Promise.all([
+          m.getMovies({ page: 1, limit: 100 }),
+          m.getMovies({ page: 2, limit: 100 }),
+        ]);
+        return pages.flat();
+      }),
     staleTime: 5 * 60 * 1000,
     enabled: mediaType === "movie",
   });
 
   const { data: allSeries = [] } = useQuery({
     queryKey: ["series"],
-    queryFn: () => import("@/lib/api").then((m) => m.getSeries({ limit: 5000 })),
+    queryFn: () =>
+      import("@/lib/api").then(async (m) => {
+        const pages = await Promise.all([
+          m.getSeries({ page: 1, limit: 100 }),
+          m.getSeries({ page: 2, limit: 100 }),
+        ]);
+        return pages.flat();
+      }),
     staleTime: 5 * 60 * 1000,
     enabled: mediaType === "series",
   });

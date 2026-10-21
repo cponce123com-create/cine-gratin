@@ -1,36 +1,24 @@
+/**
+ * Authorisation middleware.
+ *
+ * `adminAuth` protects every `/api/admin/*` route. Routes outside that
+ * namespace that mutate data (settings, servers, sports, events, downloads)
+ * call `requireAdmin` explicitly, so authorisation is always visible at the
+ * point of use instead of being implied by a path prefix.
+ */
 import type { Request, Response, NextFunction } from "express";
-import { isValidToken } from "../lib/auth-utils";
+import { extractToken, isValidToken } from "../lib/auth-utils";
+import { logger } from "../lib/logger";
 
-/**
- * Extracts the bearer token from Authorization header or ?token= query param.
- */
-function extractToken(req: Request): string | undefined {
-  const authHeader = req.headers["authorization"];
-  const queryToken = req.query["token"] as string | undefined;
-  return authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : queryToken;
-}
-
-/**
- * Shared auth check — validates ADMIN_SECRET token.
- * Returns true if authorized, false if response was sent (401).
- * Safe to use in non-/admin routes (events, sports).
- */
-export function requireAuth(req: Request, res: Response): boolean {
-  const secret = process.env["ADMIN_SECRET"];
-  if (!secret) return true; // Dev mode: skip auth
+/** Returns true when the request carries a valid admin session. */
+export function isAuthorized(req: Request): boolean {
   const token = extractToken(req);
-  if (!token || token !== secret) {
-    res.status(401).json({ error: "No autorizado" });
-    return false;
-  }
-  return true;
+  return Boolean(token && isValidToken(token));
 }
 
 /**
- * Middleware that protects all /admin/* routes.
- * Expects: Authorization: Bearer <token>
- * Accepts valid JWTs and (for backward compat) the raw ADMIN_SECRET.
- * If ADMIN_SECRET is not set, auth is skipped (development mode).
+ * Express middleware guarding administrative routes.
+ * Rejects with 401 when no valid session is present.
  */
 export function adminAuth(req: Request, res: Response, next: NextFunction): void {
   if (!req.path.startsWith("/admin")) {
@@ -38,14 +26,24 @@ export function adminAuth(req: Request, res: Response, next: NextFunction): void
     return;
   }
 
-  const authHeader = req.headers["authorization"];
-  const queryToken = req.query["token"] as string | undefined;
-  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : queryToken;
-
-  if (!token || !isValidToken(token)) {
-    res.status(401).json({ error: "No autorizado" });
+  if (!isAuthorized(req)) {
+    logger.warn({ method: req.method, url: req.path }, "Rejected unauthorized admin request");
+    res.status(401).json({ error: "No autorizado", code: "unauthorized" });
     return;
   }
 
+  next();
+}
+
+/**
+ * Express middleware for administrative routes outside the `/admin`
+ * namespace. Use it on every write operation.
+ */
+export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
+  if (!isAuthorized(req)) {
+    logger.warn({ method: req.method, url: req.path }, "Rejected unauthorized request");
+    res.status(401).json({ error: "No autorizado", code: "unauthorized" });
+    return;
+  }
   next();
 }

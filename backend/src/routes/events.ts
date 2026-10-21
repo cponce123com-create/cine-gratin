@@ -1,78 +1,61 @@
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 import { pool } from "../lib/db";
-import { requireAuth } from "../lib/auth-utils";
+import { requireAdmin } from "../middlewares/adminAuth";
+import { asyncHandler, parseBody, parseIntParam, parseStringParam } from "../lib/http";
+import { badRequest, notFound, sendError } from "../lib/errors";
+import { z } from "zod";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
-// ─── Init table ───────────────────────────────────────────────────────────────
+// ─── Schemas ──────────────────────────────────────────────────────────────────
 
-export async function initEventsTables() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS event_channels (
-      id          SERIAL PRIMARY KEY,
-      name        TEXT NOT NULL,
-      url         TEXT NOT NULL UNIQUE,
-      keyword     TEXT,
-      date_added  TIMESTAMPTZ DEFAULT NOW()
-    );
-
-    CREATE TABLE IF NOT EXISTS events (
-      id           SERIAL PRIMARY KEY,
-      channel_id   INTEGER REFERENCES event_channels(id) ON DELETE CASCADE,
-      yt_id        TEXT NOT NULL UNIQUE,
-      title        TEXT NOT NULL,
-      thumbnail    TEXT,
-      published_at TIMESTAMPTZ,
-      date_added   TIMESTAMPTZ DEFAULT NOW()
-    );
-
-    CREATE TABLE IF NOT EXISTS event_settings (
-      key   TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-  `);
-
-  // Migration: allow null keyword
-  await pool.query(`
-    ALTER TABLE event_channels ALTER COLUMN keyword DROP NOT NULL;
-    ALTER TABLE event_channels ALTER COLUMN keyword DROP DEFAULT;
-  `).catch(() => {});
-}
+const channelSchema = z.object({
+  name: z.string().min(1, "El nombre es obligatorio").max(120),
+  url: z
+    .string()
+    .min(1, "La URL es obligatoria")
+    .max(300)
+    .refine(
+      (value) => /^https:\/\/(www\.)?(youtube\.com|youtu\.be)\//i.test(value),
+      "La URL debe ser un canal de YouTube (https://www.youtube.com/...)",
+    ),
+  keyword: z.string().max(120).optional().default(""),
+});
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 async function getYoutubeApiKey(): Promise<string> {
   if (process.env["YOUTUBE_API_KEY"]) return process.env["YOUTUBE_API_KEY"];
-  const { rows } = await pool.query(
-    "SELECT value FROM event_settings WHERE key = 'youtube_api_key'"
-  );
-  if (!rows[0]) throw new Error("YouTube API Key no configurada");
-  return rows[0].value;
+  const { rows } = await pool.query("SELECT value FROM event_settings WHERE key = 'youtube_api_key'");
+  if (!rows[0] || !rows[0].value) throw badRequest("YouTube API Key no configurada");
+  return rows[0].value as string;
 }
 
 async function resolveChannelId(url: string, apiKey: string): Promise<string> {
-  // 1. Direct /channel/UC... format
   const directMatch = url.match(/\/channel\/(UC[\w-]+)/);
   if (directMatch) return directMatch[1];
 
-  // 2. Handle format /@handle
   const handleMatch = url.match(/\/@([\w.-]+)/);
   if (handleMatch) {
     const handle = handleMatch[1];
-    const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${encodeURIComponent("@" + handle)}&key=${apiKey}&maxResults=1`;
-    const res = await fetch(searchUrl);
+    const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${encodeURIComponent(
+      "@" + handle,
+    )}&key=${apiKey}&maxResults=1`;
+    const res = await fetch(searchUrl, { signal: AbortSignal.timeout(12_000) });
     const data = (await res.json()) as { items?: { id?: { channelId?: string } }[] };
     const channelId = data.items?.[0]?.id?.channelId;
     if (!channelId) throw new Error(`No se encontró el ID del canal para el handle: @${handle}`);
     return channelId;
   }
 
-  // 3. Legacy /user/ format
   const userMatch = url.match(/\/user\/([\w.-]+)/);
   if (userMatch) {
     const username = userMatch[1];
-    const userUrl = `https://www.googleapis.com/youtube/v3/channels?part=id&forUsername=${encodeURIComponent(username)}&key=${apiKey}`;
-    const res = await fetch(userUrl);
+    const userUrl = `https://www.googleapis.com/youtube/v3/channels?part=id&forUsername=${encodeURIComponent(
+      username,
+    )}&key=${apiKey}`;
+    const res = await fetch(userUrl, { signal: AbortSignal.timeout(12_000) });
     const data = (await res.json()) as { items?: { id: string }[] };
     const channelId = data.items?.[0]?.id;
     if (!channelId) throw new Error(`No se encontró el canal para el usuario: ${username}`);
@@ -82,9 +65,6 @@ async function resolveChannelId(url: string, apiKey: string): Promise<string> {
   throw new Error("URL de canal no reconocida. Use el formato /@handle o /channel/UC...");
 }
 
-/**
- * Parses ISO 8601 duration string (e.g. PT1H2M10S) to minutes
- */
 function parseDurationToMinutes(duration: string): number {
   const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
   if (!match) return 0;
@@ -97,72 +77,71 @@ async function syncChannel(
   channelId: number,
   channelUrl: string,
   keyword: string,
-  apiKey: string
+  apiKey: string,
 ): Promise<{ imported: number; existed: number }> {
   const ytChannelId = await resolveChannelId(channelUrl, apiKey);
 
-  let items: {
-    id?: { videoId?: string };
-    snippet?: { title?: string; thumbnails?: { medium?: { url?: string } }; publishedAt?: string };
-  }[] = [];
+  const searchUrl =
+    keyword && keyword.trim() !== ""
+      ? `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${ytChannelId}&q=${encodeURIComponent(
+          keyword,
+        )}&type=video&order=date&maxResults=50&key=${apiKey}`
+      : `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${ytChannelId}&type=video&order=date&maxResults=50&key=${apiKey}`;
 
-  if (keyword && keyword.trim() !== "") {
-    // Search with keyword
-    const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${ytChannelId}&q=${encodeURIComponent(keyword)}&type=video&order=date&maxResults=50&key=${apiKey}`;
-    const res = await fetch(searchUrl);
-    const data = (await res.json()) as any;
-    if (data.error) throw new Error(`YouTube API Error: ${data.error.message}`);
-    items = data.items ?? [];
-  } else {
-    // No keyword: get latest videos from the channel
-    const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${ytChannelId}&type=video&order=date&maxResults=50&key=${apiKey}`;
-    const res = await fetch(searchUrl);
-    const data = (await res.json()) as any;
-    if (data.error) throw new Error(`YouTube API Error: ${data.error.message}`);
-    items = data.items ?? [];
-  }
+  const res = await fetch(searchUrl, { signal: AbortSignal.timeout(15_000) });
+  const data = (await res.json()) as {
+    error?: { message?: string };
+    items?: {
+      id?: { videoId?: string };
+      snippet?: { title?: string; thumbnails?: { medium?: { url?: string } }; publishedAt?: string };
+    }[];
+  };
+  if (data.error) throw new Error(`Error de la API de YouTube: ${data.error.message ?? "desconocido"}`);
+
+  const items = data.items ?? [];
   if (items.length === 0) return { imported: 0, existed: 0 };
 
-  // To get duration, we need to call videos.list for the IDs found
-  const videoIds = items.map((i) => i.id?.videoId).filter(Boolean) as string[];
+  const videoIds = items.map((item) => item.id?.videoId).filter(Boolean) as string[];
   if (videoIds.length === 0) return { imported: 0, existed: 0 };
 
-  const videosUrl = `https://www.googleapis.com/youtube/v3/videos?part=contentDetails,snippet&id=${videoIds.join(",")}&key=${apiKey}`;
-  const vRes = await fetch(videosUrl);
-  const vData = (await vRes.json()) as any;
-  if (vData.error) throw new Error(`YouTube API Error (videos): ${vData.error.message}`);
-  const videoDetails = vData.items ?? [];
+  const videosUrl = `https://www.googleapis.com/youtube/v3/videos?part=contentDetails,snippet&id=${videoIds.join(
+    ",",
+  )}&key=${apiKey}`;
+  const vRes = await fetch(videosUrl, { signal: AbortSignal.timeout(15_000) });
+  const vData = (await vRes.json()) as {
+    error?: { message?: string };
+    items?: {
+      id: string;
+      snippet: { title: string; thumbnails?: { medium?: { url?: string } }; publishedAt?: string };
+      contentDetails: { duration: string };
+    }[];
+  };
+  if (vData.error) throw new Error(`Error de la API de YouTube: ${vData.error.message ?? "desconocido"}`);
+
   let imported = 0;
   let existed = 0;
 
-  for (const item of videoDetails) {
-    const ytId = item.id;
-    const title = item.snippet.title;
-    const thumbnail = item.snippet.thumbnails?.medium?.url ?? null;
-    const publishedAt = item.snippet.publishedAt ?? null;
-    const durationStr = item.contentDetails.duration;
-    const durationMinutes = parseDurationToMinutes(durationStr);
-
-    // Filter: Duration must be at least 30 minutes for events
-    if (durationMinutes < 30) {
-      continue;
-    }
+  for (const item of vData.items ?? []) {
+    const durationMinutes = parseDurationToMinutes(item.contentDetails?.duration ?? "");
+    if (durationMinutes < 30) continue;
 
     try {
       const { rowCount } = await pool.query(
         `INSERT INTO events (channel_id, yt_id, title, thumbnail, published_at)
          VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (yt_id) DO NOTHING`,
-        [channelId, ytId, title, thumbnail, publishedAt]
+        [
+          channelId,
+          item.id,
+          item.snippet.title,
+          item.snippet.thumbnails?.medium?.url ?? null,
+          item.snippet.publishedAt ?? null,
+        ],
       );
-      
-      if ((rowCount ?? 0) > 0) {
-        imported++;
-      } else {
-        existed++;
-      }
+      if ((rowCount ?? 0) > 0) imported += 1;
+      else existed += 1;
     } catch {
-      existed++;
+      existed += 1;
     }
   }
 
@@ -171,107 +150,96 @@ async function syncChannel(
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
 
-// GET /api/events/settings
-router.get("/events/settings", async (req, res) => {
-  if (!requireAuth(req, res)) return;
-  try {
+router.get(
+  "/events/settings",
+  requireAdmin,
+  asyncHandler(async (_req: Request, res: Response) => {
     const { rows } = await pool.query("SELECT key, value FROM event_settings");
     const settings: Record<string, string> = {};
-    for (const row of rows) settings[row.key] = row.value;
+    for (const row of rows as Array<{ key: string; value: string }>) settings[row.key] = row.value;
+    res.setHeader("Cache-Control", "no-store");
     res.json(settings);
-  } catch (e) {
-    res.status(500).json({ error: String(e) });
-  }
-});
+  }),
+);
 
-// POST /api/events/settings
-router.post("/events/settings", async (req, res) => {
-  if (!requireAuth(req, res)) return;
-  try {
-    const { youtube_api_key } = req.body as { youtube_api_key: string };
-    if (!youtube_api_key) return res.status(400).json({ error: "Falta youtube_api_key" });
+router.post(
+  "/events/settings",
+  requireAdmin,
+  asyncHandler(async (req: Request, res: Response) => {
+    const { youtube_api_key } = parseBody(
+      z.object({ youtube_api_key: z.string().min(10).max(200) }),
+      req.body,
+    );
 
     await pool.query(
       `INSERT INTO event_settings (key, value) VALUES ('youtube_api_key', $1)
        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
-      [youtube_api_key]
+      [youtube_api_key],
     );
-    return res.json({ ok: true });
-  } catch (e) {
-    return res.status(500).json({ error: String(e) });
-  }
-});
+    res.json({ ok: true });
+  }),
+);
 
 // ─── Channels ─────────────────────────────────────────────────────────────────
 
-// GET /api/events/channels
-router.get("/events/channels", async (_req, res) => {
-  try {
-    const { rows } = await pool.query(
-      "SELECT * FROM event_channels ORDER BY date_added DESC"
-    );
+router.get(
+  "/events/channels",
+  asyncHandler(async (_req: Request, res: Response) => {
+    const { rows } = await pool.query("SELECT * FROM event_channels ORDER BY date_added DESC");
     res.json(rows);
-  } catch (e) {
-    res.status(500).json({ error: String(e) });
-  }
-});
+  }),
+);
 
-// POST /api/events/channels
-router.post("/events/channels", async (req, res) => {
-  if (!requireAuth(req, res)) return;
-  try {
-    const { name, url, keyword = "" } = req.body as {
-      name: string;
-      url: string;
-      keyword?: string;
-    };
-    if (!name || !url) return res.status(400).json({ error: "Faltan campos name y url" });
+router.post(
+  "/events/channels",
+  requireAdmin,
+  asyncHandler(async (req: Request, res: Response) => {
+    const { name, url, keyword } = parseBody(channelSchema, req.body);
 
     const { rows } = await pool.query(
       `INSERT INTO event_channels (name, url, keyword) VALUES ($1, $2, NULLIF($3, ''))
        ON CONFLICT (url) DO UPDATE SET name = EXCLUDED.name, keyword = EXCLUDED.keyword
        RETURNING *`,
-      [name, url, keyword]
+      [name, url, keyword],
     );
-    return res.json(rows[0]);
-  } catch (e) {
-    return res.status(500).json({ error: String(e) });
-  }
-});
+    res.json(rows[0]);
+  }),
+);
 
-// DELETE /api/events/channels/:id
-router.delete("/events/channels/:id", async (req, res) => {
-  if (!requireAuth(req, res)) return;
-  try {
-    await pool.query("DELETE FROM event_channels WHERE id = $1", [req.params["id"]]);
+router.delete(
+  "/events/channels/:id",
+  requireAdmin,
+  asyncHandler(async (req: Request, res: Response) => {
+    const id = parseIntParam(req.params["id"], Number.NaN, { min: 1, name: "id" });
+    if (!Number.isInteger(id)) throw badRequest("Identificador inválido");
+
+    const result = await pool.query("DELETE FROM event_channels WHERE id = $1", [id]);
+    if (result.rowCount === 0) throw notFound("Canal no encontrado");
     res.json({ ok: true });
-  } catch (e) {
-    res.status(500).json({ error: String(e) });
-  }
-});
+  }),
+);
 
-// POST /api/events/channels/:id/sync
-router.post("/events/channels/:id/sync", async (req, res) => {
-  if (!requireAuth(req, res)) return;
-  try {
+router.post(
+  "/events/channels/:id/sync",
+  requireAdmin,
+  asyncHandler(async (req: Request, res: Response) => {
+    const id = parseIntParam(req.params["id"], Number.NaN, { min: 1, name: "id" });
+    if (!Number.isInteger(id)) throw badRequest("Identificador inválido");
+
     const apiKey = await getYoutubeApiKey();
-    const { rows } = await pool.query("SELECT * FROM event_channels WHERE id = $1", [
-      req.params["id"],
-    ]);
-    if (!rows[0]) return res.status(404).json({ error: "Canal no encontrado" });
+    const { rows } = await pool.query("SELECT * FROM event_channels WHERE id = $1", [id]);
+    if (!rows[0]) throw notFound("Canal no encontrado");
 
     const channel = rows[0] as { id: number; url: string; keyword: string };
     const result = await syncChannel(channel.id, channel.url, channel.keyword, apiKey);
-    return res.json(result);
-  } catch (e) {
-    return res.status(500).json({ error: String(e) });
-  }
-});
+    res.json(result);
+  }),
+);
 
-// POST /api/events/sync-all
-router.post("/events/sync-all", async (_req, res) => {
-    if (!requireAuth(_req, res)) return;
-  try {
+router.post(
+  "/events/sync-all",
+  requireAdmin,
+  asyncHandler(async (_req: Request, res: Response) => {
     const apiKey = await getYoutubeApiKey();
     const { rows: channels } = await pool.query("SELECT * FROM event_channels");
 
@@ -284,34 +252,32 @@ router.post("/events/sync-all", async (_req, res) => {
         const result = await syncChannel(ch.id, ch.url, ch.keyword, apiKey);
         totalImported += result.imported;
         totalExisted += result.existed;
-      } catch (e) {
-        errors.push(`${ch.name}: ${String(e)}`);
+      } catch (err) {
+        logger.warn({ err, channel: ch.name }, "Event channel sync failed");
+        errors.push(`${ch.name}: ${err instanceof Error ? err.message : "error"}`);
       }
     }
 
     res.json({ imported: totalImported, existed: totalExisted, errors });
-  } catch (e) {
-    res.status(500).json({ error: String(e) });
-  }
-});
+  }),
+);
 
-// ─── Events (public) ───────────────────────────────────────────────────────────
+// ─── Events (public) ──────────────────────────────────────────────────────────
 
-// GET /api/events
-router.get("/events", async (req, res) => {
-  try {
-    const { q, limit = "50", offset = "0" } = req.query as {
-      q?: string;
-      limit?: string;
-      offset?: string;
-    };
+router.get(
+  "/events",
+  asyncHandler(async (req: Request, res: Response) => {
+    const q = parseStringParam(req.query["q"], { maxLength: 120, name: "q" });
+    const limit = parseIntParam(req.query["limit"], 50, { min: 1, max: 100, name: "limit" });
+    const offset = parseIntParam(req.query["offset"], 0, { min: 0, max: 10_000, name: "offset" });
 
+    const params: (string | number)[] = [];
     let query = `
-      SELECT e.*, c.name as channel_name
+      SELECT e.id, e.yt_id, e.title, e.thumbnail, e.published_at, e.date_added, e.channel_id,
+             c.name as channel_name
       FROM events e
       JOIN event_channels c ON c.id = e.channel_id
     `;
-    const params: (string | number)[] = [];
 
     if (q) {
       params.push(`%${q}%`);
@@ -319,24 +285,27 @@ router.get("/events", async (req, res) => {
     }
 
     query += ` ORDER BY e.published_at DESC NULLS LAST LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
-    params.push(Number(limit), Number(offset));
+    params.push(limit, offset);
 
     const { rows } = await pool.query(query, params);
     res.json(rows);
-  } catch (e) {
-    res.status(500).json({ error: String(e) });
-  }
-});
+  }),
+);
 
-// DELETE /api/events/:id
-router.delete("/events/:id", async (req, res) => {
-  if (!requireAuth(req, res)) return;
-  try {
-    await pool.query("DELETE FROM events WHERE id = $1", [req.params["id"]]);
+router.delete(
+  "/events/:id",
+  requireAdmin,
+  asyncHandler(async (req: Request, res: Response) => {
+    const id = parseIntParam(req.params["id"], Number.NaN, { min: 1, name: "id" });
+    if (!Number.isInteger(id)) throw badRequest("Identificador inválido");
+
+    await pool.query("DELETE FROM events WHERE id = $1", [id]);
     res.json({ ok: true });
-  } catch (e) {
-    res.status(500).json({ error: String(e) });
-  }
+  }),
+);
+
+router.use((err: unknown, req: Request, res: Response, _next: unknown) => {
+  sendError(res, err, (req as Request & { requestId?: string }).requestId);
 });
 
 export default router;

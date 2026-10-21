@@ -150,7 +150,10 @@ export default function HlsPlayer({ src, channelName, logo, onError }: HlsPlayer
     void (async () => {
       let Hls: HlsStatic;
       try {
-        const mod = await import("hls.js");
+        // The "light" build of hls.js is used: it supports the HLS features the
+        // app needs (live playlists, discontinuities, subtitles) and is about
+        // 40% smaller than the full build.
+        const mod = await import("hls.js/dist/hls.light.min.js");
         Hls = (mod.default ?? mod) as unknown as HlsStatic;
       } catch {
         if (!cancelled) {

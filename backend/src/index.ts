@@ -1,54 +1,63 @@
 import app from "./app";
 import { logger } from "./lib/logger";
-import { initDb } from "./lib/db";
+import { closePool, initDb } from "./lib/db";
+import { getConfig } from "./lib/config";
 import { startAutoImportCron } from "./jobs/auto-import";
-import { initSportsTables, initEventsTables, initSagasTable } from "./routes";
+import { reapStaleJobs } from "./lib/import-jobs";
 
-// ── Validate critical environment variables ───────────────────────────────────
-// DATABASE_URL and PORT are strictly required — app can't function without them.
-// JWT_SECRET gets a dev fallback if missing (auth will still work but with a
-// predictable key — override in production for real security).
-const HARD_REQUIRED = ["DATABASE_URL", "PORT"] as const;
-const missing: string[] = [];
-for (const envVar of HARD_REQUIRED) {
-  if (!process.env[envVar]) {
-    missing.push(envVar);
-  }
-}
-if (missing.length > 0) {
-  throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
-}
-if (!process.env["JWT_SECRET"]) {
-  logger.warn("JWT_SECRET not set — using dev fallback. Set it in production.");
-  process.env["JWT_SECRET"] = "dev-jwt-secret-do-not-use-in-production";
-}
+// ── Configuration ─────────────────────────────────────────────────────────────
+// The configuration is validated here, before anything is opened: a missing or
+// insecure variable stops the process instead of failing at the first request.
+const config = getConfig();
 
-const rawPort = process.env["PORT"];
-if (!rawPort) {
-  throw new Error("PORT environment variable is required but was not provided.");
-}
+logger.info({ nodeEnv: config.nodeEnv, port: config.port }, "Starting Cine Gratin API");
 
-const port = Number(rawPort);
+let server: ReturnType<typeof app.listen> | null = null;
+let shuttingDown = false;
 
-if (Number.isNaN(port) || port <= 0) {
-  throw new Error(`Invalid PORT value: "${rawPort}"`);
-}
+async function shutdown(signal: string): Promise<void> {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  logger.info({ signal }, "Shutting down");
 
-initDb()
-  .then(() => initSportsTables())
-  .then(() => initEventsTables())
-  .then(() => initSagasTable())
-  .then(() => {
-    app.listen(port, (err) => {
-      if (err) {
-        logger.error({ err }, "Error listening on port");
-        process.exit(1);
-      }
-      logger.info({ port }, "Server listening");
-      startAutoImportCron();
+  if (server) {
+    await new Promise<void>((resolve) => {
+      server?.close(() => resolve());
+      // Force the exit if connections keep the server open.
+      setTimeout(() => resolve(), 10_000).unref();
     });
-  })
-  .catch((err) => {
-    logger.error({ err }, "Failed to initialize database");
-    process.exit(1);
+  }
+
+  await closePool();
+  logger.info("Shutdown complete");
+  process.exit(0);
+}
+
+process.on("SIGTERM", () => void shutdown("SIGTERM"));
+process.on("SIGINT", () => void shutdown("SIGINT"));
+process.on("unhandledRejection", (reason) => {
+  logger.error({ reason }, "Unhandled promise rejection");
+});
+process.on("uncaughtException", (err) => {
+  logger.error({ err }, "Uncaught exception");
+  void shutdown("uncaughtException");
+});
+
+async function main(): Promise<void> {
+  // Migrations are versioned and serialised with an advisory lock, so several
+  // instances can boot at the same time without corrupting the schema.
+  await initDb();
+
+  const stale = await reapStaleJobs().catch(() => 0);
+  if (stale > 0) logger.warn({ stale }, "Stale import jobs marked as failed");
+
+  server = app.listen(config.port, () => {
+    logger.info({ port: config.port }, "Server listening");
+    startAutoImportCron();
   });
+}
+
+main().catch((err) => {
+  logger.error({ err }, "Failed to start the server");
+  void closePool().finally(() => process.exit(1));
+});

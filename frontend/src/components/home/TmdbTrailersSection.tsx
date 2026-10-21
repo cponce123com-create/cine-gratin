@@ -65,7 +65,7 @@ export default function TmdbTrailersSection() {
         <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
           {items.map((item) => (
             <button
-              key={item.tmdb_id}
+              key={`${item.tmdb_id}-${item.trailer_key}`}
               onClick={() => setActiveTrailer(item.trailer_key)}
               className="flex-shrink-0 w-56 sm:w-64 group text-left"
             >

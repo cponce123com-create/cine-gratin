@@ -138,17 +138,24 @@ export default function Navbar() {
 
           {/* Desktop search */}
           <div ref={searchRef} className="hidden md:block relative flex-1 max-w-xs">
-            <form onSubmit={handleSearchSubmit}>
+            <form onSubmit={handleSearchSubmit} role="search">
               <div className="relative">
+                <label htmlFor="navbar-search" className="sr-only">
+                  Buscar en el catálogo
+                </label>
                 <input
-                  type="text"
+                  id="navbar-search"
+                  type="search"
                   value={query}
                   onChange={(e) => handleQueryChange(e.target.value)}
                   onFocus={() => query && setSearchOpen(true)}
                   placeholder="Buscar..."
-                  className="w-full bg-white/8 border border-white/10 rounded-full px-4 py-1.5 pl-9 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-white/25 transition-colors"
+                  autoComplete="off"
+                  aria-expanded={searchOpen && query.length > 0}
+                  aria-controls="navbar-search-results"
+                  className="w-full bg-white/8 border border-white/10 rounded-full px-4 py-1.5 pl-9 text-white placeholder-gray-500 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red transition-colors"
                 />
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" aria-hidden="true">
                   <SearchIcon />
                 </span>
                 {query && (
@@ -159,7 +166,8 @@ export default function Navbar() {
                       setResults([]);
                       setSearchOpen(false);
                     }}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white text-xs"
+                    aria-label="Limpiar la búsqueda"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white text-xs focus-visible:ring-2 focus-visible:ring-brand-red rounded"
                   >
                     &times;
                   </button>
@@ -169,7 +177,12 @@ export default function Navbar() {
 
             {/* Dropdown */}
             {searchOpen && query && (
-              <div className="absolute top-full mt-2 left-0 right-0 bg-brand-card border border-brand-border rounded-xl shadow-2xl overflow-hidden z-50">
+              <div
+                id="navbar-search-results"
+                role="listbox"
+                aria-label="Resultados de la búsqueda"
+                className="absolute top-full mt-2 left-0 right-0 bg-brand-card border border-brand-border rounded-xl shadow-2xl overflow-hidden z-50"
+              >
                 {searching ? (
                   <div className="flex items-center justify-center py-6">
                     <div className="w-5 h-5 rounded-full border-2 border-brand-red border-t-transparent animate-spin" />

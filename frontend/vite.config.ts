@@ -11,29 +11,43 @@ export default defineConfig({
     compression({ algorithm: "brotliCompress", ext: ".br" }),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.svg"],
+      includeAssets: ["favicon.svg", "apple-touch-icon.png"],
       manifest: {
         name: "Cine Gratin",
         short_name: "CineGratin",
         description: "Plataforma de streaming self-hosted",
-        theme_color: "#0f0f0f",
-        background_color: "#0f0f0f",
+        theme_color: "#0a0a0a",
+        background_color: "#0a0a0a",
         display: "standalone",
+        orientation: "portrait-primary",
+        start_url: "/",
+        scope: "/",
         icons: [
           {
-            src: "favicon.svg",
+            src: "/pwa-192x192.png",
             sizes: "192x192",
-            type: "image/svg+xml",
+            type: "image/png",
+            purpose: "any",
           },
           {
-            src: "favicon.svg",
+            src: "/pwa-512x512.png",
             sizes: "512x512",
-            type: "image/svg+xml",
+            type: "image/png",
+            purpose: "any",
+          },
+          {
+            src: "/pwa-maskable-512x512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "maskable",
           },
         ],
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,svg,png,jpg,jpeg,gif,webp,woff2}"],
+        navigateFallback: "/index.html",
+        // Private or authenticated responses must never be stored.
+        navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/.*\.(png|jpg|jpeg|svg|webp)$/,
@@ -41,9 +55,10 @@ export default defineConfig({
             options: {
               cacheName: "images-cache",
               expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 60 * 60 * 24 * 30, // 30 días
+                maxEntries: 60,
+                maxAgeSeconds: 60 * 60 * 24 * 7, // 7 días
               },
+              cacheableResponse: { statuses: [0, 200] },
             },
           },
           {
@@ -51,6 +66,7 @@ export default defineConfig({
             handler: "StaleWhileRevalidate",
             options: {
               cacheName: "assets-cache",
+              expiration: { maxEntries: 40, maxAgeSeconds: 60 * 60 * 24 * 7 },
             },
           },
         ],

@@ -1,6 +1,7 @@
-import { Router, type Request, type Response } from "express";
+﻿import { Router, type Request, type Response } from "express";
 import { tmdbFetch } from "../lib/tmdb-client";
 import { pool } from "../lib/db";
+import { sendError } from "../lib/errors";
 
 const router = Router();
 
@@ -97,39 +98,6 @@ export interface CvSagaRow {
   created_at: string;
 }
 
-/**
- * Create the cv_sagas table if it doesn't exist and seed with curated collections.
- */
-export async function initSagasTable(): Promise<void> {
-  try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS cv_sagas (
-        id SERIAL PRIMARY KEY,
-        collection_id INTEGER NOT NULL UNIQUE,
-        name TEXT NOT NULL,
-        poster_path TEXT,
-        backdrop_path TEXT,
-        overview TEXT,
-        part_count INTEGER DEFAULT 0,
-        is_curated BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMPTZ DEFAULT NOW()
-      )
-    `);
-
-    // Seed curated collections — insert placeholder rows that will be enriched on first GET /api/sagas
-    for (const cid of CURATED_COLLECTION_IDS) {
-      await pool.query(
-        `INSERT INTO cv_sagas (collection_id, name, is_curated)
-         VALUES ($1, $2, TRUE)
-         ON CONFLICT (collection_id) DO NOTHING`,
-        [cid, `Collection ${cid}`],
-      );
-    }
-  } catch (e) {
-    console.error("Failed to init cv_sagas table:", e);
-  }
-}
-
 async function fetchCollection(id: number): Promise<TmdbCollectionResponse | null> {
   try {
     const res = await tmdbFetch(`/collection/${id}?language=es-MX`);
@@ -163,27 +131,27 @@ async function findLocalMoviesByTmdbIds(tmdbIds: number[]): Promise<Map<number, 
     for (const row of rows) map.set(Number(row.tmdb_id), row.id);
 
     // Step 2: for unmatched tmdb_ids, try matching by imdb_id (auto_ttXXXXXX format)
-    const unmatched = tmdbIds.filter(id => !map.has(id));
+    const unmatched = tmdbIds.filter((id) => !map.has(id));
     if (unmatched.length > 0) {
       // Fetch imdb_ids from TMDB for unmatched
       const imdbLookups = await Promise.allSettled(
         unmatched.map(async (tmdbId) => {
           const res = await tmdbFetch(`/movie/${tmdbId}/external_ids`);
           if (!res.ok) return null;
-          const data = await res.json() as { imdb_id?: string };
+          const data = (await res.json()) as { imdb_id?: string };
           return data.imdb_id ? { tmdbId, imdbId: data.imdb_id } : null;
         }),
       );
       const pairs = imdbLookups
-        .filter((r): r is PromiseFulfilledResult<{ tmdbId: number; imdbId: string } | null> => r.status === 'fulfilled' && r.value !== null)
-        .map(r => r.value!);
+        .filter(
+          (r): r is PromiseFulfilledResult<{ tmdbId: number; imdbId: string } | null> =>
+            r.status === "fulfilled" && r.value !== null,
+        )
+        .map((r) => r.value!);
 
       if (pairs.length > 0) {
-        const imdbIds = pairs.map(p => `auto_${p.imdbId}`);
-        const { rows: imdbRows } = await pool.query(
-          `SELECT id FROM movies WHERE id = ANY($1)`,
-          [imdbIds],
-        );
+        const imdbIds = pairs.map((p) => `auto_${p.imdbId}`);
+        const { rows: imdbRows } = await pool.query(`SELECT id FROM movies WHERE id = ANY($1)`, [imdbIds]);
         const foundIds = new Set(imdbRows.map((r: { id: string }) => r.id));
         for (const { tmdbId, imdbId } of pairs) {
           const localId = `auto_${imdbId}`;
@@ -197,17 +165,25 @@ async function findLocalMoviesByTmdbIds(tmdbIds: number[]): Promise<Map<number, 
   return map;
 }
 
+/** In-memory cache for the saga list (avoids ~30 TMDB calls per request). */
+const sagaCache = { data: null as SagaItem[] | null, expires: 0 };
+const SAGA_CACHE_TTL_MS = 10 * 60 * 1000;
+
 // GET /api/sagas — list all sagas from cv_sagas, enriched with live TMDB data
 router.get("/sagas", async (_req: Request, res: Response) => {
+  if (sagaCache.data && sagaCache.expires > Date.now()) {
+    res.setHeader("Cache-Control", "public, max-age=3600, stale-while-revalidate=86400");
+    res.json(sagaCache.data);
+    return;
+  }
+
   try {
     // Get all collection IDs from DB
-    const dbResult = await pool.query(
-      "SELECT collection_id FROM cv_sagas ORDER BY part_count DESC",
-    );
+    const dbResult = await pool.query("SELECT collection_id FROM cv_sagas ORDER BY part_count DESC");
     const collectionIds: number[] = dbResult.rows.map((r) => r.collection_id);
 
-      // Fall back to curated list if table is empty (first run before seeding)
-      const idsToUse = collectionIds.length > 0 ? collectionIds : CURATED_COLLECTION_IDS;
+    // Fall back to curated list if table is empty (first run before seeding)
+    const idsToUse = collectionIds.length > 0 ? collectionIds : CURATED_COLLECTION_IDS;
 
     // Process in batches of 5 with 300ms delay to avoid TMDB rate limits
     const BATCH_SIZE = 5;
@@ -258,10 +234,13 @@ router.get("/sagas", async (_req: Request, res: Response) => {
     // Sort by part_count descending
     sagas.sort((a, b) => b.part_count - a.part_count);
 
+    sagaCache.data = sagas;
+    sagaCache.expires = Date.now() + SAGA_CACHE_TTL_MS;
+
     res.setHeader("Cache-Control", "public, max-age=3600, stale-while-revalidate=86400");
     res.json(sagas);
   } catch (e) {
-    res.status(500).json({ error: String(e) });
+    sendError(res, e);
   }
 });
 
@@ -322,7 +301,7 @@ router.get("/sagas/:id", async (req: Request, res: Response) => {
     res.setHeader("Cache-Control", "public, max-age=3600, stale-while-revalidate=86400");
     res.json(result);
   } catch (e) {
-    res.status(500).json({ error: String(e) });
+    sendError(res, e);
   }
 });
 
@@ -331,12 +310,10 @@ router.get("/sagas/:id", async (req: Request, res: Response) => {
 // GET /api/admin/sagas — list all rows from cv_sagas
 router.get("/admin/sagas", async (_req: Request, res: Response) => {
   try {
-    const result = await pool.query(
-      "SELECT * FROM cv_sagas ORDER BY part_count DESC",
-    );
+    const result = await pool.query("SELECT * FROM cv_sagas ORDER BY part_count DESC");
     res.json(result.rows);
   } catch (e) {
-    res.status(500).json({ error: String(e) });
+    sendError(res, e);
   }
 });
 
@@ -351,10 +328,7 @@ router.post("/admin/sagas", async (req: Request, res: Response) => {
 
   try {
     // Check if already exists
-    const existing = await pool.query(
-      "SELECT * FROM cv_sagas WHERE collection_id = $1",
-      [collection_id],
-    );
+    const existing = await pool.query("SELECT * FROM cv_sagas WHERE collection_id = $1", [collection_id]);
     if (existing.rows.length > 0) {
       res.status(409).json({ error: "Esta saga ya existe en la base de datos" });
       return;
@@ -382,7 +356,7 @@ router.post("/admin/sagas", async (req: Request, res: Response) => {
 
     res.json(insertResult.rows[0]);
   } catch (e) {
-    res.status(500).json({ error: String(e) });
+    sendError(res, e);
   }
 });
 
@@ -398,17 +372,19 @@ router.post("/admin/sagas/backfill-tmdb-ids", async (_req, res) => {
       try {
         const r = await tmdbFetch(`/find/${row.imdb_id}?external_source=imdb_id`);
         if (!r.ok) continue;
-        const data = await r.json() as { movie_results?: { id: number }[] };
+        const data = (await r.json()) as { movie_results?: { id: number }[] };
         const tmdbId = data.movie_results?.[0]?.id;
         if (tmdbId) {
           await pool.query(`UPDATE movies SET tmdb_id = $1 WHERE id = $2`, [tmdbId, row.id]);
           updated++;
         }
-      } catch { continue; }
+      } catch {
+        continue;
+      }
     }
     res.json({ ok: true, updated, total: rows.length });
   } catch (e) {
-    res.status(500).json({ error: String(e) });
+    sendError(res, e);
   }
 });
 
@@ -421,10 +397,7 @@ router.delete("/admin/sagas/:collection_id", async (req: Request, res: Response)
   }
 
   try {
-    const row = await pool.query(
-      "SELECT is_curated FROM cv_sagas WHERE collection_id = $1",
-      [collectionId],
-    );
+    const row = await pool.query("SELECT is_curated FROM cv_sagas WHERE collection_id = $1", [collectionId]);
 
     if (row.rows.length === 0) {
       res.status(404).json({ error: "Saga no encontrada" });
@@ -439,7 +412,7 @@ router.delete("/admin/sagas/:collection_id", async (req: Request, res: Response)
     await pool.query("DELETE FROM cv_sagas WHERE collection_id = $1", [collectionId]);
     res.json({ ok: true });
   } catch (e) {
-    res.status(500).json({ error: String(e) });
+    sendError(res, e);
   }
 });
 

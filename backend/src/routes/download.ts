@@ -1,5 +1,10 @@
 import { Router, type Request, type Response } from "express";
-import { exec } from "child_process";
+import { execFile } from "node:child_process";
+import rateLimit from "express-rate-limit";
+import { z } from "zod";
+import { parseQuery } from "../lib/http";
+import { badRequest } from "../lib/errors";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
@@ -19,6 +24,26 @@ const SERIES_SERVERS: EmbedUrlFn[] = [
   (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`,
 ];
 
+const downloadQuerySchema = z.object({
+  imdbId: z.string().regex(/^tt\d{7,10}$/, "Identificador de IMDb inválido"),
+  type: z.enum(["movie", "series"]),
+  server: z.coerce.number().int().min(0).max(3).optional().default(0),
+  season: z.coerce.number().int().min(1).max(100).optional().default(1),
+  episode: z.coerce.number().int().min(1).max(1000).optional().default(1),
+});
+
+/** Maximum number of yt-dlp processes running at the same time. */
+const MAX_CONCURRENT_RESOLVERS = 2;
+let activeResolvers = 0;
+
+const downloadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Demasiadas descargas, inténtalo más tarde." },
+});
+
 function getEmbedUrl(
   imdbId: string,
   type: "movie" | "series",
@@ -36,56 +61,63 @@ function getEmbedUrl(
   return fn(imdbId, season ?? 1, episode ?? 1);
 }
 
+/**
+ * Resolves the direct media URL with yt-dlp.
+ *
+ * The command is executed through `execFile` with a fixed argument vector:
+ * the URL is never interpreted by a shell, so a crafted identifier cannot
+ * become a command.
+ */
 function resolveVideoUrl(embedUrl: string): Promise<string | null> {
   return new Promise((resolve) => {
-    const cmd = `yt-dlp -g --no-warnings ${JSON.stringify(embedUrl)} 2>/dev/null`;
-    exec(cmd, { timeout: 45000, maxBuffer: 1024 * 1024 }, (err, stdout) => {
-      if (err) {
-        resolve(null);
-        return;
-      }
-      const lines = stdout.trim().split("\n").filter(Boolean);
-      resolve(lines[0] ?? null);
-    });
+    if (activeResolvers >= MAX_CONCURRENT_RESOLVERS) {
+      resolve(null);
+      return;
+    }
+    activeResolvers += 1;
+
+    execFile(
+      "yt-dlp",
+      ["-g", "--no-warnings", "--no-playlist", embedUrl],
+      { timeout: 45_000, maxBuffer: 1024 * 1024, windowsHide: true },
+      (err, stdout) => {
+        activeResolvers -= 1;
+        if (err) {
+          logger.warn({ err: err.message, embedUrl }, "yt-dlp could not resolve the URL");
+          resolve(null);
+          return;
+        }
+        const lines = stdout
+          .trim()
+          .split("\n")
+          .map((line) => line.trim())
+          .filter(Boolean);
+        resolve(lines[0] ?? null);
+      },
+    );
   });
 }
 
-router.get("/download", async (req: Request, res: Response) => {
-  const { imdbId, type, server, season, episode } = req.query;
+router.get("/download", downloadLimiter, async (req: Request, res: Response) => {
+  const { imdbId, type, server, season, episode } = parseQuery(downloadQuerySchema, req.query);
 
-  if (!imdbId || typeof imdbId !== "string" || imdbId.trim().length === 0) {
-    res.status(400).json({ error: "Missing or invalid imdbId query param" });
-    return;
-  }
-  if (type !== "movie" && type !== "series") {
-    res.status(400).json({ error: "type must be movie or series" });
-    return;
-  }
-
-  const srvIdx = Number(server) || 0;
-  const ssn = season ? Number(season) || 1 : 1;
-  const ep = episode ? Number(episode) || 1 : 1;
-
-  const embedUrl = getEmbedUrl(imdbId, type, srvIdx, ssn, ep);
+  const embedUrl = getEmbedUrl(imdbId, type, server, season, episode);
   if (!embedUrl) {
-    res.status(400).json({
-      error: `Invalid server index '${server}'. Movie: 0-3, Series: 0-3`,
-    });
-    return;
+    throw badRequest("Servidor de embed no válido");
   }
 
   const directUrl = await resolveVideoUrl(embedUrl);
 
   if (!directUrl) {
     res.status(502).json({
-      error: "No se pudo resolver la URL de descarga. " +
-        "Asegurate de que yt-dlp este instalado en el servidor " +
-        "y que el video este disponible en el servidor seleccionado.",
-      hint: "Prueba con el boton Descargar (Externo) como alternativa.",
+      error:
+        "No se pudo resolver la URL de descarga. Asegúrate de que yt-dlp esté instalado en el servidor y que el vídeo esté disponible en el servidor seleccionado.",
+      hint: "Prueba con el botón Descargar (Externo) como alternativa.",
     });
     return;
   }
 
+  res.setHeader("Cache-Control", "no-store");
   res.redirect(302, directUrl);
 });
 

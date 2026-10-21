@@ -9,7 +9,7 @@ export default function SagasSection() {
 
   const { data: sagas = [], isLoading } = useQuery<SagaItem[]>({
     queryKey: ["sagas"],
-    queryFn: fetchSagas,
+    queryFn: () => fetchSagas(),
     staleTime: 30 * 60 * 1000,
   });
 

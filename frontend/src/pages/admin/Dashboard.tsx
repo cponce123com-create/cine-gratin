@@ -137,8 +137,20 @@ export default function AdminDashboard() {
           </div>
         ) : stats ? (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <StatsCard title="Total de películas" value={stats.global.movies} color="blue" icon="🎬" />
-            <StatsCard title="Total de series" value={stats.global.series} color="purple" icon="📺" />
+            <StatsCard
+              title="Total de películas"
+              value={stats.global.movies}
+              subtitle={`${stats.global.availableMovies} verificadas como disponibles`}
+              color="blue"
+              icon="🎬"
+            />
+            <StatsCard
+              title="Total de series"
+              value={stats.global.series}
+              subtitle={`${stats.global.availableSeries} verificadas como disponibles`}
+              color="purple"
+              icon="📺"
+            />
             <StatsCard title="Total de vistas" value={stats.global.totalViews} color="red" icon="👁️" />
           </div>
         ) : null}

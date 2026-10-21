@@ -1,15 +1,31 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
-import { login, isAuthenticated } from "@/lib/auth";
+import { useQueryClient } from "@tanstack/react-query";
+import { login } from "@/lib/auth";
+import { getSession } from "@/lib/api";
 
 export default function AdminLogin() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [alreadySignedIn, setAlreadySignedIn] = useState<boolean | null>(null);
 
-  if (isAuthenticated()) {
+  // The session is checked in an effect (not during render) so the component
+  // does not perform side effects while rendering.
+  useEffect(() => {
+    let cancelled = false;
+    void getSession().then((valid) => {
+      if (!cancelled) setAlreadySignedIn(valid);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (alreadySignedIn) {
     return <Navigate to="/admin" replace />;
   }
 
@@ -20,11 +36,12 @@ export default function AdminLogin() {
 
     const result = await login(username.trim(), password);
     if (result.ok) {
+      await queryClient.invalidateQueries({ queryKey: ["admin-session"] });
       navigate("/admin", { replace: true });
     } else {
       setError(result.error ?? "Usuario o contraseña incorrectos.");
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
@@ -45,40 +62,58 @@ export default function AdminLogin() {
         <div className="bg-brand-card border border-brand-border rounded-2xl p-8 shadow-2xl">
           <h1 className="text-white font-bold text-lg mb-6">Iniciar sesión</h1>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
             <div>
-              <label className="block text-gray-400 text-xs font-medium mb-1.5 uppercase tracking-wider">
-                Email
+              <label
+                htmlFor="admin-username"
+                className="block text-gray-400 text-xs font-medium mb-1.5 uppercase tracking-wider"
+              >
+                Usuario
               </label>
               <input
-                type="email"
+                id="admin-username"
+                name="username"
+                type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="admin@ejemplo.com"
-                autoComplete="email"
+                placeholder="admin"
+                autoComplete="username"
                 autoFocus
                 required
-                className="w-full bg-brand-surface border border-brand-border rounded-lg px-4 py-2.5 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-gray-500 transition-colors"
+                aria-invalid={error ? true : undefined}
+                aria-describedby={error ? "admin-login-error" : undefined}
+                className="w-full bg-brand-surface border border-brand-border rounded-lg px-4 py-2.5 text-white placeholder-gray-600 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red focus:border-transparent transition-colors"
               />
             </div>
 
             <div>
-              <label className="block text-gray-400 text-xs font-medium mb-1.5 uppercase tracking-wider">
+              <label
+                htmlFor="admin-password"
+                className="block text-gray-400 text-xs font-medium mb-1.5 uppercase tracking-wider"
+              >
                 Contraseña
               </label>
               <input
+                id="admin-password"
+                name="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 autoComplete="current-password"
                 required
-                className="w-full bg-brand-surface border border-brand-border rounded-lg px-4 py-2.5 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-gray-500 transition-colors"
+                aria-invalid={error ? true : undefined}
+                aria-describedby={error ? "admin-login-error" : undefined}
+                className="w-full bg-brand-surface border border-brand-border rounded-lg px-4 py-2.5 text-white placeholder-gray-600 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red focus:border-transparent transition-colors"
               />
             </div>
 
             {error && (
-              <div className="flex items-center gap-2 bg-red-900/20 border border-red-800/40 rounded-lg px-3 py-2.5">
+              <div
+                id="admin-login-error"
+                role="alert"
+                className="flex items-center gap-2 bg-red-900/20 border border-red-800/40 rounded-lg px-3 py-2.5"
+              >
                 <span className="text-red-400 text-xs">{error}</span>
               </div>
             )}
@@ -86,12 +121,12 @@ export default function AdminLogin() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-brand-red hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 mt-2"
+              className="w-full bg-brand-red hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 mt-2 focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-brand-card"
             >
               {loading ? (
                 <>
                   <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                  Verificando...
+                  Verificando…
                 </>
               ) : (
                 "Entrar"

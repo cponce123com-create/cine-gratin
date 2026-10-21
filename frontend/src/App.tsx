@@ -1,11 +1,5 @@
 import { lazy, Suspense, useEffect, type ReactNode } from "react";
-import {
-  createBrowserRouter,
-  RouterProvider,
-  Outlet,
-  useLocation,
-  type RouteObject,
-} from "react-router-dom";
+import { createBrowserRouter, RouterProvider, Outlet, useLocation, type RouteObject } from "react-router-dom";
 import { Toaster } from "sonner";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -95,131 +89,131 @@ const routes: RouteObject[] = [
   {
     element: <RootLayout />,
     children: [
-  // Standalone routes (no layout)
-  {
-    path: "/player/movie/:imdbId",
-    element: (
-      <Suspense fallback={<PageFallback />}>
-        <MoviePlayer />
-      </Suspense>
-    ),
-  },
-  {
-    path: "/player/series/:imdbId",
-    element: (
-      <Suspense fallback={<PageFallback />}>
-        <SeriesPlayer />
-      </Suspense>
-    ),
-  },
-  {
-    path: "/player",
-    element: (
-      <Suspense fallback={<PageFallback />}>
-        <Player />
-      </Suspense>
-    ),
-  },
-  {
-    path: "/admin/login",
-    element: (
-      <Suspense fallback={<PageFallback />}>
-        <AdminLogin />
-      </Suspense>
-    ),
-  },
+      // Standalone routes (no layout)
+      {
+        path: "/player/movie/:imdbId",
+        element: (
+          <Suspense fallback={<PageFallback />}>
+            <MoviePlayer />
+          </Suspense>
+        ),
+      },
+      {
+        path: "/player/series/:imdbId",
+        element: (
+          <Suspense fallback={<PageFallback />}>
+            <SeriesPlayer />
+          </Suspense>
+        ),
+      },
+      {
+        path: "/player",
+        element: (
+          <Suspense fallback={<PageFallback />}>
+            <Player />
+          </Suspense>
+        ),
+      },
+      {
+        path: "/admin/login",
+        element: (
+          <Suspense fallback={<PageFallback />}>
+            <AdminLogin />
+          </Suspense>
+        ),
+      },
 
-  // Protected admin routes
-  {
-    path: "/admin",
-    element: (
-      <AdminPage>
-        <AdminDashboard />
-      </AdminPage>
-    ),
-  },
-  {
-    path: "/admin/import",
-    element: (
-      <AdminPage>
-        <AdminImport />
-      </AdminPage>
-    ),
-  },
-  {
-    path: "/admin/movies",
-    element: (
-      <AdminPage>
-        <ManageMovies />
-      </AdminPage>
-    ),
-  },
-  {
-    path: "/admin/series",
-    element: (
-      <AdminPage>
-        <ManageSeries />
-      </AdminPage>
-    ),
-  },
-  {
-    path: "/admin/tmdb",
-    element: (
-      <AdminPage>
-        <TmdbScraper />
-      </AdminPage>
-    ),
-  },
-  {
-    path: "/admin/vidsrc-scanner",
-    element: (
-      <AdminPage>
-        <VidsrcScanner />
-      </AdminPage>
-    ),
-  },
-  {
-    path: "/admin/sport-channels",
-    element: (
-      <AdminPage>
-        <SportChannels />
-      </AdminPage>
-    ),
-  },
-  {
-    path: "/admin/event-channels",
-    element: (
-      <AdminPage>
-        <EventChannels />
-      </AdminPage>
-    ),
-  },
-  {
-    path: "/admin/sagas",
-    element: (
-      <AdminPage>
-        <AdminSagas />
-      </AdminPage>
-    ),
-  },
+      // Protected admin routes
+      {
+        path: "/admin",
+        element: (
+          <AdminPage>
+            <AdminDashboard />
+          </AdminPage>
+        ),
+      },
+      {
+        path: "/admin/import",
+        element: (
+          <AdminPage>
+            <AdminImport />
+          </AdminPage>
+        ),
+      },
+      {
+        path: "/admin/movies",
+        element: (
+          <AdminPage>
+            <ManageMovies />
+          </AdminPage>
+        ),
+      },
+      {
+        path: "/admin/series",
+        element: (
+          <AdminPage>
+            <ManageSeries />
+          </AdminPage>
+        ),
+      },
+      {
+        path: "/admin/tmdb",
+        element: (
+          <AdminPage>
+            <TmdbScraper />
+          </AdminPage>
+        ),
+      },
+      {
+        path: "/admin/vidsrc-scanner",
+        element: (
+          <AdminPage>
+            <VidsrcScanner />
+          </AdminPage>
+        ),
+      },
+      {
+        path: "/admin/sport-channels",
+        element: (
+          <AdminPage>
+            <SportChannels />
+          </AdminPage>
+        ),
+      },
+      {
+        path: "/admin/event-channels",
+        element: (
+          <AdminPage>
+            <EventChannels />
+          </AdminPage>
+        ),
+      },
+      {
+        path: "/admin/sagas",
+        element: (
+          <AdminPage>
+            <AdminSagas />
+          </AdminPage>
+        ),
+      },
 
-  // Public routes with Navbar/Footer
-  {
-    element: <PublicLayout />,
-    children: [
-      { path: "/", element: <Home /> },
-      { path: "/peliculas", element: <Movies /> },
-      { path: "/series", element: <SeriesList /> },
-      { path: "/deportes", element: <Sports /> },
-      { path: "/eventos", element: <Events /> },
-      { path: "/tv-en-vivo", element: <TvLive /> },
-      { path: "/pelicula/:id", element: <MovieDetail /> },
-      { path: "/serie/:id", element: <SeriesDetail /> },
-      { path: "/search/:query", element: <Search /> },
-      { path: "/saga/:id", element: <SagaDetail /> },
-      { path: "*", element: <NotFound /> },
-    ],
-  },
+      // Public routes with Navbar/Footer
+      {
+        element: <PublicLayout />,
+        children: [
+          { path: "/", element: <Home /> },
+          { path: "/peliculas", element: <Movies /> },
+          { path: "/series", element: <SeriesList /> },
+          { path: "/deportes", element: <Sports /> },
+          { path: "/eventos", element: <Events /> },
+          { path: "/tv-en-vivo", element: <TvLive /> },
+          { path: "/pelicula/:id", element: <MovieDetail /> },
+          { path: "/serie/:id", element: <SeriesDetail /> },
+          { path: "/search/:query", element: <Search /> },
+          { path: "/saga/:id", element: <SagaDetail /> },
+          { path: "*", element: <NotFound /> },
+        ],
+      },
     ],
   },
 ];

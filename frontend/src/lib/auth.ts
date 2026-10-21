@@ -1,44 +1,80 @@
-const AUTH_KEY = "cg_admin_token";
-const BASE_URL = (import.meta.env["VITE_API_URL"] as string) || "https://cine-gratin.onrender.com";
+/**
+ * Administrative session handling.
+ *
+ * The session lives in an `HttpOnly` cookie set by the API, so the token is
+ * not reachable from JavaScript: an XSS injection cannot exfiltrate it. The
+ * browser sends it automatically on every request (same-origin deployments
+ * need no CORS changes; cross-origin ones must use `credentials: "include"`).
+ *
+ * The token is never stored in `localStorage` and never placed in a URL.
+ */
 
-export async function login(
-  username: string,
-  password: string
-): Promise<{ ok: boolean; error?: string }> {
+export const BASE_URL =
+  (import.meta.env["VITE_API_URL"] as string | undefined) || "https://cine-gratin.onrender.com";
+
+/** Fired when the API rejects a request because the session is not valid. */
+export const UNAUTHORIZED_EVENT = "cg:unauthorized";
+
+function emitUnauthorized(): void {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT));
+  }
+}
+
+/** Notifies the application that the session is no longer valid. */
+export function notifyUnauthorized(): void {
+  emitUnauthorized();
+}
+
+export async function login(username: string, password: string): Promise<{ ok: boolean; error?: string }> {
   try {
     const res = await fetch(`${BASE_URL}/api/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({ username, password }),
     });
 
     if (!res.ok) {
       const data = (await res.json().catch(() => ({}))) as { error?: string };
-      return { ok: false, error: data.error ?? "Contraseña incorrecta" };
+      if (res.status === 429) {
+        return { ok: false, error: "Demasiados intentos. Espera unos minutos e inténtalo de nuevo." };
+      }
+      if (res.status === 401) {
+        return { ok: false, error: data.error ?? "Usuario o contraseña incorrectos." };
+      }
+      return { ok: false, error: data.error ?? "No se pudo iniciar sesión." };
     }
 
-    const data = (await res.json()) as { ok: boolean; token?: string };
-    if (data.ok && data.token) {
-      localStorage.setItem(AUTH_KEY, data.token);
-    } else if (data.ok) {
-      // Backend running without ADMIN_SECRET — store a placeholder
-      localStorage.setItem(AUTH_KEY, "authenticated");
-    }
     return { ok: true };
   } catch {
-    return { ok: false, error: "No se pudo conectar al servidor" };
+    return { ok: false, error: "No se pudo conectar con el servidor" };
   }
 }
 
-export function logout(): void {
-  localStorage.removeItem(AUTH_KEY);
+/** Ends the session on the server (the cookie is cleared) and locally. */
+export async function logout(): Promise<void> {
+  try {
+    await fetch(`${BASE_URL}/api/auth/logout`, {
+      method: "POST",
+      credentials: "include",
+    });
+  } catch {
+    // Even if the server is unreachable the local session is dropped.
+  }
 }
 
-export function isAuthenticated(): boolean {
-  const token = localStorage.getItem(AUTH_KEY);
-  return !!token && token.length > 0;
-}
-
-export function getToken(): string | null {
-  return localStorage.getItem(AUTH_KEY);
+/** Asks the API whether the current browser session is valid. */
+export async function fetchSession(): Promise<boolean> {
+  try {
+    const res = await fetch(`${BASE_URL}/api/auth/session`, {
+      credentials: "include",
+      cache: "no-store",
+    });
+    if (!res.ok) return false;
+    const data = (await res.json()) as { authenticated?: boolean };
+    return Boolean(data.authenticated);
+  } catch {
+    return false;
+  }
 }

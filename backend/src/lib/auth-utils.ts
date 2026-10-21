@@ -1,87 +1,119 @@
+/**
+ * Authentication helpers.
+ *
+ * Security model
+ * --------------
+ * - Sessions are JWTs signed with `JWT_SECRET`.
+ * - The token is transported either by an `HttpOnly` cookie (`cg_session`) or,
+ *   for CLI/API usage, by an `Authorization: Bearer` header.
+ * - Tokens are NEVER accepted from the query string: URLs end up in browser
+ *   history, proxy logs and `Referer` headers.
+ * - Admin routes are closed by default. A request is authorised only with a
+ *   valid JWT or with the configured `ADMIN_SECRET`.
+ * - `ALLOW_INSECURE_DEV_AUTH=true` re-enables the "any non-empty token" mode
+ *   for local development, but it is refused in production.
+ */
+import { timingSafeEqual } from "node:crypto";
+import type { Request } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import { getConfig } from "./config";
 
 const SALT_ROUNDS = 10;
+export const SESSION_COOKIE = "cg_session";
 
-/** Secret used for JWT signing. Falls back to ADMIN_SECRET for backward compat, then a dev default. */
-function getJwtSecret(): string {
-  return process.env["JWT_SECRET"] || process.env["ADMIN_SECRET"] || "dev-secret-do-not-use-in-production";
-}
-
-/**
- * Hash a plaintext password with bcrypt.
- */
+/** Hashes a plaintext password with bcrypt. */
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, SALT_ROUNDS);
 }
 
-/**
- * Compare a plaintext password against a bcrypt hash.
- */
+/** Compares a plaintext password with a bcrypt hash. */
 export async function verifyPassword(password: string, hash: string): Promise<boolean> {
   return bcrypt.compare(password, hash);
 }
 
-/**
- * Check whether a stored password looks like a bcrypt hash ($2a$ or $2b$ prefix).
- */
+/** Checks whether a stored password already looks like a bcrypt hash. */
 export function isBcryptHash(str: string): boolean {
-  return str.startsWith("$2b$") || str.startsWith("$2a$");
+  return str.startsWith("$2b$") || str.startsWith("$2a$") || str.startsWith("$2y$");
 }
 
-/**
- * Generate a JWT for an authenticated admin user.
- * Token expires in 24 hours.
- */
+/** Generates a signed session token for the given admin username. */
 export function generateToken(username: string): string {
-  return jwt.sign({ username, role: "admin" }, getJwtSecret(), { expiresIn: "24h" });
+  const config = getConfig();
+  return jwt.sign({ username, role: "admin" }, config.jwtSecret, {
+    expiresIn: config.sessionTtlSeconds,
+  });
 }
 
-/**
- * Verify a JWT and return the decoded payload, or null if invalid/expired.
- */
+/** Verifies a session token, returning its payload or null. */
 export function verifyToken(token: string): { username: string; role: string } | null {
   try {
-    return jwt.verify(token, getJwtSecret()) as { username: string; role: string };
+    return jwt.verify(token, getConfig().jwtSecret) as { username: string; role: string };
   } catch {
     return null;
   }
 }
 
+/** Constant-time string comparison that does not leak length through timing. */
+export function safeCompare(a: string, b: string): boolean {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) {
+    // Still perform a comparison to keep the timing profile flat.
+    timingSafeEqual(bufA, bufA);
+    return false;
+  }
+  return timingSafeEqual(bufA, bufB);
+}
+
 /**
- * Validate an auth token. Accepts:
- * 1. A valid JWT (preferred)
- * 2. The raw ADMIN_SECRET value (backward compatibility during migration)
- * 3. In dev mode (no ADMIN_SECRET set), any non-empty token is accepted.
+ * Extracts the session token from the request.
+ * Only two transports are supported: the session cookie and the Authorization
+ * header. Query parameters are explicitly ignored.
+ */
+export function extractToken(req: Request): string | undefined {
+  const header = req.headers.authorization;
+  if (header && header.startsWith("Bearer ")) {
+    const value = header.slice("Bearer ".length).trim();
+    if (value) return value;
+  }
+
+  const cookies = (req as Request & { cookies?: Record<string, string> }).cookies;
+  const cookieValue = cookies?.[SESSION_COOKIE];
+  if (typeof cookieValue === "string" && cookieValue.trim()) {
+    return cookieValue.trim();
+  }
+
+  return undefined;
+}
+
+/**
+ * Validates a token.
+ * Accepts a valid JWT or the raw `ADMIN_SECRET` (kept for API automation).
+ * In development only, and only when explicitly enabled, any non-empty token
+ * is accepted.
  */
 export function isValidToken(token: string): boolean {
-  // JWT verification
+  if (!token) return false;
+
   if (verifyToken(token)) return true;
 
-  // Backward compat: accept the raw ADMIN_SECRET
-  const adminSecret = process.env["ADMIN_SECRET"];
-  if (adminSecret && token === adminSecret) return true;
+  const config = getConfig();
+  if (config.adminSecret && safeCompare(token, config.adminSecret)) return true;
 
-  // Dev mode: no ADMIN_SECRET configured → accept any token
-  if (!adminSecret) return true;
+  if (config.allowInsecureDevAuth && !config.isProduction) return true;
 
   return false;
 }
 
-/**
- * Standard auth check for inline route protection (non-/admin/* routes).
- * Sends 401 response and returns false if auth fails.
- */
-import type { Request, Response } from "express";
-
-export function requireAuth(req: Request, res: Response): boolean {
-  const authHeader = req.headers["authorization"];
-  const queryToken = req.query["token"] as string | undefined;
-  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : queryToken;
-
-  if (!token || !isValidToken(token)) {
-    res.status(401).json({ error: "No autorizado" });
-    return false;
-  }
-  return true;
+/** Cookie options used for the session cookie. */
+export function sessionCookieOptions() {
+  const config = getConfig();
+  return {
+    httpOnly: true,
+    sameSite: config.cookieSameSite,
+    secure: config.cookieSecure,
+    path: "/",
+    maxAge: config.sessionTtlSeconds * 1000,
+  } as const;
 }

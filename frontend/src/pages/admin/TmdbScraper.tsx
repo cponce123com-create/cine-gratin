@@ -69,12 +69,16 @@ export default function TmdbScraper() {
   const loadLocalCatalog = useCallback(async () => {
     try {
       const [movies, series] = await Promise.all([
-        getMovies({ limit: 500 }).catch(() => [] as Movie[]),
-        getSeries({ limit: 500 }).catch(() => [] as Series[]),
+        getMovies({ page: 1, limit: 100 }).catch(() => [] as Movie[]),
+        getSeries({ page: 1, limit: 100 }).catch(() => [] as Series[]),
       ]);
       const ids = new Set<number>();
-      movies.forEach((m) => { if (m.tmdb_id) ids.add(m.tmdb_id); });
-      series.forEach((s) => { if (s.tmdb_id) ids.add(s.tmdb_id); });
+      movies.forEach((m) => {
+        if (m.tmdb_id) ids.add(m.tmdb_id);
+      });
+      series.forEach((s) => {
+        if (s.tmdb_id) ids.add(s.tmdb_id);
+      });
       setLocalIds(ids);
     } catch {}
   }, []);
@@ -179,7 +183,10 @@ export default function TmdbScraper() {
         </div>
 
         {/* Filters card */}
-        <div className="bg-brand-card border border-brand-border rounded-2xl p-6 space-y-5" onKeyDown={handleKeyDown}>
+        <div
+          className="bg-brand-card border border-brand-border rounded-2xl p-6 space-y-5"
+          onKeyDown={handleKeyDown}
+        >
           {/* Type selector */}
           <div className="flex gap-1 bg-brand-surface border border-brand-border rounded-xl p-1 w-fit">
             {(["movie", "series"] as const).map((t) => (

@@ -11,7 +11,7 @@ import SectionSkeleton from "@/components/home/SectionSkeleton";
 import { GENRE_SECTIONS, PLATFORM_SECTIONS, CUSTOM_SECTIONS } from "@/lib/homeConfig";
 import { useContinueWatching } from "@/hooks/useContinueWatching";
 import { useIntersectionObserver } from "@/hooks/useIntersectionObserver";
-import { useMovies, useSeriesList } from "@/hooks/useApi";
+import { useMoviesBatch, useSeriesBatch } from "@/hooks/useApi";
 import { matchesKeywords, matchesNetworks, buildMixed, MIN_ITEMS_TO_SHOW } from "@/components/home/helpers";
 import type { TmdbTrendingItem } from "@/components/home/types";
 
@@ -27,8 +27,8 @@ async function fetchTmdbTrending(window: "day" | "week"): Promise<TmdbTrendingIt
 type FilterMode = "genre" | "platform" | null;
 
 export default function Home() {
-  const { data: movieData, isLoading: loadingMovies, error: errorMovies } = useMovies(1, 500);
-  const { data: seriesData, isLoading: loadingSeries, error: errorSeries } = useSeriesList(1, 200);
+  const { data: movieData, isLoading: loadingMovies, error: errorMovies } = useMoviesBatch(500);
+  const { data: seriesData, isLoading: loadingSeries, error: errorSeries } = useSeriesBatch(200);
 
   const { data: tmdbTrending = [] } = useQuery({
     queryKey: ["tmdb-trending-week"],

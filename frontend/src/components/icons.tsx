@@ -4,14 +4,7 @@ type IconProps = SVGProps<SVGSVGElement> & { size?: number };
 
 export function PlayIcon({ size = 16, className, ...props }: IconProps) {
   return (
-    <svg
-      className={className}
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      {...props}
-    >
+    <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="currentColor" {...props}>
       <path d="M8 5v14l11-7z" />
     </svg>
   );
@@ -59,14 +52,7 @@ export function CheckIcon({ size = 16, className, ...props }: IconProps) {
 // Triangle play icon (used by VidsrcScanner)
 export function PlayTriangleIcon({ size = 16, className, ...props }: IconProps) {
   return (
-    <svg
-      className={className}
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      {...props}
-    >
+    <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="currentColor" {...props}>
       <polygon points="5 3 19 12 5 21 5 3" />
     </svg>
   );

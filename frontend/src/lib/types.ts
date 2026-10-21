@@ -41,8 +41,12 @@ export interface TrendPoint {
 
 export interface AdminStats {
   global: {
+    /** Total de títulos en el catálogo. */
     movies: number;
     series: number;
+    /** Títulos verificados como disponibles en el proveedor de streaming. */
+    availableMovies: number;
+    availableSeries: number;
     totalViews: number;
   };
   top10: {

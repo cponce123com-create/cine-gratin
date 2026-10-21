@@ -6,26 +6,26 @@
   "scripts": {
     "dev": "export NODE_ENV=development && pnpm run build && pnpm run start",
     "build": "node ./build.mjs",
-    "start": "node --enable-source-maps ./dist/index.mjs",
+    "start": "node --env-file-if-exists=.env --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@types/compression": "^1.8.1",
     "@types/node-cron": "^3.0.11",
     "@types/pg": "^8.18.0",
-    "compression": "^1.8.1",
+    "bcrypt": "^5",
+    "compression": "^1.8.2",
     "cookie-parser": "^1.4.7",
     "cors": "^2",
-    "zod": "^3.25.76",
-    "express": "^5",
-    "express-rate-limit": "^8.3.2",
+    "express": "^5.3.0",
+    "express-rate-limit": "^8.7.1",
+    "helmet": "^8",
+    "jsonwebtoken": "^9",
     "node-cron": "^4.2.1",
     "pg": "^8.20.0",
     "pino": "^9",
     "pino-http": "^10",
-    "bcrypt": "^5",
-    "helmet": "^8",
-    "jsonwebtoken": "^9"
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.10",
