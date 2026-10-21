@@ -209,6 +209,8 @@ const routes: RouteObject[] = [
           { path: "/tv-en-vivo", element: <TvLive /> },
           { path: "/pelicula/:id", element: <MovieDetail /> },
           { path: "/serie/:id", element: <SeriesDetail /> },
+          { path: "/search", element: <Search /> },
+          { path: "/search", element: <Search /> },
           { path: "/search/:query", element: <Search /> },
           { path: "/saga/:id", element: <SagaDetail /> },
           { path: "*", element: <NotFound /> },
