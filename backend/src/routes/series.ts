@@ -192,7 +192,7 @@ router.get(
     }
     if (genre) {
       params.push(genre);
-      conditions.push(`${params.length} = ANY(genres)`);
+      conditions.push(`$${params.length} = ANY(genres)`);
     }
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
