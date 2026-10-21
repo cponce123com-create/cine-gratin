@@ -38,6 +38,8 @@ app.use(
           "https://image.tmdb.org",
           "https://i.ytimg.com",
           "https://*.ytimg.com",
+          // Miniaturas de los vídeos de YouTube (img.youtube.com).
+          "https://img.youtube.com",
           "https://*.tmdb.org",
         ],
         connectSrc: [
