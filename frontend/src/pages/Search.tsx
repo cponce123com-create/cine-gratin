@@ -26,7 +26,18 @@ export default function Search() {
     setPage(1);
   }, [query]);
 
+  useEffect(() => {
+    const value = inputVal.trim();
+    if (value === query.trim()) return;
+    const timer = window.setTimeout(() => {
+      setPage(1);
+      navigate(value ? `/search/${encodeURIComponent(value)}` : "/search", { replace: true });
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [inputVal, query, navigate]);
+
   const trimmed = query.trim();
+  const tooShort = trimmed.length === 1;
 
   const {
     data: movies = [],
@@ -35,8 +46,8 @@ export default function Search() {
     error: moviesError,
   } = useQuery({
     queryKey: ["search-movies", trimmed, page],
-    queryFn: ({ signal }) => searchMovies(trimmed, PAGE_SIZE, signal),
-    enabled: trimmed.length > 0,
+    queryFn: ({ signal }) => searchMovies(trimmed, PAGE_SIZE, signal, page),
+    enabled: trimmed.length >= 2,
     staleTime: 2 * 60 * 1000,
   });
 
@@ -47,8 +58,8 @@ export default function Search() {
     error: seriesError,
   } = useQuery({
     queryKey: ["search-series", trimmed, page],
-    queryFn: ({ signal }) => searchSeries(trimmed, PAGE_SIZE, signal),
-    enabled: trimmed.length > 0,
+    queryFn: ({ signal }) => searchSeries(trimmed, PAGE_SIZE, signal, page),
+    enabled: trimmed.length >= 2,
     staleTime: 2 * 60 * 1000,
   });
 
@@ -188,6 +199,12 @@ export default function Search() {
           </div>
         )}
 
+        {tooShort && (
+          <p className="mb-8 text-sm text-gray-500" aria-live="polite">
+            Escribe al menos 2 caracteres para buscar por título, trama o género.
+          </p>
+        )}
+
         {/* Loading */}
         {loading && (
           <div className="flex items-center justify-center py-20" role="status" aria-live="polite">
@@ -205,7 +222,7 @@ export default function Search() {
         )}
 
         {/* No results */}
-        {!loading && !hasError && trimmed && total === 0 && (
+        {!loading && !hasError && trimmed && !tooShort && total === 0 && (
           <div className="text-center py-20">
             <p className="text-gray-400 text-lg">No se encontraron resultados.</p>
             <p className="text-gray-600 text-sm mt-2">Intenta con otro título o género.</p>
