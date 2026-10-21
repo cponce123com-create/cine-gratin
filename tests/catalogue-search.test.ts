@@ -34,14 +34,17 @@ describe("catalogue concept search", () => {
   });
 
   it("searches catalogue keywords and the complete cast as metadata", () => {
-    const search = buildCatalogueSearch("Brad Pitt", {
-      title: "title",
-      synopsis: "synopsis",
-      metadata: [
-        "COALESCE(array_to_string(keywords, ' '), '')",
-        "COALESCE(cast_full::text, '')",
-      ],
-    });
+    const search = buildCatalogueSearch(
+      "Brad Pitt",
+      {
+        title: "title",
+        synopsis: "synopsis",
+        metadata: [
+          "COALESCE(array_to_string(keywords, ' '), '')",
+          "COALESCE(cast_full::text, '')",
+        ],
+      },
+    );
 
     expect(search.condition).toContain("array_to_string(keywords, ' ')");
     expect(search.condition).toContain("cast_full::text ILIKE");
