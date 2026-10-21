@@ -29,4 +29,34 @@ router.get("/readyz", async (_req, res) => {
   }
 });
 
+/**
+ * Escape hatch for the browser cache.
+ *
+ * The service worker caches the application shell. If a deployment leaves an
+ * old copy in the browser (for example, an asset served with a wrong
+ * `Content-Type`), the page can stay broken until the caches expire. This
+ * endpoint asks the browser to drop its caches (the `Clear-Site-Data` header)
+ * and reloads the site.
+ *
+ * It is public on purpose: it only affects the cache of the client that calls
+ * it and it never touches the session (the cookie is preserved).
+ */
+router.get("/reset-cache", (_req, res) => {
+  res.setHeader("Clear-Site-Data", '"cache", "storage"');
+  res.setHeader("Cache-Control", "no-store");
+  res.type("html").send(
+    `<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Cine Gratín</title>
+    <meta http-equiv="refresh" content="0; url=/" />
+  </head>
+  <body>
+    <p>Cache del navegador borrada. <a href="/">Volver a Cine Gratín</a>.</p>
+  </body>
+</html>`,
+  );
+});
+
 export default router;

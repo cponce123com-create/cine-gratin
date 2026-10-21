@@ -8,7 +8,7 @@
     "icons": "node ../scripts/generate-pwa-icons.mjs",
     "prebuild": "node ../scripts/generate-pwa-icons.mjs",
     "build": "vite build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.sw.json --noEmit"
   },
   "dependencies": {
     "@tanstack/react-query": "catalog:",

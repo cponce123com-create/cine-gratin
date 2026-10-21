@@ -24,6 +24,12 @@ export default defineConfig({
     compression({ algorithm: "gzip", ext: ".gz" }),
     compression({ algorithm: "brotliCompress", ext: ".br" }),
     VitePWA({
+      // Service worker propio: hace falta controlar como se sirve el shell
+      // (siempre desde la red, con el ultimo shell como reserva) en lugar de
+      // servir la copia pre-cacheada, que puede ser de otro despliegue.
+      strategies: "injectManifest",
+      srcDir: "src",
+      filename: "sw.ts",
       registerType: "autoUpdate",
       includeAssets: ["favicon.svg", "apple-touch-icon.png"],
       manifest: {
@@ -57,38 +63,11 @@ export default defineConfig({
           },
         ],
       },
-      workbox: {
-        globPatterns: ["**/*.{js,css,html,svg,png,jpg,jpeg,gif,webp,woff2}"],
+      injectManifest: {
+        globPatterns: ["**/*.{js,css,svg,png,jpg,jpeg,gif,webp,woff2}"],
         // The HLS player (345 kB) is only needed on the live TV and sports
         // pages: precaching it would download it on the first visit.
         globIgnores: ["**/hls.light.min-*.js"],
-        navigateFallback: "/index.html",
-        // Private or authenticated responses must never be stored.
-        navigateFallbackDenylist: [/^\/api\//],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/.*\.(png|jpg|jpeg|svg|webp)$/,
-            handler: "CacheFirst",
-            options: {
-              cacheName: "images-cache",
-              expiration: {
-                maxEntries: 60,
-                maxAgeSeconds: 60 * 60 * 24 * 7, // 7 días
-              },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-          {
-            // Only the assets of this origin: caching scripts from third
-            // parties would store code the application does not control.
-            urlPattern: /^\/assets\/.*\.(css|js)$/,
-            handler: "StaleWhileRevalidate",
-            options: {
-              cacheName: "assets-cache",
-              expiration: { maxEntries: 40, maxAgeSeconds: 60 * 60 * 24 * 7 },
-            },
-          },
-        ],
       },
     }),
   ],

@@ -100,6 +100,38 @@ describe("servicio del frontend estático", () => {
     }
   });
 
+  it("no guarda en cache los ficheros del service worker", async () => {
+    // Si el navegador conserva una copia antigua de sw.js, sigue sirviendo el
+    // shell de un despliegue anterior y el sitio aparece roto.
+    const publicDir = path.resolve(__dirname, "../backend/public");
+    mkdirSync(publicDir, { recursive: true });
+    const files = ["sw.js", "registerSW.js"];
+    const created: string[] = [];
+
+    try {
+      for (const name of files) {
+        const file = path.join(publicDir, name);
+        writeFileSync(file, "// service worker de prueba\n", "utf8");
+        created.push(file);
+
+        const response = await request(app).get(`/${name}`);
+        expect(response.status, name).toBe(200);
+        expect(response.headers["cache-control"], name).toBe("no-cache");
+      }
+    } finally {
+      for (const file of created) rmSync(file, { force: true });
+    }
+  });
+
+  it("ofrece una forma de vaciar la cache del navegador", async () => {
+    const response = await request(app).get("/api/reset-cache");
+
+    expect(response.status).toBe(200);
+    expect(response.headers["clear-site-data"]).toContain("cache");
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(response.text).toContain("Volver a Cine Gratín");
+  });
+
   it("acepta la cabecera X-CSRF-Token en el preflight de CORS", async () => {
     const response = await request(app)
       .options("/api/admin/import-jobs/preview")

@@ -139,8 +139,24 @@ export function cachePolicyFor(urlPath: string): string {
   if (urlPath.endsWith(".html") || urlPath === "/" || urlPath === "") {
     return "no-cache";
   }
+  // The service worker must always be revalidated: if the browser keeps an old
+  // copy, it keeps serving an old application shell (with the asset URLs of a
+  // previous deployment) and the site appears broken until the cache expires.
+  if (isServiceWorkerFile(urlPath)) {
+    return "no-cache";
+  }
   if (urlPath.startsWith("/assets/")) {
     return "public, max-age=31536000, immutable";
   }
   return "public, max-age=3600";
+}
+
+/** Files that belong to the service worker and must never be cached. */
+export function isServiceWorkerFile(urlPath: string): boolean {
+  return (
+    urlPath === "/sw.js" ||
+    urlPath === "/registerSW.js" ||
+    urlPath === "/workbox.js" ||
+    /^\/workbox-[^/]+\.js$/.test(urlPath)
+  );
 }

@@ -110,6 +110,7 @@ jobs:
           set +e
           pnpm exec vitest run tests/api.test.ts tests/config.test.ts tests/validation.test.ts \
             tests/csrf.test.ts tests/import-jobs.test.ts tests/static-frontend.test.ts \
+            tests/shell-cache.test.ts \
             > vitest-backend.log 2>&1
           status=$?
           cat vitest-backend.log
