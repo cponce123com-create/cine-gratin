@@ -4,6 +4,7 @@ import type { TmdbVideo } from "@/lib/types";
 import { sortVideos, fetchImages } from "./helpers";
 import { VIDEO_TABS } from "./constants";
 import { VideoCard } from "./VideoCard";
+import Modal from "@/components/Modal";
 
 export function MediaSection({
   videos,
@@ -115,31 +116,36 @@ export function MediaSection({
             ))}
           </div>
           {lightbox && (
-            <div
-              className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4"
-              onClick={() => setLightbox(null)}
+            <Modal
+              open
+              onClose={() => setLightbox(null)}
+              title="Imagen ampliada"
+              titleId="media-lightbox-title"
+              className="max-w-5xl bg-transparent border-0 shadow-none"
+              hideCloseButton
             >
               <button
+                type="button"
                 onClick={() => setLightbox(null)}
-                className="absolute top-4 right-4 text-white/70 hover:text-white text-3xl font-bold"
+                aria-label="Cerrar la imagen ampliada"
+                className="absolute -top-10 right-0 text-white/70 hover:text-white text-3xl font-bold focus-visible:ring-2 focus-visible:ring-brand-red rounded"
               >
-                ✕
+                <span aria-hidden="true">✕</span>
               </button>
               <img
                 src={lightbox}
-                alt=""
-                className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl"
-                onClick={(e) => e.stopPropagation()}
+                alt="Imagen ampliada del título"
+                className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl mx-auto"
               />
               <a
                 href={lightbox}
                 target="_blank"
-                rel="noreferrer"
-                className="absolute bottom-4 right-4 text-xs text-gray-400 hover:text-white"
+                rel="noopener noreferrer"
+                className="absolute bottom-4 right-0 text-xs text-gray-400 hover:text-white focus-visible:ring-2 focus-visible:ring-brand-red rounded"
               >
                 Ver original ↗
               </a>
-            </div>
+            </Modal>
           )}
         </>
       ) : (

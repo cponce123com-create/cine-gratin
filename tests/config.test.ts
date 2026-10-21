@@ -5,8 +5,6 @@ import { loadConfig, resolveCorsOrigins, setConfig } from "../backend/src/lib/co
  * Production must refuse to start with a missing or insecure configuration.
  * These tests manipulate `process.env` and restore it afterwards.
  */
-const ORIGINAL_ENV = { ...process.env };
-
 function withEnv<T>(env: Record<string, string | undefined>, run: () => T): T {
   const previous = { ...process.env };
   for (const [key, value] of Object.entries(env)) {

@@ -162,7 +162,8 @@ TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/cine-gratin-test
 ```
 
 Sin `TEST_DATABASE_URL` se ejecutan sólo las pruebas unitarias y las de
-base de datos se omiten. Para probar también las importaciones reales:
+base de datos se omiten. La suite incluye pruebas del backend y de los
+componentes del frontend (jsdom). Para probar también las importaciones reales:
 
 ```bash
 TEST_TMDB_API_KEY=tu-clave-de-tmdb pnpm test

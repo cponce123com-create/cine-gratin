@@ -53,8 +53,9 @@ pnpm test            # Suite de pruebas (Vitest)
 pnpm build           # Build de producción
 ```
 
-Las pruebas de base de datos usan una base **aislada**; nunca apuntan a la de
-producción:
+La suite incluye pruebas del backend (Vitest + supertest) y de los componentes
+del frontend (Testing Library + jsdom). Las de base de datos usan una base
+**aislada**; nunca apuntan a la de producción:
 
 ```bash
 createdb cine-gratin-test
@@ -64,6 +65,10 @@ TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/cine-gratin-test
 Sin `TEST_DATABASE_URL` se ejecutan solo las pruebas unitarias y las de base
 de datos se omiten. `TEST_TMDB_API_KEY` habilita además las pruebas de
 importación contra el proveedor real.
+
+Los componentes se prueban con jsdom; el `@vitest-environment jsdom` se declara
+por fichero y los alias de Vitet apuntan a las mismas instancias de React que
+usa el frontend (ver `vitest.config.ts`).
 
 ## Despliegue
 

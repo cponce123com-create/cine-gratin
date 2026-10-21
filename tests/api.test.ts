@@ -13,8 +13,6 @@ import { importByImdbId } from "../backend/src/jobs/auto-import";
  */
 const skipDatabase = process.env["SKIP_DATABASE_TESTS"] === "true";
 
-const ADMIN_PASSWORD = process.env["TEST_ADMIN_PASSWORD"] ?? "Test-Admin-2026!";
-
 const ADMIN_PATHS = [
   "/api/admin/stats",
   "/api/admin/movies",
