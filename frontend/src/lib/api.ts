@@ -124,10 +124,14 @@ export const getSeries = (params?: {
 export const getSeriesById = (id: string, signal?: AbortSignal): Promise<Series> =>
   apiFetch(`/api/series/${encodeURIComponent(id)}`, signal);
 
-export const searchMovies = (q: string, limit = 6, signal?: AbortSignal): Promise<Movie[]> =>
-  apiFetch(`/api/movies/search?q=${encodeURIComponent(q)}&limit=${limit}`, signal);
-export const searchSeries = (q: string, limit = 4, signal?: AbortSignal): Promise<Series[]> =>
-  apiFetch(`/api/series/search?q=${encodeURIComponent(q)}&limit=${limit}`, signal);
+export const searchMovies = (q: string, limit = 6, signal?: AbortSignal, page = 1): Promise<Movie[]> => {
+  const params = new URLSearchParams({ q, limit: String(limit), page: String(page) });
+  return apiFetch(`/api/movies/search?${params}`, signal);
+};
+export const searchSeries = (q: string, limit = 4, signal?: AbortSignal, page = 1): Promise<Series[]> => {
+  const params = new URLSearchParams({ q, limit: String(limit), page: String(page) });
+  return apiFetch(`/api/series/search?${params}`, signal);
+};
 
 export const trackMovieView = (id: string | number): Promise<void> => apiPatch(`/api/movies/${id}/view`);
 export const trackSeriesView = (id: string | number): Promise<void> => apiPatch(`/api/series/${id}/view`);
