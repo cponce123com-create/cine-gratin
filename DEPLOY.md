@@ -67,6 +67,130 @@ Migraciones incluidas:
 
 Para revisar el estado: `SELECT version, name, applied_at FROM schema_migrations;`
 
+> La migración 9 crea índices **únicos parciales** sobre `imdb_id` y
+> `tmdb_id`. Si el catálogo ya tuviera duplicados, la migración **no falla y
+> no borra nada**: registra el motivo en la tabla `schema_issues` y sigue
+> arrancando. Para resolver los duplicados:
+>
+> ```sql
+> SELECT imdb_id, count(*) FROM movies
+>  WHERE imdb_id ~ '^tt[0-9]{7,10}
+> ```
+
+### Usuario administrador
+
+El usuario se guarda en la tabla `cv_auth` con la contraseña en bcrypt:
+
+```bash
+# 1. Generar el hash
+cd backend && node --input-type=module -e "import bcrypt from 'bcrypt'; console.log(await bcrypt.hash('TU_CONTRASEÑA', 10))"
+
+# 2. Aplicarlo
+psql "$DATABASE_URL" -f scripts/set-superadmin.sql -v username="'admin'" -v password="'<HASH>'"
+```
+
+> La contraseña debe tener al menos 10 caracteres, con minúscula, mayúscula y
+> número. El panel de administración la valida en el servidor.
+
+## 🔐 Sesión, CSRF y CORS
+
+- La sesión se guarda en una cookie `HttpOnly` (`cg_session`): el token no
+  es accesible desde JavaScript y no se guarda en `localStorage`.
+- Las peticiones que **cambian el estado** y usan la cookie deben enviar la
+  cabecera `X-CSRF-Token` con el valor recibido en el login (o en
+  `GET /api/auth/session`). El servidor comprueba además que el origen esté
+  en la lista permitida. Las peticiones con `Authorization: Bearer` no
+  necesitan el token CSRF porque no usan credenciales ambientales.
+- El cierre de sesión **revoca la sesión en el servidor**: una copia del
+  token deja de funcionar de inmediato.
+- El token **nunca** se acepta por query string (`?token=`).
+
+En despliegues cruzados (frontend en otro dominio) hay que permitir la
+cabecera en CORS; el backend ya la incluye en `Access-Control-Allow-Headers`.
+
+## 🔗 Sesión y CORS
+
+- La sesión se guarda en una cookie `HttpOnly` (`cg_session`): el token no es
+  accesible desde JavaScript, lo que reduce el impacto de un XSS.
+- En despliegues de un solo dominio no hace falta configurar nada más.
+- En despliegues cruzados: `CORS_ORIGINS` con el origen exacto,
+  `COOKIE_SAME_SITE=none` y `COOKIE_SECURE=true`.
+- El token también se acepta por cabecera `Authorization: Bearer <token>` para
+  automatizaciones. **Nunca** se acepta por query string (`?token=`).
+
+## ⚙️ CI/CD (GitHub Actions)
+
+Existe una única ruta de despliegue: `.github/workflows/ci.yml`.
+
+| Job       | Qué hace                                                             |
+| --------- | -------------------------------------------------------------------- |
+| `quality` | Prettier, y typecheck de raíz, frontend y backend                    |
+| `test`    | Suite de pruebas (Vitest) contra un PostgreSQL efímero del runner    |
+| `build`   | Build del frontend y del backend                                     |
+| `deploy`  | Despliegue en Render (solo `push` a `main` del repositorio canónico) |
+
+El despliegue **depende** de que las verificaciones anteriores terminen bien.
+Los secretos se pasan como variables de entorno (no se interpolan en el
+comando) y el trabajo de despliegue comprueba las condiciones del repositorio
+para no publicar desde forks.
+
+### Secrets requeridos en GitHub
+
+| Secret                   | Descripción                                          |
+| ------------------------ | ---------------------------------------------------- |
+| `RENDER_API_KEY`         | API key de Render (Settings > API Keys)              |
+| `RENDER_SERVICE_ID`      | ID del servicio (`render.com/services/srv-xxx`)      |
+| `RENDER_DEPLOY_HOOK_URL` | Alternativa: deploy hook de Render                   |
+| `RENDER_HEALTH_URL`      | URL pública de salud (por ejemplo `.../api/healthz`) |
+| `TEST_TMDB_API_KEY`      | Opcional: habilita las pruebas de importación reales |
+
+## 🩺 Comprobaciones de salud
+
+- `GET /api/healthz` — el proceso responde (no consulta la base de datos).
+- `GET /api/readyz` — el proceso puede atender tráfico (comprueba la BD).
+
+Configura el health check de Render contra `/api/healthz` para el liveness
+probe y contra `/api/readyz` para el readiness probe.
+
+## 🧪 Pruebas en local
+
+```bash
+# Base de datos de pruebas aislada (nunca la de producción)
+createdb cine-gratin-test
+
+TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/cine-gratin-test pnpm test
+```
+
+Sin `TEST_DATABASE_URL` se ejecutan sólo las pruebas unitarias y las de
+base de datos se omiten. Para probar también las importaciones reales:
+
+```bash
+TEST_TMDB_API_KEY=tu-clave-de-tmdb pnpm test
+```
+
+## 🔧 Recuperación ante errores
+
+| Síntoma                          | Causa probable                         | Solución                                                    |
+| -------------------------------- | -------------------------------------- | ----------------------------------------------------------- |
+| El proceso no arranca            | Falta `JWT_SECRET` en producción       | Configura un secreto de 32+ caracteres                      |
+| `401` en todo el panel           | Cookie no válida o `COOKIE_SECURE`     | Revisa `COOKIE_SAME_SITE`, `COOKIE_SECURE` y `CORS_ORIGINS` |
+| El navegador no envía la cookie  | Dominios distintos sin `SameSite=None` | `COOKIE_SAME_SITE=none` + `COOKIE_SECURE=true`              |
+| La importación no encuentra nada | `TMDB_API_KEY` no configurada          | Añádela a las variables de entorno                          |
+| `EADDRINUSE` al arrancar         | Otra instancia usando el puerto        | Detén el proceso anterior (`lsof -i :3000`)                 |
+| El escáner VIDSRC falla          | vidsrc.me limita las peticiones        | Usa el escáner por rangos, con pausas                       |
+
+Los errores internos nunca se envían al cliente: se registran en el servidor
+con un `requestId` que también aparece en la respuesta, para poder correlacionar
+un aviso de un usuario con la línea exacta del registro.
+
+> GROUP BY imdb_id HAVING count(\*) > 1;
+>
+> ```
+>
+> Una vez resueltos (a mano o con la importación, que ya detecta el
+> conflicto), basta con volver a aplicar la migración.
+> ```
+
 ### Usuario administrador
 
 El usuario se guarda en la tabla `cv_auth` con la contraseña en bcrypt:

@@ -337,11 +337,16 @@ export interface ImportJob {
   imported: number;
   skipped: number;
   failed: number;
+  /** Elementos que no llegaron a procesarse (trabajo cancelado). */
+  pending: number;
+  /** Intentos de ejecución (el trabajo se reencola si se interrumpe). */
+  attempts: number;
   result: ImportJobItem[];
   error: string | null;
   created_at: string;
   started_at: string | null;
   finished_at: string | null;
+  lease_expires_at: string | null;
 }
 
 export interface ImportPreviewItem {

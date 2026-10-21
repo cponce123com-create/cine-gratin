@@ -33,6 +33,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Validar los workflows
+        run: pnpm lint:workflows
+
       - name: Comprobar el formato
         run: pnpm format:check
 

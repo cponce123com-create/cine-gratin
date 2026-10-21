@@ -45,6 +45,9 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,svg,png,jpg,jpeg,gif,webp,woff2}"],
+        // The HLS player (345 kB) is only needed on the live TV and sports
+        // pages: precaching it would download it on the first visit.
+        globIgnores: ["**/hls.light.min-*.js"],
         navigateFallback: "/index.html",
         // Private or authenticated responses must never be stored.
         navigateFallbackDenylist: [/^\/api\//],
@@ -62,7 +65,9 @@ export default defineConfig({
             },
           },
           {
-            urlPattern: /^https:\/\/.*\.(css|js)$/,
+            // Only the assets of this origin: caching scripts from third
+            // parties would store code the application does not control.
+            urlPattern: /^\/assets\/.*\.(css|js)$/,
             handler: "StaleWhileRevalidate",
             options: {
               cacheName: "assets-cache",

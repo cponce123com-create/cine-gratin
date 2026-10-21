@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
+import { useConfirm } from "@/components/admin/useConfirm";
 import YouTubeSettingsSection from "@/components/admin/YouTubeSettingsSection";
 import YouTubeChannelsSection from "@/components/admin/YouTubeChannelsSection";
 import { TrashIcon } from "@/components/admin/icons";
@@ -19,6 +20,7 @@ import {
 // ─── Matches section ──────────────────────────────────────────────────────────
 
 function MatchesSection({ refreshKey }: { refreshKey: number }) {
+  const { confirm, confirmDialog } = useConfirm();
   const [matches, setMatches] = useState<SportMatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -42,13 +44,19 @@ function MatchesSection({ refreshKey }: { refreshKey: number }) {
   }, [load]);
 
   const handleDelete = async (id: number) => {
-    if (!confirm("¿Eliminar este partido del catálogo?")) return;
+    const accepted = await confirm({
+      title: "Eliminar partido",
+      description: "El partido se eliminará del catálogo. Esta acción no se puede deshacer.",
+      confirmLabel: "Eliminar",
+    });
+    if (!accepted) return;
     await deleteSportMatch(id);
     setMatches((prev) => prev.filter((m) => m.id !== id));
   };
 
   return (
     <div className="bg-brand-card border border-brand-border rounded-2xl p-6 space-y-5">
+      {confirmDialog}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-white font-bold text-base mb-1">

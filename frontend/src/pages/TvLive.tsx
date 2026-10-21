@@ -150,22 +150,28 @@ export default function TvLive() {
 
   const searchBox = (
     <div className="relative">
+      <label htmlFor="tv-search" className="sr-only">
+        Buscar canal de televisión
+      </label>
       <input
-        type="text"
+        id="tv-search"
+        type="search"
         value={rawSearch}
         onChange={(e) => setRawSearch(e.target.value)}
         placeholder="Buscar canal..."
-        className="w-full bg-brand-surface border border-brand-border rounded-lg px-4 py-2.5 pl-10 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-gray-500 transition-colors"
+        className="w-full bg-brand-surface border border-brand-border rounded-lg px-4 py-2.5 pl-10 text-white placeholder-gray-500 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red transition-colors"
       />
-      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" aria-hidden="true">
         <SearchIcon />
       </span>
       {rawSearch && (
         <button
+          type="button"
           onClick={() => setRawSearch("")}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white text-xl leading-none"
+          aria-label="Limpiar la búsqueda de canales"
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white text-xl leading-none focus-visible:ring-2 focus-visible:ring-brand-red rounded"
         >
-          &times;
+          <span aria-hidden="true">&times;</span>
         </button>
       )}
     </div>

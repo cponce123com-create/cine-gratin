@@ -12,6 +12,7 @@ import { logger } from "./lib/logger";
 import { getConfig } from "./lib/config";
 import { sendError } from "./lib/errors";
 import { csrfProtection } from "./lib/csrf";
+import { cachePolicyFor, precompressedStatic } from "./middlewares/precompressed";
 
 const app: Express = express();
 
@@ -131,7 +132,7 @@ app.use(
     },
     credentials: true,
     methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Request-Id"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Request-Id", "X-CSRF-Token"],
     exposedHeaders: ["X-Request-Id"],
     maxAge: 600,
   }),
@@ -145,7 +146,7 @@ app.use(express.urlencoded({ extended: true, limit: "256kb" }));
 // ── Rate limiting ─────────────────────────────────────────────────────────────
 const globalApiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: Number(process.env["RATE_LIMIT_MAX"] ?? 600),
+  max: getConfig().rateLimitMax,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Demasiadas peticiones, intenta de nuevo en un rato." },
@@ -153,7 +154,7 @@ const globalApiLimiter = rateLimit({
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: Number(process.env["LOGIN_RATE_LIMIT_MAX"] ?? 10),
+  max: getConfig().loginRateLimitMax,
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: true,
@@ -163,6 +164,12 @@ const loginLimiter = rateLimit({
 // ── API routes ────────────────────────────────────────────────────────────────
 app.use("/api", globalApiLimiter);
 app.use("/api/auth/login", loginLimiter);
+
+// Los datos administrativos nunca se guardan en una cache compartida.
+app.use("/api/admin", (_req, res, next) => {
+  res.setHeader("Cache-Control", "no-store");
+  next();
+});
 // CSRF: verified before the routes, so no mutating endpoint can forget it.
 app.use("/api", csrfProtection);
 app.use("/api", router);
@@ -170,6 +177,9 @@ app.use("/api", router);
 // ── Static frontend ───────────────────────────────────────────────────────────
 const publicDir = path.resolve(__dirname, "../public");
 const indexFile = path.join(publicDir, "index.html");
+
+// Se sirven las variantes comprimidas (.br / .gz) generadas en el build.
+app.use(precompressedStatic(publicDir));
 
 app.use(
   express.static(publicDir, {
@@ -180,9 +190,7 @@ app.use(
     index: "index.html",
     setHeaders(res, filePath) {
       // Hashed assets can be cached for a year; the shell must not be.
-      if (filePath.endsWith("index.html")) {
-        res.setHeader("Cache-Control", "no-cache");
-      }
+      res.setHeader("Cache-Control", cachePolicyFor(res.req.path || `/${path.basename(filePath)}`));
     },
   }),
 );

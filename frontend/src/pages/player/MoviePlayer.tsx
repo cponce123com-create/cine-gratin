@@ -69,6 +69,26 @@ export default function MoviePlayer() {
     };
   }, [isFullscreen, scheduleHide]);
 
+  // While in fullscreen the pointer is usually over the iframe, which does
+  // not propagate the events to the container: the listener is attached to
+  // the document so the controls always come back.
+  useEffect(() => {
+    if (!isFullscreen) return;
+
+    const handleMove = () => revealControls();
+    const handleTouch = () => revealControls();
+
+    document.addEventListener("mousemove", handleMove, { passive: true });
+    document.addEventListener("touchstart", handleTouch, { passive: true });
+    document.addEventListener("touchmove", handleTouch, { passive: true });
+
+    return () => {
+      document.removeEventListener("mousemove", handleMove);
+      document.removeEventListener("touchstart", handleTouch);
+      document.removeEventListener("touchmove", handleTouch);
+    };
+  }, [isFullscreen, revealControls]);
+
   // Keyboard: ESC to exit fullscreen
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -115,14 +135,22 @@ export default function MoviePlayer() {
       ref={containerRef}
       className="fixed inset-0 bg-black flex flex-col"
       onMouseMove={revealControls}
+      onTouchStart={revealControls}
       onClick={revealControls}
     >
       <Helmet>
         <title>{title} — Cine Gratín</title>
       </Helmet>
 
-      {/* Transparent overlay when controls are hidden in fullscreen — captures mouse so mousemove works */}
-      {isFullscreen && !controlsVisible && <div className="absolute inset-0 z-10" />}
+      {/*
+        Capa transparente: solo existe para que el raton sobre el iframe
+        siga registrando movimientos. No captura los clics (el usuario debe
+        poder pausar y reproductions) ni oculta los controles, que se
+        revelan con el listener de document.
+      */}
+      {isFullscreen && !controlsVisible && (
+        <div className="absolute inset-0 z-10 pointer-events-none" aria-hidden="true" />
+      )}
 
       {/* Controls bar — hidden in fullscreen after inactivity */}
       <div

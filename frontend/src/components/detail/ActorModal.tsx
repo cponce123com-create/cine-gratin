@@ -1,10 +1,10 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchPerson } from "./helpers";
 import { FALLBACK_PERSON } from "./constants";
+import Modal from "@/components/Modal";
 
 export function ActorModal({ personId, onClose }: { personId: number; onClose: () => void }) {
-  const overlayRef = useRef<HTMLDivElement>(null);
   const [showAllCredits, setShowAllCredits] = useState(false);
 
   const {
@@ -25,21 +25,14 @@ export function ActorModal({ personId, onClose }: { personId: number; onClose: (
   const creditsToShow = person ? (showAllCredits ? person.all_credits : person.all_credits.slice(0, 10)) : [];
 
   return (
-    <div
-      ref={overlayRef}
-      className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 overflow-y-auto"
-      onClick={(e) => {
-        if (e.target === overlayRef.current) onClose();
-      }}
+    <Modal
+      open
+      onClose={onClose}
+      title={`Ficha de ${person?.name ?? "actor"}`}
+      titleId="actor-modal-title"
+      className="max-w-3xl max-h-[90vh] overflow-y-auto"
     >
-      <div className="relative w-full max-w-3xl bg-brand-card border border-brand-border rounded-2xl overflow-hidden shadow-2xl my-8">
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full bg-black/60 hover:bg-black/80 flex items-center justify-center text-white text-lg transition-colors"
-        >
-          ✕
-        </button>
-
+      <div className="relative w-full">
         {isLoading && (
           <div className="flex items-center justify-center h-64">
             <div className="w-8 h-8 rounded-full border-2 border-brand-red border-t-transparent animate-spin" />
@@ -182,6 +175,6 @@ export function ActorModal({ personId, onClose }: { personId: number; onClose: (
           </div>
         )}
       </div>
-    </div>
+    </Modal>
   );
 }

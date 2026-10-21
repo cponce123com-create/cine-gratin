@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
+import { toast } from "sonner";
 import { SyncIcon, PlusIcon, TrashIcon } from "./icons";
+import { useConfirm } from "@/components/admin/useConfirm";
 import type { Channel, SyncResult } from "@/lib/channels-api";
 
 interface Props {
@@ -33,6 +35,7 @@ export default function YouTubeChannelsSection({
   syncAllChannels,
   onSynced,
 }: Props) {
+  const { confirm, confirmDialog } = useConfirm();
   const [channels, setChannels] = useState<Channel[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState<number | "all" | null>(null);
@@ -82,17 +85,21 @@ export default function YouTubeChannelsSection({
   };
 
   const handleDelete = async (id: number) => {
-    const msg =
-      variant === "table"
-        ? "¿Eliminar este canal y todos sus partidos?"
-        : "¿Eliminar este canal y todos sus eventos?";
-    if (!confirm(msg)) return;
+    const what = variant === "table" ? "este canal y todos sus partidos" : "este canal y todos sus eventos";
+    const accepted = await confirm({
+      title: "Eliminar canal",
+      description: `Se eliminará ${what}. Esta acción no se puede deshacer.`,
+      confirmLabel: "Eliminar",
+    });
+    if (!accepted) return;
+
     try {
       await deleteChannel(id);
       await load();
       onSynced();
-    } catch {
-      // silent
+      toast.success("Canal eliminado");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo eliminar el canal.");
     }
   };
 
@@ -314,31 +321,34 @@ export default function YouTubeChannelsSection({
   // ─── Main render ──────────────────────────────────────────────────────────
 
   return (
-    <div className="bg-brand-card border border-brand-border rounded-2xl p-6 space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-white font-bold text-base mb-1">Canales de YouTube</h2>
-          <p className="text-gray-500 text-sm">{description}</p>
+    <>
+      {confirmDialog}
+      <div className="bg-brand-card/ border border-brand-border rounded-2xl p-6 space-y-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-white font-bold text-base mb-1">Canales de YouTube</h2>
+            <p className="text-gray-500 text-sm">{description}</p>
+          </div>
+          {channels.length > 0 && (
+            <button
+              onClick={handleSyncAll}
+              disabled={syncing !== null}
+              className="flex items-center gap-2 bg-green-900/30 border border-green-800/40 hover:bg-green-900/50 disabled:opacity-40 text-green-400 font-bold py-2 px-4 rounded-lg transition-colors text-sm"
+            >
+              {syncing === "all" ? (
+                <span className="w-4 h-4 border-2 border-green-400 border-t-transparent rounded-full animate-spin block" />
+              ) : (
+                <SyncIcon />
+              )}
+              Sincronizar todos
+            </button>
+          )}
         </div>
-        {channels.length > 0 && (
-          <button
-            onClick={handleSyncAll}
-            disabled={syncing !== null}
-            className="flex items-center gap-2 bg-green-900/30 border border-green-800/40 hover:bg-green-900/50 disabled:opacity-40 text-green-400 font-bold py-2 px-4 rounded-lg transition-colors text-sm"
-          >
-            {syncing === "all" ? (
-              <span className="w-4 h-4 border-2 border-green-400 border-t-transparent rounded-full animate-spin block" />
-            ) : (
-              <SyncIcon />
-            )}
-            Sincronizar todos
-          </button>
-        )}
-      </div>
 
-      {addForm}
-      {syncBanner}
-      {renderBody()}
-    </div>
+        {addForm}
+        {syncBanner}
+        {renderBody()}
+      </div>
+    </>
   );
 }

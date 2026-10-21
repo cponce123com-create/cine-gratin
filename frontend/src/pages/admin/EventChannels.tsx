@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
+import { useConfirm } from "@/components/admin/useConfirm";
 import YouTubeSettingsSection from "@/components/admin/YouTubeSettingsSection";
 import YouTubeChannelsSection from "@/components/admin/YouTubeChannelsSection";
 import { TrashIcon } from "@/components/admin/icons";
@@ -19,6 +20,7 @@ import {
 // ─── Events section ───────────────────────────────────────────────────────────
 
 function EventsSection() {
+  const { confirm, confirmDialog } = useConfirm();
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<number | null>(null);
@@ -39,7 +41,12 @@ function EventsSection() {
   }, [load]);
 
   const handleDelete = async (id: number) => {
-    if (!confirm("¿Eliminar este evento?")) return;
+    const accepted = await confirm({
+      title: "Eliminar evento",
+      description: "El evento se eliminará del catálogo. Esta acción no se puede deshacer.",
+      confirmLabel: "Eliminar",
+    });
+    if (!accepted) return;
     setDeleting(id);
     try {
       await deleteEvent(id);
@@ -53,6 +60,7 @@ function EventsSection() {
 
   return (
     <div className="bg-brand-card border border-brand-border rounded-2xl p-6 space-y-4">
+      {confirmDialog}
       <div>
         <h2 className="text-white font-bold text-base mb-1">Eventos Importados</h2>
         <p className="text-gray-500 text-sm">{events.length} eventos disponibles (mínimo 30 minutos)</p>

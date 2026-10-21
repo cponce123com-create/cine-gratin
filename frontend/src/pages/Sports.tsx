@@ -288,22 +288,28 @@ export default function Sports() {
         {/* Search */}
         <div className="mb-8">
           <div className="relative max-w-md">
+            <label htmlFor="sports-search" className="sr-only">
+              Buscar evento deportivo
+            </label>
             <input
-              type="text"
+              id="sports-search"
+              type="search"
               value={ytSearch}
               onChange={(e) => setYtSearch(e.target.value)}
               placeholder="Buscar evento..."
-              className="w-full bg-brand-surface border border-brand-border rounded-lg px-4 py-2.5 pl-10 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-gray-500 transition-colors"
+              className="w-full bg-brand-surface border border-brand-border rounded-lg px-4 py-2.5 pl-10 text-white placeholder-gray-500 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red transition-colors"
             />
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" aria-hidden="true">
               <SearchIcon />
             </span>
             {ytSearch && (
               <button
+                type="button"
                 onClick={() => setYtSearch("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+                aria-label="Limpiar la búsqueda de eventos deportivos"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white focus-visible:ring-2 focus-visible:ring-brand-red rounded"
               >
-                &times;
+                <span aria-hidden="true">&times;</span>
               </button>
             )}
           </div>

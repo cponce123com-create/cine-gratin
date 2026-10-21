@@ -1,5 +1,6 @@
 ﻿import { Router, type IRouter } from "express";
 import { sendError } from "../lib/errors";
+import { getConfig } from "../lib/config";
 import { tmdbFetch } from "../lib/tmdb-client";
 import { mapWithConcurrency } from "../lib/concurrency";
 
@@ -15,7 +16,7 @@ router.get("/tmdb/movie/:imdbId", async (req, res) => {
     return;
   }
 
-  const key = process.env["TMDB_API_KEY"];
+  const key = getConfig().tmdbApiKey;
   if (!key) {
     res.status(500).json({ error: "TMDB_API_KEY no configurada en el servidor" });
     return;
@@ -184,7 +185,7 @@ router.get("/tmdb/series/:imdbId", async (req, res) => {
     return;
   }
 
-  const key = process.env["TMDB_API_KEY"];
+  const key = getConfig().tmdbApiKey;
   if (!key) {
     res.status(500).json({ error: "TMDB_API_KEY no configurada" });
     return;

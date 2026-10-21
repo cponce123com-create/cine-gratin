@@ -7,6 +7,7 @@
  * idempotent write logic.
  */
 import cron from "node-cron";
+import { getConfig } from "../lib/config";
 import { pool } from "../lib/db";
 import { logger } from "../lib/logger";
 import { tmdbFetch } from "../lib/tmdb-client";
@@ -49,7 +50,7 @@ export async function importSeries(tmdbId: number): Promise<boolean> {
  * those are stored as placeholder entries.
  */
 export async function importByImdbId(imdbId: string, type: "movie" | "series"): Promise<IdImportResult> {
-  if (!process.env["TMDB_API_KEY"]) {
+  if (!getConfig().tmdbApiKey) {
     return { imdb_id: imdbId, title: null, status: "error", error: "TMDB_API_KEY no configurada" };
   }
 
@@ -171,7 +172,7 @@ const ALL_SOURCES = [
 export async function runAutoImport(
   sources?: string[],
 ): Promise<{ moviesImported: number; seriesImported: number; totalChecked: number }> {
-  if (!process.env["TMDB_API_KEY"]) {
+  if (!getConfig().tmdbApiKey) {
     logger.warn("TMDB_API_KEY not set, skipping auto-import");
     return { moviesImported: 0, seriesImported: 0, totalChecked: 0 };
   }

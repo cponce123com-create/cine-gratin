@@ -1,3 +1,4 @@
+import { getConfig } from "./config";
 const TMDB_BASE = "https://api.themoviedb.org/3";
 const TMDB_IMG = "https://image.tmdb.org/t/p";
 
@@ -8,7 +9,7 @@ const TMDB_MAX_RETRIES = 3;
 const TMDB_BASE_DELAY_MS = 400;
 
 export function buildHeaders(): Record<string, string> {
-  const key = process.env["TMDB_API_KEY"] || "";
+  const key = getConfig().tmdbApiKey ?? "";
   if (key.length > 50) {
     return { Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
   }
@@ -16,7 +17,7 @@ export function buildHeaders(): Record<string, string> {
 }
 
 export function appendKey(url: string): string {
-  const key = process.env["TMDB_API_KEY"] || "";
+  const key = getConfig().tmdbApiKey ?? "";
   if (key.length > 50) return url;
   return `${url}${url.includes("?") ? "&" : "?"}api_key=${key}`;
 }
@@ -128,7 +129,47 @@ function parseReviews(reviewList: TmdbReviewRaw[]) {
   }));
 }
 
+/**
+ * Short-lived cache of the details of a title.
+ *
+ * The import preview resolves the identifiers and the import job resolves them
+ * again: without this cache every title would be fetched twice from TMDB,
+ * burning the quota for nothing. The cache is short-lived (it only has to
+ * survive the preview → import round trip) and bounded.
+ */
+const detailsCache = new Map<string, { data: Record<string, unknown>; expires: number }>();
+const DETAILS_CACHE_TTL_MS = 5 * 60 * 1000;
+const DETAILS_CACHE_MAX = 500;
+
+function readCache(key: string): Record<string, unknown> | null {
+  const entry = detailsCache.get(key);
+  if (!entry) return null;
+  if (entry.expires <= Date.now()) {
+    detailsCache.delete(key);
+    return null;
+  }
+  return entry.data;
+}
+
+function writeCache(key: string, data: Record<string, unknown>): void {
+  if (detailsCache.size >= DETAILS_CACHE_MAX) {
+    // Simple eviction: the oldest entry is removed.
+    const oldest = detailsCache.keys().next();
+    if (!oldest.done) detailsCache.delete(oldest.value);
+  }
+  detailsCache.set(key, { data, expires: Date.now() + DETAILS_CACHE_TTL_MS });
+}
+
+/** Empties the details cache (used by the tests). */
+export function clearDetailsCache(): void {
+  detailsCache.clear();
+}
+
 export async function fetchMovieByTmdbId(tmdbId: number): Promise<Record<string, unknown> | null> {
+  const cacheKey = `movie:${tmdbId}`;
+  const cached = readCache(cacheKey);
+  if (cached) return cached;
+
   try {
     const [detailsRes, creditsRes, videosRes, extIdsRes, reviewsRes] = await Promise.all([
       tmdbFetch(`/movie/${tmdbId}?language=es-MX`),
@@ -206,7 +247,7 @@ export async function fetchMovieByTmdbId(tmdbId: number): Promise<Record<string,
     const productionCompanies = (details.production_companies as Array<{ name: string }>) || [];
     const networks = productionCompanies.slice(0, 5).map((c) => c.name);
 
-    return {
+    const result = {
       imdb_id: imdbId,
       tmdb_id: tmdbId,
       title,
@@ -228,12 +269,19 @@ export async function fetchMovieByTmdbId(tmdbId: number): Promise<Record<string,
       mpa_rating: "NR",
       slug: makeSlug(title, year),
     };
+
+    writeCache(cacheKey, result);
+    return result;
   } catch {
     return null;
   }
 }
 
 export async function fetchSeriesByTmdbId(tmdbId: number): Promise<Record<string, unknown> | null> {
+  const cacheKey = `series:${tmdbId}`;
+  const cached = readCache(cacheKey);
+  if (cached) return cached;
+
   try {
     const [detailsRes, creditsRes, videosRes, extIdsRes, reviewsRes] = await Promise.all([
       tmdbFetch(`/tv/${tmdbId}?language=es-MX`),
@@ -333,7 +381,7 @@ export async function fetchSeriesByTmdbId(tmdbId: number): Promise<Record<string
     const networksRaw = (details.networks as Array<{ name: string }>) || [];
     const networks = networksRaw.map((n) => n.name);
 
-    return {
+    const result = {
       imdb_id: imdbId,
       tmdb_id: tmdbId,
       title,
@@ -357,6 +405,9 @@ export async function fetchSeriesByTmdbId(tmdbId: number): Promise<Record<string
       seasons_data: seasons,
       slug: makeSlug(title, year),
     };
+
+    writeCache(cacheKey, result);
+    return result;
   } catch {
     return null;
   }

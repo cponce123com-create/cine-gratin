@@ -71,22 +71,28 @@ const YouTubeEventGrid = memo(function YouTubeEventGrid({
 
         <div className="mb-8">
           <div className="relative max-w-md">
+            <label htmlFor="events-search" className="sr-only">
+              Buscar evento
+            </label>
             <input
-              type="text"
+              id="events-search"
+              type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar evento..."
-              className="w-full bg-brand-surface border border-brand-border rounded-lg px-4 py-2.5 pl-10 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-gray-500 transition-colors"
+              className="w-full bg-brand-surface border border-brand-border rounded-lg px-4 py-2.5 pl-10 text-white placeholder-gray-500 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red transition-colors"
             />
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" aria-hidden="true">
               <SearchIcon />
             </span>
             {search && (
               <button
+                type="button"
                 onClick={() => setSearch("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+                aria-label="Limpiar la búsqueda de eventos"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white focus-visible:ring-2 focus-visible:ring-brand-red rounded"
               >
-                &times;
+                <span aria-hidden="true">&times;</span>
               </button>
             )}
           </div>

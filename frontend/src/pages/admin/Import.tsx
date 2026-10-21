@@ -465,7 +465,7 @@ export default function Import() {
               </div>
             </div>
 
-            <dl className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+            <dl className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center">
               <div className="bg-brand-dark/40 rounded-lg p-3">
                 <dt className="text-xs text-gray-500">Importados</dt>
                 <dd className="text-lg font-bold text-emerald-400">{activeJob.imported}</dd>
@@ -477,6 +477,10 @@ export default function Import() {
               <div className="bg-brand-dark/40 rounded-lg p-3">
                 <dt className="text-xs text-gray-500">Fallidos</dt>
                 <dd className="text-lg font-bold text-red-400">{activeJob.failed}</dd>
+              </div>
+              <div className="bg-brand-dark/40 rounded-lg p-3">
+                <dt className="text-xs text-gray-500">Pendientes</dt>
+                <dd className="text-lg font-bold text-amber-400">{activeJob.pending}</dd>
               </div>
               <div className="bg-brand-dark/40 rounded-lg p-3">
                 <dt className="text-xs text-gray-500">Total</dt>

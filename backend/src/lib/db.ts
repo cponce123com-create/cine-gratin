@@ -19,8 +19,8 @@ const MIGRATION_LOCK_KEY = 918_273_645;
 
 function buildPool(): Pool {
   const config = getConfig();
-  const max = Number(process.env["DB_POOL_MAX"] ?? 10);
-  const min = Number(process.env["DB_POOL_MIN"] ?? 0);
+  const max = config.dbPoolMax;
+  const min = config.dbPoolMin;
 
   return new Pool({
     connectionString: config.databaseUrl,

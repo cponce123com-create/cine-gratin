@@ -8,8 +8,8 @@ Plataforma de streaming self-hosted con catálogo de películas, series, deporte
 cine-gratin/
 ├── frontend/          # App React + TypeScript + Vite + Tailwind
 ├── backend/           # API server Express + TypeScript
-├── scripts/           # Utilidades (iconos PWA, script de administrador)
-├── tests/             # Suite de pruebas (Vitest)
+├── scripts/           # Utilidades (iconos PWA, validación de workflows, admin)
+├── tests/             # Suite de pruebas (Vitest + supertest)
 └── .github/           # CI/CD y templates
 ```
 
@@ -46,10 +46,11 @@ falta ejecutar ningún script de esquema por separado.
 ## Verificaciones
 
 ```bash
-pnpm format:check   # Prettier
-pnpm typecheck      # TypeScript (raíz) + frontend + backend
-pnpm test           # Suite de pruebas (Vitest)
-pnpm build          # Build de producción
+pnpm lint:workflows  # Valida los workflows de GitHub Actions
+pnpm format:check    # Prettier
+pnpm typecheck       # TypeScript (raíz) + frontend + backend
+pnpm test            # Suite de pruebas (Vitest)
+pnpm build           # Build de producción
 ```
 
 Las pruebas de base de datos usan una base **aislada**; nunca apuntan a la de
@@ -60,19 +61,9 @@ createdb cine-gratin-test
 TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/cine-gratin-test pnpm test
 ```
 
-## Build
-
-```bash
-# Build completo (frontend + backend)
-pnpm render:build
-
-# Build individual
-pnpm build:frontend
-pnpm build:backend
-
-# Regenerar los iconos PWA (se hace automáticamente en el prebuild)
-pnpm icons
-```
+Sin `TEST_DATABASE_URL` se ejecutan solo las pruebas unitarias y las de base
+de datos se omiten. `TEST_TMDB_API_KEY` habilita además las pruebas de
+importación contra el proveedor real.
 
 ## Despliegue
 
@@ -83,19 +74,32 @@ proceso de autenticación y la recuperación ante errores.
 ## Arquitectura y seguridad
 
 - **Sesión en cookie `HttpOnly`**: el token de administración no es accesible
-  desde JavaScript (reduce el impacto de un XSS). El panel funciona también con
-  `Authorization: Bearer` para automatizaciones.
-- **Rutas administrativas cerradas por defecto**: sin sesión válida, la API
-  responde `401`. En producción nunca se acepta un token arbitrario.
+  desde JavaScript (reduce el impacto de un XSS) y no se guarda en
+  `localStorage`. El panel también acepta `Authorization: Bearer` para
+  automatizaciones.
+- **Protección CSRF**: las peticiones que cambian el estado y usan la cookie
+  deben enviar la cabecera `X-CSRF-Token` (vinculada a la sesión) y llegar
+  desde un origen permitido. Las peticiones con `Bearer` quedan exentas porque
+  no usan credenciales ambientales.
+- **Cierre de sesión real**: la sesión se revoca en el servidor, de modo que
+  una copia del token deja de funcionar de inmediato.
+- **Rutas administrativas cerradas por defecto**: sin sesión válida la API
+  responde `401`; en producción nunca se acepta un token arbitrario.
 - **Entrada validada con Zod** en todas las rutas de escritura, con límites de
   paginación, tamaño de cuerpo y longitud de campos.
 - **Errores internos** se registran en el servidor con un `requestId` y nunca
   se envían al cliente.
+- **Configuración validada al arrancar**: los valores fuera de rango, los
+  secretos inseguros y las combinaciones incompatibles impiden el arranque.
 - **Migraciones versionadas** con bloqueo distribuido (advisory lock) para que
   varias instancias puedan arrancar a la vez.
+- **Catálogo consistente**: índices únicos parciales sobre `imdb_id` y
+  `tmdb_id`; si ya hay duplicados, la migración no falla ni borra nada: registra
+  el motivo en `schema_issues`.
 - **Importaciones persistentes**: cada trabajo se guarda en `import_jobs`, se
   puede cancelar, reintentar sólo los fallidos y consultar su progreso aunque
-  se cierre el navegador.
+  se cierre el navegador. Una importación en curso no bloquea la cola: el
+  trabajo espera su turno.
 
 ## Características
 
@@ -109,3 +113,4 @@ proceso de autenticación y la recuperación ante errores.
 - 📱 Diseño responsive, navegable por teclado y con soporte para
   `prefers-reduced-motion`
 - 📦 Instalable como PWA con iconos y manifiesto válidos
+- ⚡ Assets estáticos servidos precomprimidos (brotli/gzip) con caché inmutable

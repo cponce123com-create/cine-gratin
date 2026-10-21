@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from "express";
+import { getConfig } from "../lib/config";
 import { pool } from "../lib/db";
 import { requireAdmin } from "../middlewares/adminAuth";
 import { asyncHandler, parseBody, parseIntParam, parseStringParam } from "../lib/http";
@@ -26,7 +27,8 @@ const channelSchema = z.object({
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 async function getYoutubeApiKey(): Promise<string> {
-  if (process.env["YOUTUBE_API_KEY"]) return process.env["YOUTUBE_API_KEY"];
+  const configured = getConfig().youtubeApiKey;
+  if (configured) return configured;
   const { rows } = await pool.query("SELECT value FROM sport_settings WHERE key = 'youtube_api_key'");
   if (!rows[0] || !rows[0].value) throw badRequest("YouTube API Key no configurada");
   return rows[0].value as string;

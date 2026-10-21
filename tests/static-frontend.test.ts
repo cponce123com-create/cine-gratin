@@ -66,4 +66,21 @@ describe("servicio del frontend estático", () => {
     expect(response.status).toBe(404);
     expect(response.body.code).toBe("not_found");
   });
+
+  it("no almacena en cache las respuestas administrativas", async () => {
+    const response = await request(app).get("/api/admin/stats");
+    expect(response.headers["cache-control"]).toBe("no-store");
+  });
+
+  it("acepta la cabecera X-CSRF-Token en el preflight de CORS", async () => {
+    const response = await request(app)
+      .options("/api/admin/import-jobs/preview")
+      .set("Origin", "http://localhost:5173")
+      .set("Access-Control-Request-Method", "POST")
+      .set("Access-Control-Request-Headers", "content-type,x-csrf-token");
+
+    expect(response.status).toBe(204);
+    const allowed = String(response.headers["access-control-allow-headers"] ?? "");
+    expect(allowed.toLowerCase()).toContain("x-csrf-token");
+  });
 });

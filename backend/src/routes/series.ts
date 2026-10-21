@@ -3,7 +3,7 @@ import { pool } from "../lib/db";
 import { rateLimit } from "express-rate-limit";
 import { z } from "zod";
 import { requireAdmin } from "../middlewares/adminAuth";
-import { asyncHandler, parseBody, parsePagination, parseStringParam } from "../lib/http";
+import { asyncHandler, escapeLikePattern, parseBody, parsePagination, parseStringParam } from "../lib/http";
 import { badRequest, notFound, sendError } from "../lib/errors";
 
 const router = Router();
@@ -170,8 +170,10 @@ router.get(
     const params: unknown[] = [];
 
     if (q) {
-      params.push(`%${q}%`);
-      conditions.push(`(title ILIKE $${params.length} OR synopsis ILIKE $${params.length})`);
+      params.push(`%${escapeLikePattern(q)}%`);
+      conditions.push(
+        `(title ILIKE ${params.length} ESCAPE '\\' OR synopsis ILIKE ${params.length} ESCAPE '\\')`,
+      );
     }
     if (genre) {
       params.push(genre);
@@ -243,9 +245,9 @@ router.get(
               vidsrc_status, auto_imported,
               '[]'::jsonb AS videos, '[]'::jsonb AS reviews, '[]'::jsonb AS seasons_data,
               '[]'::jsonb AS cast_full
-       FROM cv_series WHERE title ILIKE $1 OR synopsis ILIKE $1
+       FROM cv_series WHERE title ILIKE $1 ESCAPE '\\' OR synopsis ILIKE $1 ESCAPE '\\'
        ORDER BY views DESC, date_added DESC LIMIT $2`,
-      [`%${q}%`, limit],
+      [`%${escapeLikePattern(q)}%`, limit],
     );
     res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
     res.json(rows.map(toSeries));
@@ -259,9 +261,14 @@ router.get(
     const id = parseStringParam(req.params["id"], { maxLength: 120, name: "id" });
     if (!id) throw notFound("Serie no encontrada");
 
-    const { rows } = await pool.query("SELECT * FROM cv_series WHERE id = $1 OR imdb_id = $1 OR slug = $1", [
-      id,
-    ]);
+    const { rows } = await pool.query(
+      `SELECT id, imdb_id, tmdb_id, title, year, end_year, rating, genres, language, synopsis,
+              creators, cast_list, cast_full, networks, poster_url, background_url, yt_trailer_code,
+              videos, reviews, status, total_seasons, seasons_data, video_sources, featured, views,
+              date_added, vidsrc_status, auto_imported
+         FROM cv_series WHERE id = $1 OR imdb_id = $1 OR slug = $1`,
+      [id],
+    );
     if (!rows[0]) throw notFound("Serie no encontrada");
     res.json(toSeries(rows[0]));
   }),

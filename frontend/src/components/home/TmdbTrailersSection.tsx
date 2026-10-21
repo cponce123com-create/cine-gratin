@@ -1,6 +1,7 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { TmdbTrailerItem } from "./types";
+import Modal from "@/components/Modal";
 
 const BASE_URL =
   (import.meta.env["VITE_API_URL"] as string | undefined) || "https://cine-gratin.onrender.com";
@@ -20,7 +21,7 @@ const TABS = [
 export default function TmdbTrailersSection() {
   const [activeTab, setActiveTab] = useState("popular");
   const [activeTrailer, setActiveTrailer] = useState<string | null>(null);
-  const modalRef = useRef<HTMLDivElement>(null);
+  const [activeTrailerTitle, setActiveTrailerTitle] = useState("Tráiler");
 
   const { data: items = [], isLoading } = useQuery({
     queryKey: ["tmdb-trailers", activeTab],
@@ -66,7 +67,10 @@ export default function TmdbTrailersSection() {
           {items.map((item) => (
             <button
               key={`${item.tmdb_id}-${item.trailer_key}`}
-              onClick={() => setActiveTrailer(item.trailer_key)}
+              onClick={() => {
+                setActiveTrailer(item.trailer_key);
+                setActiveTrailerTitle(item.title);
+              }}
               className="flex-shrink-0 w-56 sm:w-64 group text-left"
             >
               <div className="relative rounded-xl overflow-hidden bg-brand-surface aspect-video">
@@ -94,31 +98,23 @@ export default function TmdbTrailersSection() {
       )}
 
       {activeTrailer && (
-        <div
-          ref={modalRef}
-          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
-          onClick={(e) => {
-            if (e.target === modalRef.current) closeModal();
-          }}
+        <Modal
+          open
+          onClose={closeModal}
+          title={`Tráiler de ${activeTrailerTitle}`}
+          titleId="trailer-modal-title"
+          className="max-w-4xl"
         >
-          <div className="relative w-full max-w-4xl">
-            <button
-              onClick={closeModal}
-              className="absolute -top-10 right-0 text-white/70 hover:text-white text-2xl font-bold transition-colors"
-            >
-              ✕
-            </button>
-            <div className="relative aspect-video rounded-xl overflow-hidden bg-black shadow-2xl">
-              <iframe
-                src={`https://www.youtube.com/embed/${activeTrailer}?autoplay=1&rel=0`}
-                className="absolute inset-0 w-full h-full"
-                allow="autoplay; fullscreen"
-                allowFullScreen
-                title="Tráiler"
-              />
-            </div>
+          <div className="relative aspect-video rounded-xl overflow-hidden bg-black shadow-2xl">
+            <iframe
+              src={`https://www.youtube.com/embed/${activeTrailer}?autoplay=1&rel=0`}
+              className="absolute inset-0 w-full h-full"
+              allow="autoplay; fullscreen"
+              allowFullScreen
+              title={`Tráiler de ${activeTrailerTitle}`}
+            />
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );
