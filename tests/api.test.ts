@@ -127,6 +127,29 @@ describe.skipIf(skipDatabase)("API · catálogo y base de datos", () => {
     expect(response.body.code).toBe("bad_request");
   });
 
+  it("busca texto y género en los catálogos públicos de películas y series", async () => {
+    await pool.query(
+      `INSERT INTO movies (id, imdb_id, title, year, rating, genres, synopsis)
+       VALUES ('tt9988701', 'tt9988701', 'Perro de prueba', 2024, 8.2, ARRAY['Animación'], 'Una historia de un perro')
+       ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, genres = EXCLUDED.genres, synopsis = EXCLUDED.synopsis`,
+    );
+    await pool.query(
+      `INSERT INTO cv_series (id, imdb_id, title, year, rating, genres, synopsis)
+       VALUES ('tt9988702', 'tt9988702', 'Perro de prueba en serie', 2024, 8.1, ARRAY['Animación'], 'Una serie sobre un perro')
+       ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, genres = EXCLUDED.genres, synopsis = EXCLUDED.synopsis`,
+    );
+
+    for (const query of ["q=perro&sort=year", "q=perro&genre=Animaci%C3%B3n&sort=rating"]) {
+      const movies = await request(app).get(`/api/movies/catalogue?${query}`);
+      expect(movies.status).toBe(200);
+      expect(movies.body.items.some((item: { id: string }) => item.id === "tt9988701")).toBe(true);
+
+      const series = await request(app).get(`/api/series/catalogue?${query}`);
+      expect(series.status).toBe(200);
+      expect(series.body.items.some((item: { id: string }) => item.id === "tt9988702")).toBe(true);
+    }
+  });
+
   it("pagina el catálogo de administración", async () => {
     for (let index = 1; index <= 7; index++) {
       await pool.query(`INSERT INTO movies (id, imdb_id, title, year, genres) VALUES ($1, $2, $3, $4, $5)`, [
