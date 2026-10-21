@@ -7,6 +7,8 @@ import { UNAUTHORIZED_EVENT } from "@/lib/auth";
 import "./index.css";
 import App from "./App";
 
+declare const __BUILD_TIME__: string;
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -29,6 +31,10 @@ if (typeof window !== "undefined") {
     }
   });
 }
+
+// La marca de compilacion se expone en el DOM: garantiza que el bundle
+// cambie en cada despliegue y que el service worker refresque su cache.
+document.documentElement.dataset.build = __BUILD_TIME__;
 
 const container = document.getElementById("root");
 if (!container) {

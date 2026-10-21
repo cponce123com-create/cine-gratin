@@ -5,6 +5,12 @@ import compression from "vite-plugin-compression";
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
+  // La marca de compilacion cambia en cada build: el contenido del bundle (y
+  // por tanto su hash) cambia, de modo que el service worker detecta el
+  // despliegue y actualiza su cache en lugar de servir los ficheros antiguos.
+  define: {
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+  },
   plugins: [
     react(),
     compression({ algorithm: "gzip", ext: ".gz" }),
