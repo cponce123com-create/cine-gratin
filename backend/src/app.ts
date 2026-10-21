@@ -166,10 +166,15 @@ app.use("/api", router);
 
 // ── Static frontend ───────────────────────────────────────────────────────────
 const publicDir = path.resolve(__dirname, "../public");
+const indexFile = path.join(publicDir, "index.html");
+
 app.use(
   express.static(publicDir, {
     maxAge: "1y",
-    index: false,
+    // The root path must be served by index.html: with `index: false` the
+    // request for "/" fell through to the SPA fallback, which in Express 5
+    // does not match the root either.
+    index: "index.html",
     setHeaders(res, filePath) {
       // Hashed assets can be cached for a year; the shell must not be.
       if (filePath.endsWith("index.html")) {
@@ -179,9 +184,11 @@ app.use(
   }),
 );
 
-// SPA catch-all
-app.get("/*path", (_req, res) => {
-  const indexFile = path.join(publicDir, "index.html");
+// SPA catch-all.
+// A regular expression is used on purpose: in Express 5 the wildcard syntax
+// `/*path` does not match the root path, and `/{*path}` only exists in the
+// new router. The expression matches every path, including "/".
+app.get(/.*/, (_req, res) => {
   res.setHeader("Cache-Control", "no-cache");
   res.sendFile(indexFile, (err) => {
     if (err) {

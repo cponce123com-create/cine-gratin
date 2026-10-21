@@ -19,7 +19,16 @@ const router: IRouter = Router();
 
 // Every route in this file is administrative: the guard is applied once, at
 // the top of the router, so no endpoint can be added without protection.
-router.use(requireAdmin);
+// The guard is path-aware on purpose: this router is mounted on the API root,
+// so a blanket guard would also intercept the public routes registered after
+// it (sports, events, sagas) and answer 401 instead of letting them through.
+router.use((req, res, next) => {
+  if (!req.path.startsWith("/admin")) {
+    next();
+    return;
+  }
+  requireAdmin(req, res, next);
+});
 
 // GET /api/admin/stats
 router.get("/admin/stats", async (_req, res) => {
