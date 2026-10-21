@@ -4,33 +4,22 @@ import path from "path";
 import compression from "vite-plugin-compression";
 import { VitePWA } from "vite-plugin-pwa";
 
+/**
+ * Marca de compilacion (base 36). Se usa dos veces:
+ * - Como carpeta de los assets: `assets/<marca>/...`. Todas las URLs (script,
+ *   estilos y chunks) cambian en cada despliegue, de modo que ni la cache del
+ *   navegador ni la del service worker pueden servir un fichero antiguo (por
+ *   ejemplo, uno guardado con cabeceras obsoletas).
+ * - Como valor de `__BUILD_TIME__`, para poder identificar el despliegue
+ *   Loaded en el DOM.
+ */
 const BUILD_TIME = Date.now().toString(36);
 
 export default defineConfig({
-  // La marca de compilacion cambia en cada build: el contenido del bundle (y
-  // por tanto su hash) cambia, de modo que el service worker detecta el
-  // despliegue y actualiza su cache en lugar de servir los ficheros antiguos.
   define: {
     __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
   },
   plugins: [
-    // La marca de compilacion se anade al CSS antes de calcular su hash: en
-    // cada despliegue el CSS cambia (y con el, su nombre), de modo que el
-    // navegador no reutiliza el fichero antiguo de la cache, que podria tener
-    // cabeceras obsoletas.
-    {
-      name: "cine-gratin-build-stamp",
-      enforce: "pre",
-      transform(code: string, id: string) {
-        // El id puede llevar parametros (por ejemplo "?used"): se compara
-        // solo la ruta.
-        const file = id.split("?")[0];
-        if (!file.endsWith(".css") || file.includes("node_modules")) return null;
-        // Una declaracion (y no un comentario): el minificador elimina los
-        // comentarios, pero conserva las propiedades personalizadas.
-        return { code: `${code}\n:root{--cg-build:${BUILD_TIME}}\n`, map: null };
-      },
-    },
     react(),
     compression({ algorithm: "gzip", ext: ".gz" }),
     compression({ algorithm: "brotliCompress", ext: ".br" }),
@@ -110,6 +99,11 @@ export default defineConfig({
   },
   build: {
     chunkSizeWarningLimit: 600,
+    // Todos los assets se publican en una carpeta con la marca de compilacion:
+    // en cada despliegue cambian las URLs de los scripts, los estilos y los
+    // chunks, y las caches (navegador y service worker) dejan de poder
+    // devolver ficheros antiguos.
+    assetsDir: `assets/${BUILD_TIME}`,
     rollupOptions: {
       output: {
         manualChunks: {
