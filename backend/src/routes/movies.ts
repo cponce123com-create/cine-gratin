@@ -5,6 +5,7 @@ import { z } from "zod";
 import { currentClaims, requireAdmin } from "../middlewares/adminAuth";
 import { revokeSession } from "../lib/session-store";
 import { asyncHandler, escapeLikePattern, parseBody, parsePagination, parseStringParam } from "../lib/http";
+import { buildCatalogueSearch } from "../lib/catalogue-search";
 import { badRequest, notFound, sendError } from "../lib/errors";
 import {
   generateCsrfToken,
@@ -246,12 +247,22 @@ router.get(
 
     const conditions: string[] = [];
     const params: unknown[] = [];
+    let relevanceOrder: string | null = null;
 
     if (q) {
-      params.push(`%${escapeLikePattern(q)}%`);
-      conditions.push(
-        `(title ILIKE $${params.length} ESCAPE '\\' OR synopsis ILIKE $${params.length} ESCAPE '\\')`,
-      );
+      const search = buildCatalogueSearch(q, {
+        title: "title",
+        synopsis: "synopsis",
+        metadata: [
+          "COALESCE(array_to_string(genres, ' '), '')",
+          "COALESCE(director, '')",
+          "COALESCE(array_to_string(cast_list, ' '), '')",
+          "COALESCE(array_to_string(networks, ' '), '')",
+        ],
+      }, params.length + 1);
+      params.push(...search.params);
+      conditions.push(search.condition);
+      relevanceOrder = search.relevanceOrder;
     }
     if (genre) {
       params.push(genre);
@@ -270,7 +281,7 @@ router.get(
               vidsrc_status, auto_imported,
               '[]'::jsonb AS videos, '[]'::jsonb AS reviews, '[]'::jsonb AS cast_full
        FROM movies ${where}
-       ORDER BY ${sortColumn} ${sortOrder} NULLS LAST, id ASC
+       ORDER BY ${relevanceOrder ? `${relevanceOrder}, ` : ""}${sortColumn} ${sortOrder} NULLS LAST, id ASC
        LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
       [...params, limit, offset],
     );
@@ -328,11 +339,21 @@ router.get(
   movieLimit,
   asyncHandler(async (req: Request, res: Response) => {
     const q = parseStringParam(req.query["q"], { maxLength: 120, name: "q" });
-    if (!q) {
+    if (!q || q.trim().length < 2) {
       res.json([]);
       return;
     }
-    const { limit } = parsePagination(req.query, { defaultLimit: 20, maxLimit: 50 });
+    const { limit, offset } = parsePagination(req.query, { defaultLimit: 20, maxLimit: 50 });
+    const search = buildCatalogueSearch(q, {
+      title: "title",
+      synopsis: "synopsis",
+      metadata: [
+        "COALESCE(array_to_string(genres, ' '), '')",
+        "COALESCE(director, '')",
+        "COALESCE(array_to_string(cast_list, ' '), '')",
+        "COALESCE(array_to_string(networks, ' '), '')",
+      ],
+    });
 
     const { rows } = await pool.query(
       `SELECT id, imdb_id, tmdb_id, title, year, rating, runtime, genres, language, synopsis,
@@ -340,16 +361,16 @@ router.get(
               mpa_rating, slug, featured, video_sources, torrents, views, date_added,
               vidsrc_status, auto_imported,
               '[]'::jsonb AS videos, '[]'::jsonb AS reviews, '[]'::jsonb AS cast_full
-       FROM movies WHERE title ILIKE $1 ESCAPE '\\' OR synopsis ILIKE $1 ESCAPE '\\'
-       ORDER BY views DESC, date_added DESC LIMIT $2`,
-      [`%${escapeLikePattern(q)}%`, limit],
+       FROM movies WHERE ${search.condition}
+       ORDER BY ${search.relevanceOrder}, views DESC, date_added DESC LIMIT $${search.params.length + 1} OFFSET $${search.params.length + 2}`,
+      [...search.params, limit, offset],
     );
     res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
     res.json(rows.map(toMovie));
   }),
 );
 
-// GET /api/movies/by-slug/:slug
+// // GET /api/movies/by-slug/:slug
 router.get(
   "/movies/by-slug/:slug",
   movieLimit,
