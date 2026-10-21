@@ -5,23 +5,39 @@
  * dynamic compression middleware does not use them: the server would compress
  * the same file on every request. This middleware serves the pre-compressed
  * variant when the client accepts it, which saves CPU and bandwidth.
+ *
+ * The `Content-Type` is always derived from the *original* file (not from the
+ * `.br`/`.gz` variant): otherwise the browser receives `application/octet-stream`
+ * and, with `X-Content-Type-Options: nosniff`, refuses to execute the script.
  */
 import { existsSync, statSync } from "node:fs";
 import path from "node:path";
 import type { NextFunction, Request, Response } from "express";
 
-const COMPRESSIBLE = new Set([
-  ".js",
-  ".mjs",
-  ".css",
-  ".html",
-  ".json",
-  ".svg",
-  ".xml",
-  ".txt",
-  ".webmanifest",
-  ".map",
-]);
+/** Content types of the assets served by the SPA. */
+const CONTENT_TYPES: Record<string, string> = {
+  ".html": "text/html; charset=utf-8",
+  ".htm": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".webmanifest": "application/manifest+json; charset=utf-8",
+  ".map": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".gif": "image/gif",
+  ".ico": "image/x-icon",
+  ".txt": "text/plain; charset=utf-8",
+  ".xml": "application/xml; charset=utf-8",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+};
+
+const COMPRESSIBLE = new Set(Object.keys(CONTENT_TYPES));
 
 /** Parses the `Accept-Encoding` header. */
 function acceptedEncodings(header: string | undefined): Set<string> {
@@ -55,8 +71,16 @@ export function precompressedStatic(root: string) {
       return;
     }
 
-    const urlPath = req.path.split("?")[0];
-    if (urlPath.includes("..") || urlPath.endsWith("/")) {
+    let urlPath = req.path.split("?")[0];
+    if (urlPath.includes("..")) {
+      next();
+      return;
+    }
+    // The root path serves the shell (index.html).
+    if (urlPath === "" || urlPath === "/") {
+      urlPath = "/index.html";
+    }
+    if (urlPath.endsWith("/")) {
       next();
       return;
     }
@@ -88,6 +112,7 @@ export function precompressedStatic(root: string) {
         absolute,
         {
           headers: {
+            "Content-Type": CONTENT_TYPES[extension] ?? "application/octet-stream",
             "Content-Encoding": candidate.encoding,
             "Cache-Control": policy,
             Vary: "Accept-Encoding",

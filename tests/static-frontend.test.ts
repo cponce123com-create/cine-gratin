@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { brotliCompressSync } from "node:zlib";
 import path from "node:path";
 import request from "supertest";
 import app from "../backend/src/app";
@@ -70,6 +71,33 @@ describe("servicio del frontend estático", () => {
   it("no almacena en cache las respuestas administrativas", async () => {
     const response = await request(app).get("/api/admin/stats");
     expect(response.headers["cache-control"]).toBe("no-store");
+  });
+
+  it("sirre los assets precomprimidos con su tipo de contenido real", async () => {
+    // La variante .br/.gz se deduce de la extension del fichero comprimido:
+    // sin el Content-Type correcto, el navegador descarga el script en lugar
+    // de ejecutarlo (y con nosniff lo rechaza).
+    const publicDir = path.resolve(__dirname, "../backend/public");
+    const assetDir = path.join(publicDir, "assets");
+    mkdirSync(assetDir, { recursive: true });
+
+    const asset = path.join(assetDir, "prueba-tipo.js");
+    const variant = path.join(assetDir, "prueba-tipo.js.br");
+    const source = "export const valor = 1;\n";
+    writeFileSync(asset, source, "utf8");
+    // La variante tiene que ser un brotli real: el cliente la descomprime.
+    writeFileSync(variant, brotliCompressSync(Buffer.from(source, "utf8")));
+
+    try {
+      const response = await request(app).get("/assets/prueba-tipo.js").set("Accept-Encoding", "br");
+
+      expect(response.status).toBe(200);
+      expect(response.headers["content-encoding"]).toBe("br");
+      expect(response.headers["content-type"]).toContain("javascript");
+    } finally {
+      rmSync(asset, { force: true });
+      rmSync(variant, { force: true });
+    }
   });
 
   it("acepta la cabecera X-CSRF-Token en el preflight de CORS", async () => {
