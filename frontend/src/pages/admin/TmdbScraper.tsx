@@ -343,7 +343,9 @@ export default function TmdbScraper() {
             const dataLine = block.match(/^data:\s*(.+)$/m)?.[1];
             if (!eventName || !dataLine) continue;
             const data = JSON.parse(dataLine) as { total?: number; i?: number; title?: string; updated?: number; error?: number };
-            if (eventName === "start") {
+            if (eventName === "error") {
+              throw new Error("No se pudo completar la actualización del índice.");
+            } else if (eventName === "start") {
               total += data.total ?? 0;
               setSearchBackfill((current) => ({ ...current, total, current: type === "movie" ? "Películas" : "Series" }));
             } else if (eventName === "progress") {

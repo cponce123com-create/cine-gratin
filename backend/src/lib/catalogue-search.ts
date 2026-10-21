@@ -74,9 +74,14 @@ export function buildCatalogueSearch(
         `${fields.title} ILIKE ${placeholder(1)} ESCAPE '\\'`,
         `${fields.title} ILIKE ${placeholder(2)} ESCAPE '\\'`,
       ]
-    : searchableFields.flatMap((field) =>
-        containsPlaceholders.map((value) => `${field} ILIKE ${value} ESCAPE '\\'`),
-      );
+    : [
+        `${fields.title} ILIKE ${placeholder(0)} ESCAPE '\\'`,
+        `${fields.title} ILIKE ${placeholder(1)} ESCAPE '\\'`,
+        `${fields.title} ILIKE ${placeholder(2)} ESCAPE '\\'`,
+        ...searchableFields.flatMap((field) =>
+          containsPlaceholders.map((value) => `${field} ILIKE ${value} ESCAPE '\\'`),
+        ),
+      ];
 
   const relevanceOrder = `CASE
     WHEN lower(${fields.title}) = lower(${placeholder(0)}) THEN 0
