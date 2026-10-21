@@ -11,6 +11,7 @@ import router from "./routes";
 import { logger } from "./lib/logger";
 import { getConfig } from "./lib/config";
 import { sendError } from "./lib/errors";
+import { csrfProtection } from "./lib/csrf";
 
 const app: Express = express();
 
@@ -162,6 +163,8 @@ const loginLimiter = rateLimit({
 // ── API routes ────────────────────────────────────────────────────────────────
 app.use("/api", globalApiLimiter);
 app.use("/api/auth/login", loginLimiter);
+// CSRF: verified before the routes, so no mutating endpoint can forget it.
+app.use("/api", csrfProtection);
 app.use("/api", router);
 
 // ── Static frontend ───────────────────────────────────────────────────────────

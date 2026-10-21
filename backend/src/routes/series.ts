@@ -379,12 +379,19 @@ router.post(
       throw badRequest("No hay campos para guardar");
     }
 
-    const columns = ["id"];
-    const values: unknown[] = [seriesId];
-    const placeholders = ["$1"];
+    const columns = ["id", "imdb_id"];
+    const values: unknown[] = [
+      seriesId,
+      // La columna es NOT NULL: las entradas manuales reciben un identificador
+      // sintetico que nunca puede coincidir con un IMDb real.
+      (payload["imdb_id"] as string | undefined) ??
+        (seriesId.startsWith("tt") ? seriesId : `manual_${seriesId}`),
+    ];
+    const placeholders = ["$1", "$2"];
     const updateAssignments: string[] = [];
 
     for (const [key, value] of entries) {
+      if (key === "imdb_id") continue;
       const column = SERIES_COLUMNS[key];
       values.push(JSON_COLUMNS.has(column) ? JSON.stringify(value) : value);
       const index = values.length;

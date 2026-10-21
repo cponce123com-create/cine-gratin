@@ -135,7 +135,8 @@ describe("configuración de arranque", () => {
 
   it("rechaza el comodín CORS en producción", () => {
     withEnv({ CORS_ORIGINS: "*", NODE_ENV: "production" }, () => {
-      expect(() => resolveCorsOrigins("production")).toThrow(/wildcard/i);
+      expect(() => resolveCorsOrigins("production")).toThrow(/CORS_ORIGINS/);
+      expect(() => resolveCorsOrigins("production")).toThrow(/comodín/i);
     });
   });
 

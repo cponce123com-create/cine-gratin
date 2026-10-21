@@ -3,7 +3,7 @@ import { logger } from "./lib/logger";
 import { closePool, initDb } from "./lib/db";
 import { getConfig } from "./lib/config";
 import { startAutoImportCron } from "./jobs/auto-import";
-import { reapStaleJobs } from "./lib/import-jobs";
+import { reapStaleJobs, resumeQueuedJobs, startImportWorker } from "./lib/import-jobs";
 
 // ── Configuration ─────────────────────────────────────────────────────────────
 // The configuration is validated here, before anything is opened: a missing or
@@ -49,7 +49,13 @@ async function main(): Promise<void> {
   await initDb();
 
   const stale = await reapStaleJobs().catch(() => 0);
-  if (stale > 0) logger.warn({ stale }, "Stale import jobs marked as failed");
+  if (stale > 0) logger.warn({ stale }, "Stale import jobs returned to the queue");
+
+  // The worker keeps the queue moving: it reclaims the jobs whose lease
+  // expired and takes the next queued one.
+  startImportWorker();
+  const resumed = await resumeQueuedJobs().catch(() => 0);
+  if (resumed > 0) logger.info({ resumed }, "Queued import jobs resumed");
 
   server = app.listen(config.port, () => {
     logger.info({ port: config.port }, "Server listening");

@@ -7,26 +7,45 @@
  * point of use instead of being implied by a path prefix.
  */
 import type { Request, Response, NextFunction } from "express";
-import { extractToken, isValidToken } from "../lib/auth-utils";
+import { extractToken, isValidToken, verifyToken, type SessionClaims } from "../lib/auth-utils";
 import { logger } from "../lib/logger";
+import { isSessionRevoked } from "../lib/session-store";
+
+/**
+ * Returns the verified claims of the request session, or null when the
+ * request is not authenticated.
+ */
+export async function currentClaims(req: Request): Promise<SessionClaims | null> {
+  const token = extractToken(req);
+  if (!token) return null;
+  const claims = verifyToken(token);
+  if (!claims) return null;
+  // A revoked session (after a logout) no longer authorises anything.
+  if (await isSessionRevoked(claims.jti)) return null;
+  return claims;
+}
 
 /** Returns true when the request carries a valid admin session. */
-export function isAuthorized(req: Request): boolean {
+export async function isAuthorized(req: Request): Promise<boolean> {
   const token = extractToken(req);
-  return Boolean(token && isValidToken(token));
+  if (!token) return false;
+  if (!isValidToken(token)) return false;
+  const claims = verifyToken(token);
+  if (claims && (await isSessionRevoked(claims.jti))) return false;
+  return true;
 }
 
 /**
  * Express middleware guarding administrative routes.
  * Rejects with 401 when no valid session is present.
  */
-export function adminAuth(req: Request, res: Response, next: NextFunction): void {
+export async function adminAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   if (!req.path.startsWith("/admin")) {
     next();
     return;
   }
 
-  if (!isAuthorized(req)) {
+  if (!(await isAuthorized(req))) {
     logger.warn({ method: req.method, url: req.path }, "Rejected unauthorized admin request");
     res.status(401).json({ error: "No autorizado", code: "unauthorized" });
     return;
@@ -39,8 +58,8 @@ export function adminAuth(req: Request, res: Response, next: NextFunction): void
  * Express middleware for administrative routes outside the `/admin`
  * namespace. Use it on every write operation.
  */
-export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
-  if (!isAuthorized(req)) {
+export async function requireAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {
+  if (!(await isAuthorized(req))) {
     logger.warn({ method: req.method, url: req.path }, "Rejected unauthorized request");
     res.status(401).json({ error: "No autorizado", code: "unauthorized" });
     return;

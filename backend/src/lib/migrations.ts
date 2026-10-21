@@ -276,6 +276,118 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_series_slug ON cv_series (slug);
     `,
   },
+  {
+    version: 8,
+    name: "revoked_sessions",
+    sql: `
+      CREATE TABLE IF NOT EXISTS revoked_sessions (
+        jti TEXT PRIMARY KEY,
+        expires_at TIMESTAMPTZ NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_revoked_sessions_expires ON revoked_sessions (expires_at);
+    `,
+  },
+  {
+    version: 9,
+    name: "catalogue_uniqueness",
+    sql: `
+      -- Registry of schema issues: when a constraint cannot be created because
+      -- of pre-existing duplicates, the reason is stored here instead of
+      -- failing the boot or deleting data.
+      CREATE TABLE IF NOT EXISTS schema_issues (
+        id SERIAL PRIMARY KEY,
+        area TEXT NOT NULL,
+        detail TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      -- Unique index on the IMDb id (only real IMDb identifiers).
+      DO $do$
+      DECLARE
+        duplicates INTEGER;
+      BEGIN
+        SELECT count(*) INTO duplicates
+          FROM (
+            SELECT imdb_id FROM movies
+             WHERE imdb_id ~ '^tt[0-9]{7,10}$'
+             GROUP BY imdb_id HAVING count(*) > 1
+          ) duplicates_movies;
+
+        IF duplicates > 0 THEN
+          INSERT INTO schema_issues (area, detail)
+          VALUES ('movies.imdb_id',
+                  'No se pudo crear el indice unico: ' || duplicates || ' IMDb duplicados en movies');
+        ELSE
+          EXECUTE 'CREATE UNIQUE INDEX IF NOT EXISTS uq_movies_imdb_id
+                    ON movies (imdb_id) WHERE imdb_id ~ ''^tt[0-9]{7,10}$''';
+        END IF;
+
+        SELECT count(*) INTO duplicates
+          FROM (
+            SELECT tmdb_id FROM movies
+             WHERE tmdb_id IS NOT NULL
+             GROUP BY tmdb_id HAVING count(*) > 1
+          ) duplicates_movies_tmdb;
+
+        IF duplicates > 0 THEN
+          INSERT INTO schema_issues (area, detail)
+          VALUES ('movies.tmdb_id',
+                  'No se pudo crear el indice unico: ' || duplicates || ' TMDB duplicados en movies');
+        ELSE
+          EXECUTE 'CREATE UNIQUE INDEX IF NOT EXISTS uq_movies_tmdb_id
+                    ON movies (tmdb_id) WHERE tmdb_id IS NOT NULL';
+        END IF;
+
+        SELECT count(*) INTO duplicates
+          FROM (
+            SELECT imdb_id FROM cv_series
+             WHERE imdb_id ~ '^tt[0-9]{7,10}$'
+             GROUP BY imdb_id HAVING count(*) > 1
+          ) duplicates_series;
+
+        IF duplicates > 0 THEN
+          INSERT INTO schema_issues (area, detail)
+          VALUES ('cv_series.imdb_id',
+                  'No se pudo crear el indice unico: ' || duplicates || ' IMDb duplicados en cv_series');
+        ELSE
+          EXECUTE 'CREATE UNIQUE INDEX IF NOT EXISTS uq_series_imdb_id
+                    ON cv_series (imdb_id) WHERE imdb_id ~ ''^tt[0-9]{7,10}$''';
+        END IF;
+
+        SELECT count(*) INTO duplicates
+          FROM (
+            SELECT tmdb_id FROM cv_series
+             WHERE tmdb_id IS NOT NULL
+             GROUP BY tmdb_id HAVING count(*) > 1
+          ) duplicates_series_tmdb;
+
+        IF duplicates > 0 THEN
+          INSERT INTO schema_issues (area, detail)
+          VALUES ('cv_series.tmdb_id',
+                  'No se pudo crear el indice unico: ' || duplicates || ' TMDB duplicados en cv_series');
+        ELSE
+          EXECUTE 'CREATE UNIQUE INDEX IF NOT EXISTS uq_series_tmdb_id
+                    ON cv_series (tmdb_id) WHERE tmdb_id IS NOT NULL';
+        END IF;
+      END
+      $do$;
+    `,
+  },
+  {
+    version: 10,
+    name: "import_job_leases",
+    sql: `
+      ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS lease_expires_at TIMESTAMPTZ;
+      ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS attempts INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS pending INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+      -- Index for the worker that picks the oldest queued job.
+      CREATE INDEX IF NOT EXISTS idx_import_jobs_queued
+        ON import_jobs (created_at) WHERE status = 'queued';
+    `,
+  },
 ];
 
 /**

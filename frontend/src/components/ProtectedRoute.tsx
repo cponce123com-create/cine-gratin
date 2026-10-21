@@ -30,7 +30,7 @@ export default function ProtectedRoute({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!data) {
+  if (!data?.authenticated) {
     return <Navigate to="/admin/login" replace />;
   }
 

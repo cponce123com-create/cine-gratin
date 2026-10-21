@@ -12,6 +12,14 @@ import { pool } from "./db";
 import { logger } from "./logger";
 import { fetchMovieByTmdbId, fetchSeriesByTmdbId, makeSlug, tmdbFetch } from "./tmdb-client";
 
+/** PostgreSQL error code for a unique constraint violation. */
+const UNIQUE_VIOLATION = "23505";
+
+/** True when the error is a unique constraint violation. */
+function isUniqueViolation(err: unknown): boolean {
+  return typeof err === "object" && err !== null && (err as { code?: string }).code === UNIQUE_VIOLATION;
+}
+
 export { makeSlug } from "./tmdb-client";
 
 export type ImportStatus = "imported" | "existed" | "not_found" | "skipped" | "error";
@@ -171,6 +179,11 @@ export async function importMovieByTmdbId(tmdbId: number): Promise<ImportOutcome
 
     return { id, title: data.title ?? null, year: data.year ?? null, status: "imported" };
   } catch (err) {
+    // Another import of the same title won the race: the content is already
+    // in the catalogue, which is not an error.
+    if (isUniqueViolation(err)) {
+      return { id: `tmdb:${tmdbId}`, title: null, year: null, status: "existed" };
+    }
     logger.warn({ err, tmdbId }, "Failed to import movie");
     return {
       id: `tmdb:${tmdbId}`,
@@ -239,6 +252,9 @@ export async function importSeriesByTmdbId(tmdbId: number): Promise<ImportOutcom
 
     return { id, title: data.title ?? null, year: data.year ?? null, status: "imported" };
   } catch (err) {
+    if (isUniqueViolation(err)) {
+      return { id: `tmdb:${tmdbId}`, title: null, year: null, status: "existed" };
+    }
     logger.warn({ err, tmdbId }, "Failed to import series");
     return {
       id: `tmdb:${tmdbId}`,

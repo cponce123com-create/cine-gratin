@@ -17,8 +17,8 @@ export default function AdminLogin() {
   // does not perform side effects while rendering.
   useEffect(() => {
     let cancelled = false;
-    void getSession().then((valid) => {
-      if (!cancelled) setAlreadySignedIn(valid);
+    void getSession().then((session) => {
+      if (!cancelled) setAlreadySignedIn(session.authenticated);
     });
     return () => {
       cancelled = true;

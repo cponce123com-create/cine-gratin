@@ -29,7 +29,9 @@ export default defineConfig({
     },
     hookTimeout: 30_000,
     testTimeout: 30_000,
+    // A single fork keeps the tests sequential: they share one database.
     pool: "forks",
-    poolOptions: { forks: { singleFork: true } },
+    maxWorkers: 1,
+    fileParallelism: false,
   },
 });

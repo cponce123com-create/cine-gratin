@@ -2,10 +2,12 @@ import { Router, type Request, type Response } from "express";
 import { pool } from "../lib/db";
 import { rateLimit } from "express-rate-limit";
 import { z } from "zod";
-import { isAuthorized, requireAdmin } from "../middlewares/adminAuth";
+import { currentClaims, requireAdmin } from "../middlewares/adminAuth";
+import { revokeSession } from "../lib/session-store";
 import { asyncHandler, parseBody, parsePagination, parseStringParam } from "../lib/http";
 import { badRequest, notFound, sendError } from "../lib/errors";
 import {
+  generateCsrfToken,
   generateToken,
   hashPassword,
   isBcryptHash,
@@ -503,12 +505,20 @@ router.post(
       throw badRequest("No hay campos para guardar");
     }
 
-    const columns = ["id"];
-    const values: unknown[] = [movieId];
-    const placeholders = ["$1"];
+    const columns = ["id", "imdb_id"];
+    const values: unknown[] = [
+      movieId,
+      // The column is NOT NULL: manual entries get a synthetic identifier that
+      // can never collide with a real IMDb id (the unique index only covers
+      // identifiers with the "tt" format).
+      (payload["imdb_id"] as string | undefined) ??
+        (movieId.startsWith("tt") ? movieId : `manual_${movieId}`),
+    ];
+    const placeholders = ["$1", "$2"];
     const updateAssignments: string[] = [];
 
     for (const [key, value] of entries) {
+      if (key === "imdb_id") continue;
       const column = MOVIE_COLUMNS[key];
       values.push(JSON_COLUMNS.has(column) ? JSON.stringify(value) : value);
       const index = values.length;
@@ -701,18 +711,32 @@ router.post(
       return;
     }
 
-    const token = generateToken(storedUsername);
+    // The CSRF token travels inside the session and is handed to the client
+    // so it can echo it in the X-CSRF-Token header on mutating requests.
+    const csrfToken = generateCsrfToken();
+    const token = generateToken(storedUsername, csrfToken);
     res.cookie(SESSION_COOKIE, token, sessionCookieOptions());
     res.setHeader("Cache-Control", "no-store");
-    res.json({ ok: true, expiresIn: getConfig().sessionTtlSeconds });
+    res.json({ ok: true, csrfToken, expiresIn: getConfig().sessionTtlSeconds });
   }),
 );
 
 /** POST /api/auth/logout — clears the session cookie. */
 router.post(
   "/auth/logout",
-  asyncHandler(async (_req: Request, res: Response) => {
-    res.clearCookie(SESSION_COOKIE, { path: "/" });
+  asyncHandler(async (req: Request, res: Response) => {
+    // The session is revoked on the server: a copy of the token stops working
+    // immediately, not when it expires.
+    const claims = await currentClaims(req);
+    await revokeSession(claims);
+
+    const config = getConfig();
+    res.clearCookie(SESSION_COOKIE, {
+      path: "/",
+      sameSite: config.cookieSameSite,
+      secure: config.cookieSecure,
+      httpOnly: true,
+    });
     res.setHeader("Cache-Control", "no-store");
     res.json({ ok: true });
   }),
@@ -723,7 +747,12 @@ router.get(
   "/auth/session",
   asyncHandler(async (req: Request, res: Response) => {
     res.setHeader("Cache-Control", "no-store");
-    res.json({ authenticated: isAuthorized(req) });
+    const claims = await currentClaims(req);
+    res.json({
+      authenticated: Boolean(claims),
+      // The client needs it to sign mutating requests.
+      ...(claims ? { csrfToken: claims.csrf } : {}),
+    });
   }),
 );
 

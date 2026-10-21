@@ -3,7 +3,9 @@
  *
  * Security model
  * --------------
- * - Sessions are JWTs signed with `JWT_SECRET`.
+ * - Sessions are JWTs signed with `JWT_SECRET` using HS256. The expected
+ *   algorithm is pinned, so a token signed with another algorithm (or with
+ *   `alg: none`) is rejected.
  * - The token is transported either by an `HttpOnly` cookie (`cg_session`) or,
  *   for CLI/API usage, by an `Authorization: Bearer` header.
  * - Tokens are NEVER accepted from the query string: URLs end up in browser
@@ -12,8 +14,11 @@
  *   valid JWT or with the configured `ADMIN_SECRET`.
  * - `ALLOW_INSECURE_DEV_AUTH=true` re-enables the "any non-empty token" mode
  *   for local development, but it is refused in production.
+ * - Each session carries a random `csrf` claim. Mutating requests made with
+ *   the session cookie must echo it in the `X-CSRF-Token` header (see
+ *   `lib/csrf.ts`), which prevents cross-site request forgery.
  */
-import { timingSafeEqual } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import type { Request } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
@@ -21,6 +26,22 @@ import { getConfig } from "./config";
 
 const SALT_ROUNDS = 10;
 export const SESSION_COOKIE = "cg_session";
+export const CSRF_HEADER = "x-csrf-token";
+/** The only signing algorithm accepted. */
+const ALLOWED_ALGORITHMS = ["HS256"] as const;
+
+export interface SessionClaims {
+  username: string;
+  role: "admin";
+  /** Random value bound to this session, required on mutating requests. */
+  csrf: string;
+  /** Identifier of the session, used to revoke it on logout. */
+  jti: string;
+  /** Expiry (seconds since the epoch). */
+  exp: number;
+  /** Issued at (seconds since the epoch). */
+  iat?: number;
+}
 
 /** Hashes a plaintext password with bcrypt. */
 export async function hashPassword(password: string): Promise<string> {
@@ -37,18 +58,44 @@ export function isBcryptHash(str: string): boolean {
   return str.startsWith("$2b$") || str.startsWith("$2a$") || str.startsWith("$2y$");
 }
 
-/** Generates a signed session token for the given admin username. */
-export function generateToken(username: string): string {
-  const config = getConfig();
-  return jwt.sign({ username, role: "admin" }, config.jwtSecret, {
-    expiresIn: config.sessionTtlSeconds,
-  });
+/** Generates a random token for the CSRF protection (32 bytes, hex). */
+export function generateCsrfToken(): string {
+  return randomBytes(32).toString("hex");
 }
 
-/** Verifies a session token, returning its payload or null. */
-export function verifyToken(token: string): { username: string; role: string } | null {
+/** Generates a signed session token for the given admin username. */
+export function generateToken(username: string, csrfToken = generateCsrfToken()): string {
+  const config = getConfig();
+  return jwt.sign(
+    {
+      username,
+      role: "admin",
+      csrf: csrfToken,
+      jti: randomBytes(16).toString("hex"),
+    } satisfies Omit<SessionClaims, "iat" | "exp">,
+    config.jwtSecret,
+    { expiresIn: config.sessionTtlSeconds, algorithm: "HS256" },
+  );
+}
+
+/**
+ * Verifies a session token.
+ * The algorithm is pinned, the expiry is mandatory and the administrative
+ * role is required: a token without those claims is not a session.
+ */
+export function verifyToken(token: string): SessionClaims | null {
   try {
-    return jwt.verify(token, getConfig().jwtSecret) as { username: string; role: string };
+    const payload = jwt.verify(token, getConfig().jwtSecret, {
+      algorithms: [...ALLOWED_ALGORITHMS],
+    });
+    if (typeof payload !== "object" || payload === null) return null;
+    const claims = payload as Partial<SessionClaims>;
+    if (typeof claims.username !== "string" || claims.username.length === 0) return null;
+    if (claims.role !== "admin") return null;
+    if (typeof claims.exp !== "number") return null;
+    if (typeof claims.csrf !== "string" || claims.csrf.length < 16) return null;
+    if (typeof claims.jti !== "string" || claims.jti.length < 16) return null;
+    return claims as SessionClaims;
   } catch {
     return null;
   }
@@ -85,6 +132,12 @@ export function extractToken(req: Request): string | undefined {
   }
 
   return undefined;
+}
+
+/** True when the request authenticates with a bearer token instead of a cookie. */
+export function usesBearerToken(req: Request): boolean {
+  const header = req.headers.authorization;
+  return Boolean(header && header.startsWith("Bearer ") && header.slice(7).trim());
 }
 
 /**

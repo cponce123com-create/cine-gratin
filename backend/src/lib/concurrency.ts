@@ -1,10 +1,13 @@
 /**
- * Small concurrency helpers.
+ * Bounded concurrency helper.
  *
  * Import jobs talk to third-party APIs with hard rate limits, so every
  * provider-bound loop runs with a bounded number of in-flight requests
  * instead of an unbounded `Promise.all`.
  */
+
+/** Marker used for the items that were never started (cancelled job). */
+export const SKIPPED_REASON = "skipped";
 
 export interface MapOptions {
   /** Maximum number of tasks running at the same time. */
@@ -13,6 +16,11 @@ export interface MapOptions {
   onProgress?: (completed: number, total: number) => void | Promise<void>;
   /** Return false to stop processing further items. */
   shouldStop?: () => boolean;
+}
+
+/** True when the item was never started because the run was stopped. */
+export function wasSkipped(result: PromiseSettledResult<unknown>): boolean {
+  return result.status === "rejected" && (result.reason as unknown) === SKIPPED_REASON;
 }
 
 /**
@@ -56,10 +64,10 @@ export async function mapWithConcurrency<T, R>(
   const workers = Array.from({ length: Math.min(concurrency, items.length) }, () => runNext());
   await Promise.all(workers);
 
-  // Items that never started (cancelled job) are reported as rejected.
+  // Items that never started (cancelled job) are reported as skipped.
   for (let i = 0; i < items.length; i++) {
     if (!results[i]) {
-      results[i] = { status: "rejected", reason: new Error("cancelled") };
+      results[i] = { status: "rejected", reason: SKIPPED_REASON };
     }
   }
 

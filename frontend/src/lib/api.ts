@@ -1,14 +1,34 @@
-import { fetchSession, notifyUnauthorized } from "./auth";
+import { ensureCsrfToken, fetchSession, getCsrfToken, notifyUnauthorized, type SessionState } from "./auth";
 import type { Movie, Series } from "./types";
 import type { AutoImportStatus, VidsrcResult, RunImportResult, AdminStats } from "./types";
 
 export const BASE_URL =
   (import.meta.env["VITE_API_URL"] as string | undefined) || "https://cine-gratin.onrender.com";
 
-/** Fetches with the session cookie attached. */
+const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+/**
+ * Fetches with the session cookie attached.
+ *
+ * State-changing requests carry the CSRF token of the session in the
+ * `X-CSRF-Token` header: the server rejects them otherwise, which prevents
+ * another site from making the browser perform an authenticated action.
+ */
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const method = (init.method ?? "GET").toUpperCase();
+  const headers = new Headers(init.headers);
+
+  if (MUTATING_METHODS.has(method)) {
+    if (!headers.has("Content-Type") && init.body) {
+      headers.set("Content-Type", "application/json");
+    }
+    const token = getCsrfToken() ?? (await ensureCsrfToken());
+    if (token) headers.set("X-CSRF-Token", token);
+  }
+
   const res = await fetch(`${BASE_URL}${path}`, {
     ...init,
+    headers,
     credentials: "include",
   });
 
@@ -71,8 +91,8 @@ export async function adminDelete(path: string): Promise<void> {
   await adminFetch<unknown>(path, { method: "DELETE" });
 }
 
-/** Returns true when the current browser session is valid. */
-export const getSession = (): Promise<boolean> => fetchSession();
+/** Returns the state of the current browser session (and its CSRF token). */
+export const getSession = (): Promise<SessionState> => fetchSession();
 
 // ── Public endpoints ──────────────────────────────────────────────────────────
 
