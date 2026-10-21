@@ -108,16 +108,6 @@ psql "$DATABASE_URL" -f scripts/set-superadmin.sql -v username="'admin'" -v pass
 En despliegues cruzados (frontend en otro dominio) hay que permitir la
 cabecera en CORS; el backend ya la incluye en `Access-Control-Allow-Headers`.
 
-## 🔗 Sesión y CORS
-
-- La sesión se guarda en una cookie `HttpOnly` (`cg_session`): el token no es
-  accesible desde JavaScript, lo que reduce el impacto de un XSS.
-- En despliegues de un solo dominio no hace falta configurar nada más.
-- En despliegues cruzados: `CORS_ORIGINS` con el origen exacto,
-  `COOKIE_SAME_SITE=none` y `COOKIE_SECURE=true`.
-- El token también se acepta por cabecera `Authorization: Bearer <token>` para
-  automatizaciones. **Nunca** se acepta por query string (`?token=`).
-
 ## ⚙️ CI/CD (GitHub Actions)
 
 Existe una única ruta de despliegue: `.github/workflows/ci.yml`.
@@ -187,112 +177,43 @@ la pipeline exige la auditoría de producción y informa de la de desarrollo.
 
 ## 🔧 Recuperación ante errores
 
-| Síntoma                          | Causa probable                         | Solución                                                    |
-| -------------------------------- | -------------------------------------- | ----------------------------------------------------------- |
-| El proceso no arranca            | Falta `JWT_SECRET` en producción       | Configura un secreto de 32+ caracteres                      |
-| `401` en todo el panel           | Cookie no válida o `COOKIE_SECURE`     | Revisa `COOKIE_SAME_SITE`, `COOKIE_SECURE` y `CORS_ORIGINS` |
-| El navegador no envía la cookie  | Dominios distintos sin `SameSite=None` | `COOKIE_SAME_SITE=none` + `COOKIE_SECURE=true`              |
-| La importación no encuentra nada | `TMDB_API_KEY` no configurada          | Añádela a las variables de entorno                          |
-| `EADDRINUSE` al arrancar         | Otra instancia usando el puerto        | Detén el proceso anterior (`lsof -i :3000`)                 |
-| El escáner VIDSRC falla          | vidsrc.me limita las peticiones        | Usa el escáner por rangos, con pausas                       |
+| Síntoma                          | Causa probable                                | Solución                                                    |
+| -------------------------------- | --------------------------------------------- | ----------------------------------------------------------- |
+| El proceso no arranca            | Falta `JWT_SECRET` en producción              | Configura un secreto de 32+ caracteres                      |
+| `401` en todo el panel           | Cookie no válida o `COOKIE_SECURE`            | Revisa `COOKIE_SAME_SITE`, `COOKIE_SECURE` y `CORS_ORIGINS` |
+| El navegador no envía la cookie  | Dominios distintos sin `SameSite=None`        | `COOKIE_SAME_SITE=none` + `COOKIE_SECURE=true`              |
+| La importación no encuentra nada | `TMDB_API_KEY` no configurada                 | Añádela a las variables de entorno                          |
+| `EADDRINUSE` al arrancar         | Otra instancia usando el puerto               | Detén el proceso anterior (`lsof -i :3000`)                 |
+| El escáner VIDSRC falla          | vidsrc.me limita las peticiones               | Usa el escáner por rangos, con pausas                       |
+| La página se queda en blanco     | El navegador conserva un asset antiguo        | Abre `/api/reset-cache` (borra la caché y recarga)          |
+| El navegador descarga un archivo | El `Content-Type` del asset no es el correcto | Recarga con `Ctrl+Shift+R` y comprueba `/assets/...`        |
 
-Los errores internos nunca se envían al cliente: se registran en el servidor
-con un `requestId` que también aparece en la respuesta, para poder correlacionar
-un aviso de un usuario con la línea exacta del registro.
+### Caché del navegador y service worker
 
-> GROUP BY imdb_id HAVING count(\*) > 1;
->
-> ```
->
-> Una vez resueltos (a mano o con la importación, que ya detecta el
-> conflicto), basta con volver a aplicar la migración.
-> ```
+La aplicación instala un service worker (`frontend/src/sw.ts`) con dos reglas:
 
-### Usuario administrador
+- Los scripts, estilos e iconos de cada despliegue se guardan por adelantado.
+  Los assets se publican en `assets/<marca-de-compilación>/`, de modo que **en
+  cada despliegue cambian todas sus URL** y ninguna caché puede devolver un
+  fichero de una versión anterior.
+- El _shell_ (`index.html`) **no** se pre-cachea: se pide siempre a la red, para
+  no servir el shell de otro despliegue. Si el servidor falla o no hay red, se
+  responde con el último shell conocido (guardado en `shell-cache`).
 
-El usuario se guarda en la tabla `cv_auth` con la contraseña en bcrypt:
+`sw.js` y `registerSW.js` se sirven con `Cache-Control: no-cache`: así el
+service worker se actualiza en la siguiente visita, en lugar de esperar a que
+caduque la caché del navegador.
 
-```bash
-# 1. Generar el hash
-cd backend && node --input-type=module -e "import bcrypt from 'bcrypt'; console.log(await bcrypt.hash('TU_CONTRASEÑA', 10))"
+Si un navegador se queda con una versión rota o antigua (por ejemplo, tras un
+despliegue con un error de cabeceras), la forma rápida de recuperarlo es:
 
-# 2. Aplicarlo
-psql "$DATABASE_URL" -f scripts/set-superadmin.sql -v username="'admin'" -v password="'<HASH>'"
+```
+https://TU-DOMINIO/api/reset-cache
 ```
 
-> La contraseña debe tener al menos 10 caracteres, con minúscula, mayúscula y
-> número. El panel de administración la valida en el servidor.
-
-## 🔗 Sesión y CORS
-
-- La sesión se guarda en una cookie `HttpOnly` (`cg_session`): el token no es
-  accesible desde JavaScript, lo que reduce el impacto de un XSS.
-- En despliegues de un solo dominio no hace falta configurar nada más.
-- En despliegues cruzados: `CORS_ORIGINS` con el origen exacto,
-  `COOKIE_SAME_SITE=none` y `COOKIE_SECURE=true`.
-- El token también se acepta por cabecera `Authorization: Bearer <token>` para
-  automatizaciones. **Nunca** se acepta por query string (`?token=`).
-
-## ⚙️ CI/CD (GitHub Actions)
-
-Existe una única ruta de despliegue: `.github/workflows/ci.yml`.
-
-| Job       | Qué hace                                                             |
-| --------- | -------------------------------------------------------------------- |
-| `quality` | Prettier, y typecheck de raíz, frontend y backend                    |
-| `test`    | Suite de pruebas (Vitest) contra un PostgreSQL efímero del runner    |
-| `build`   | Build del frontend y del backend                                     |
-| `deploy`  | Despliegue en Render (solo `push` a `main` del repositorio canónico) |
-
-El despliegue **depende** de que las verificaciones anteriores terminen bien.
-Los secretos se pasan como variables de entorno (no se interpolan en el
-comando) y el trabajo de despliegue comprueba las condiciones del repositorio
-para no publicar desde forks.
-
-### Secrets requeridos en GitHub
-
-| Secret                   | Descripción                                          |
-| ------------------------ | ---------------------------------------------------- |
-| `RENDER_API_KEY`         | API key de Render (Settings > API Keys)              |
-| `RENDER_SERVICE_ID`      | ID del servicio (`render.com/services/srv-xxx`)      |
-| `RENDER_DEPLOY_HOOK_URL` | Alternativa: deploy hook de Render                   |
-| `RENDER_HEALTH_URL`      | URL pública de salud (por ejemplo `.../api/healthz`) |
-| `TEST_TMDB_API_KEY`      | Opcional: habilita las pruebas de importación reales |
-
-## 🩺 Comprobaciones de salud
-
-- `GET /api/healthz` — el proceso responde (no consulta la base de datos).
-- `GET /api/readyz` — el proceso puede atender tráfico (comprueba la BD).
-
-Configura el health check de Render contra `/api/healthz` para el liveness
-probe y contra `/api/readyz` para el readiness probe.
-
-## 🧪 Pruebas en local
-
-```bash
-# Base de datos de pruebas aislada (nunca la de producción)
-createdb cine-gratin-test
-
-TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/cine-gratin-test pnpm test
-```
-
-Sin `TEST_DATABASE_URL` se ejecutan sólo las pruebas unitarias y las de
-base de datos se omiten. Para probar también las importaciones reales:
-
-```bash
-TEST_TMDB_API_KEY=tu-clave-de-tmdb pnpm test
-```
-
-## 🔧 Recuperación ante errores
-
-| Síntoma                          | Causa probable                         | Solución                                                    |
-| -------------------------------- | -------------------------------------- | ----------------------------------------------------------- |
-| El proceso no arranca            | Falta `JWT_SECRET` en producción       | Configura un secreto de 32+ caracteres                      |
-| `401` en todo el panel           | Cookie no válida o `COOKIE_SECURE`     | Revisa `COOKIE_SAME_SITE`, `COOKIE_SECURE` y `CORS_ORIGINS` |
-| El navegador no envía la cookie  | Dominios distintos sin `SameSite=None` | `COOKIE_SAME_SITE=none` + `COOKIE_SECURE=true`              |
-| La importación no encuentra nada | `TMDB_API_KEY` no configurada          | Añádela a las variables de entorno                          |
-| `EADDRINUSE` al arrancar         | Otra instancia usando el puerto        | Detén el proceso anterior (`lsof -i :3000`)                 |
-| El escáner VIDSRC falla          | vidsrc.me limita las peticiones        | Usa el escáner por rangos, con pausas                       |
+Ese endpoint envía la cabecera `Clear-Site-Data`, que hace que el navegador
+borre su caché y sus service workers, y recarga el sitio. No afecta a la
+sesión (la cookie se conserva).
 
 Los errores internos nunca se envían al cliente: se registran en el servidor
 con un `requestId` que también aparece en la respuesta, para poder correlacionar

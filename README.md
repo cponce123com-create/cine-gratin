@@ -120,3 +120,7 @@ proceso de autenticación y la recuperación ante errores.
   `prefers-reduced-motion`
 - 📦 Instalable como PWA con iconos y manifiesto válidos
 - ⚡ Assets estáticos servidos precomprimidos (brotli/gzip) con caché inmutable
+- 🔄 Service worker propio: el shell se pide siempre a la red (nunca se sirve
+  el de un despliegue anterior) y cada despliegue cambia las URL de los assets
+  para que ninguna caché devuelva ficheros obsoletos. Recuperación manual con
+  `/api/reset-cache`
