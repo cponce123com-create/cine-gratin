@@ -395,27 +395,41 @@ export const MIGRATIONS: Migration[] = [
     sql: `
       CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
+      -- PostgreSQL exige funciones IMMUTABLE en las expresiones de un índice, y
+      -- array_to_string está declarada STABLE, así que estos índices fallaban
+      -- ("functions in index expressions must be marked IMMUTABLE") y la
+      -- migración entera se revertía. Su resultado sobre text[] sí es
+      -- determinista, así que se expone una envoltura IMMUTABLE para poder
+      -- indexar esos campos y acelerar la búsqueda semántica.
+      CREATE OR REPLACE FUNCTION catalogue_array_text(arr TEXT[])
+      RETURNS TEXT
+      LANGUAGE sql
+      IMMUTABLE
+      PARALLEL SAFE
+      RETURNS NULL ON NULL INPUT
+      AS $$ SELECT array_to_string(arr, ' ') $$;
+
       CREATE INDEX IF NOT EXISTS idx_movies_synopsis_trgm
         ON movies USING GIN (synopsis gin_trgm_ops);
       CREATE INDEX IF NOT EXISTS idx_movies_genres_trgm
-        ON movies USING GIN ((COALESCE(array_to_string(genres, ' '), '')) gin_trgm_ops);
+        ON movies USING GIN ((COALESCE(catalogue_array_text(genres), '')) gin_trgm_ops);
       CREATE INDEX IF NOT EXISTS idx_movies_director_trgm
         ON movies USING GIN ((COALESCE(director, '')) gin_trgm_ops);
       CREATE INDEX IF NOT EXISTS idx_movies_cast_trgm
-        ON movies USING GIN ((COALESCE(array_to_string(cast_list, ' '), '')) gin_trgm_ops);
+        ON movies USING GIN ((COALESCE(catalogue_array_text(cast_list), '')) gin_trgm_ops);
       CREATE INDEX IF NOT EXISTS idx_movies_networks_trgm
-        ON movies USING GIN ((COALESCE(array_to_string(networks, ' '), '')) gin_trgm_ops);
+        ON movies USING GIN ((COALESCE(catalogue_array_text(networks), '')) gin_trgm_ops);
 
       CREATE INDEX IF NOT EXISTS idx_series_synopsis_trgm
         ON cv_series USING GIN (synopsis gin_trgm_ops);
       CREATE INDEX IF NOT EXISTS idx_series_genres_trgm
-        ON cv_series USING GIN ((COALESCE(array_to_string(genres, ' '), '')) gin_trgm_ops);
+        ON cv_series USING GIN ((COALESCE(catalogue_array_text(genres), '')) gin_trgm_ops);
       CREATE INDEX IF NOT EXISTS idx_series_creators_trgm
-        ON cv_series USING GIN ((COALESCE(array_to_string(creators, ' '), '')) gin_trgm_ops);
+        ON cv_series USING GIN ((COALESCE(catalogue_array_text(creators), '')) gin_trgm_ops);
       CREATE INDEX IF NOT EXISTS idx_series_cast_trgm
-        ON cv_series USING GIN ((COALESCE(array_to_string(cast_list, ' '), '')) gin_trgm_ops);
+        ON cv_series USING GIN ((COALESCE(catalogue_array_text(cast_list), '')) gin_trgm_ops);
       CREATE INDEX IF NOT EXISTS idx_series_networks_trgm
-        ON cv_series USING GIN ((COALESCE(array_to_string(networks, ' '), '')) gin_trgm_ops);
+        ON cv_series USING GIN ((COALESCE(catalogue_array_text(networks), '')) gin_trgm_ops);
     `,
   },
   {
