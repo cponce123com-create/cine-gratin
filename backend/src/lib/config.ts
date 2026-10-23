@@ -58,6 +58,13 @@ export interface AppConfig {
   errorReportLimitMax: number;
   /** Download resolution rate limit (requests per window). */
   downloadLimitMax: number;
+  /**
+   * Global TMDB budget (requests per UTC day) shared by every endpoint and
+   * background job. TMDB serves the whole app from one key, so per-IP limits
+   * alone cannot stop a burst (or a runaway loop) from exhausting the shared
+   * quota for everyone. 0 disables the budget.
+   */
+  tmdbDailyBudget: number;
   logLevel: string;
 }
 
@@ -268,6 +275,13 @@ export function loadConfig(): AppConfig {
       1000,
     ),
     downloadLimitMax: parseBoundedInt("DOWNLOAD_LIMIT_MAX", process.env["DOWNLOAD_LIMIT_MAX"], 20, 1, 1000),
+    tmdbDailyBudget: parseBoundedInt(
+      "TMDB_DAILY_BUDGET",
+      process.env["TMDB_DAILY_BUDGET"],
+      10_000,
+      0,
+      1_000_000,
+    ),
     logLevel: process.env["LOG_LEVEL"] ?? "info",
   };
 

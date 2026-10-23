@@ -1,4 +1,5 @@
 import { getConfig } from "./config";
+import { logger } from "./logger";
 const TMDB_BASE = "https://api.themoviedb.org/3";
 const TMDB_IMG = "https://image.tmdb.org/t/p";
 
@@ -7,6 +8,57 @@ const TMDB_TIMEOUT_MS = 12_000;
 /** Maximum number of retries for transient failures. */
 const TMDB_MAX_RETRIES = 3;
 const TMDB_BASE_DELAY_MS = 400;
+
+// ── Global daily budget ──────────────────────────────────────────────────────
+// Every TMDB call in the app funnels through `tmdbFetch`, so this is the one
+// place that can cap the total consumption of the shared key. Per-IP rate
+// limits stop a single client from draining the quota, but a burst of visitors
+// or a runaway import loop could still exhaust it for everyone until the next
+// reset. A simple per-UTC-day counter short-circuits further calls once spent
+// (with a synthetic 429) so the app degrades instead of hitting the wall.
+let budgetDay = "";
+let budgetUsed = 0;
+
+/** Records one spent unit and reports whether the budget still allows it. */
+function consumeBudget(): boolean {
+  const limit = getConfig().tmdbDailyBudget;
+  if (limit <= 0) return true; // budget disabled
+  const today = new Date().toISOString().slice(0, 10);
+  if (today !== budgetDay) {
+    budgetDay = today;
+    budgetUsed = 0;
+  }
+  if (budgetUsed >= limit) {
+    logger.warn({ limit, used: budgetUsed }, "TMDB daily budget exhausted; short-circuiting calls");
+    return false;
+  }
+  budgetUsed += 1;
+  return true;
+}
+
+/** TMDB calls spent today (diagnostics and tests). */
+export function tmdbBudgetSpent(): number {
+  const today = new Date().toISOString().slice(0, 10);
+  return today === budgetDay ? budgetUsed : 0;
+}
+
+/** Resets the daily budget counter (used by the tests). */
+export function clearTmdbBudget(): void {
+  budgetDay = "";
+  budgetUsed = 0;
+}
+
+/**
+ * Synthetic 429 returned when the daily budget is spent. Callers already treat
+ * non-OK responses as a failed fetch and degrade gracefully (skip a field, fall
+ * back to cached data, or return null).
+ */
+function budgetExhaustedResponse(): Response {
+  return new Response(JSON.stringify({ error: "TMDB daily budget exhausted" }), {
+    status: 429,
+    headers: { "content-type": "application/json", "retry-after": "3600" },
+  });
+}
 
 export function buildHeaders(): Record<string, string> {
   const key = getConfig().tmdbApiKey ?? "";
@@ -54,6 +106,9 @@ export async function tmdbFetch(
   let lastError: unknown = null;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    // Every attempt (including retries) is a real TMDB call, so each one
+    // spends budget. Once the shared daily quota is gone, stop immediately.
+    if (!consumeBudget()) return budgetExhaustedResponse();
     try {
       const res = await fetch(url, {
         headers: buildHeaders(),
