@@ -1,4 +1,5 @@
 ﻿import { Router, type IRouter } from "express";
+import rateLimit from "express-rate-limit";
 import { sendError } from "../lib/errors";
 import { getConfig } from "../lib/config";
 import { tmdbFetch } from "../lib/tmdb-client";
@@ -7,6 +8,33 @@ import { mapWithConcurrency } from "../lib/concurrency";
 const router: IRouter = Router();
 
 const TMDB_IMG = "https://image.tmdb.org/t/p";
+
+/**
+ * These routes proxy TMDB. The free plan allows 1.000 requests per day that the
+ * whole site shares, so without a per-IP limit a single client could drain the
+ * quota and leave every poster, trailer and recommendation broken.
+ */
+const tmdbProxyLimit = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 60,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Demasiadas peticiones a TMDB. Inténtalo en un minuto." },
+});
+
+router.use("/tmdb", tmdbProxyLimit);
+
+/**
+ * IMDb identifiers are `tt` followed by 7 to 10 digits. Catalogue entries
+ * created by the auto-importer store the local id as `auto_tt…`; the prefix is
+ * removed before consulting TMDB.
+ */
+const IMDB_ID_PATTERN = /^(?:auto_)?tt\d{7,10}$/;
+
+function normalizeImdbId(value: unknown): string | null {
+  if (typeof value !== "string" || !IMDB_ID_PATTERN.test(value)) return null;
+  return value.startsWith("auto_") ? value.slice(5) : value;
+}
 
 router.get("/tmdb/movie/:imdbId", async (req, res) => {
   const { imdbId } = req.params;
@@ -467,11 +495,11 @@ router.get("/tmdb/person/:personId", async (req, res) => {
 // Devuelve galería completa de imágenes (backdrops + posters) y recomendaciones desde TMDB.
 // Se llama de forma lazy desde el frontend cuando el usuario llega a esa sección.
 router.get("/tmdb/media/:imdbId", async (req, res) => {
-  const imdbId = req.params["imdbId"] as string;
+  const imdbId = normalizeImdbId(req.params["imdbId"]);
   const type = req.query.type === "series" ? "series" : "movie";
 
   if (!imdbId) {
-    res.status(400).json({ error: "Se requiere imdbId" });
+    res.status(400).json({ error: "ID de IMDb inválido" });
     return;
   }
 
@@ -570,19 +598,46 @@ router.get("/tmdb/media/:imdbId", async (req, res) => {
   }
 });
 
+/**
+ * Bounded LRU cache of the answers to the TMDB proxy routes.
+ *
+ * The keys include client-controlled parameters (`type`, `language`, `imdbId`),
+ * so an unbounded Map would let anyone grow the heap until the process dies.
+ * Entries are also reordered on read so the least used ones are the first to go.
+ */
+const CACHE_MAX_ENTRIES = 500;
 const cache = new Map<string, { data: unknown; expires: number }>();
+
 function fromCache<T>(key: string): T | null {
   const entry = cache.get(key);
-  if (entry && entry.expires > Date.now()) return entry.data as T;
-  return null;
+  if (!entry) return null;
+  if (entry.expires <= Date.now()) {
+    cache.delete(key);
+    return null;
+  }
+  // Move to the end: the first key is the least recently used one.
+  cache.delete(key);
+  cache.set(key, entry);
+  return entry.data as T;
 }
+
 function toCache(key: string, data: unknown, ttlMs = 30 * 60 * 1000) {
+  cache.delete(key);
   cache.set(key, { data, expires: Date.now() + ttlMs });
+  while (cache.size > CACHE_MAX_ENTRIES) {
+    const oldest = cache.keys().next().value;
+    if (oldest === undefined) break;
+    cache.delete(oldest);
+  }
 }
 
 // GET /api/tmdb/images/:imdbId?type=movie|series
 router.get("/tmdb/images/:imdbId", async (req, res) => {
-  const { imdbId } = req.params;
+  const imdbId = normalizeImdbId(req.params["imdbId"]);
+  if (!imdbId) {
+    res.status(400).json({ error: "ID de IMDb inválido" });
+    return;
+  }
   const type = req.query.type === "series" ? "series" : "movie";
   const cacheKey = `images_${imdbId}_${type}`;
 
@@ -650,7 +705,11 @@ router.get("/tmdb/images/:imdbId", async (req, res) => {
 
 // GET /api/tmdb/recommendations/:imdbId?type=movie|series
 router.get("/tmdb/recommendations/:imdbId", async (req, res) => {
-  const { imdbId } = req.params;
+  const imdbId = normalizeImdbId(req.params["imdbId"]);
+  if (!imdbId) {
+    res.status(400).json({ error: "ID de IMDb inválido" });
+    return;
+  }
   const type = req.query.type === "series" ? "series" : "movie";
   const cacheKey = `recs_${imdbId}_${type}`;
 

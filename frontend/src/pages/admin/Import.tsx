@@ -236,7 +236,7 @@ export default function Import() {
       <div className="space-y-6">
         <header>
           <h1 className="text-2xl font-bold text-white">Importar contenido</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
+          <p className="text-sm text-gray-400 mt-0.5">
             Importa películas y series por identificador de IMDb o de TMDB. La importación se ejecuta en el
             servidor: puedes cerrar esta página y seguirla desde el historial.
           </p>
@@ -248,7 +248,7 @@ export default function Import() {
 
           <div className="flex flex-col sm:flex-row sm:items-end gap-3">
             <div>
-              <label htmlFor="import-type" className="block text-xs text-gray-500 mb-1">
+              <label htmlFor="import-type" className="block text-xs text-gray-400 mb-1">
                 Tipo de contenido
               </label>
               <select
@@ -266,7 +266,7 @@ export default function Import() {
             </div>
 
             <div className="flex-1">
-              <label htmlFor="import-ids" className="block text-xs text-gray-500 mb-1">
+              <label htmlFor="import-ids" className="block text-xs text-gray-400 mb-1">
                 Identificadores (separados por coma o salto de línea)
               </label>
               <textarea
@@ -277,7 +277,7 @@ export default function Import() {
                 placeholder="tt0111161, tt0068646, 550"
                 className="w-full bg-brand-dark border border-brand-border rounded-lg px-3 py-2 text-white text-sm font-mono outline-none focus:ring-2 focus:ring-brand-red resize-y"
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-400 mt-1">
                 {parsed.valid.length} identificadores válidos
                 {parsed.invalid.length > 0 && ` · ${parsed.invalid.length} inválidos`}
               </p>
@@ -338,7 +338,7 @@ export default function Import() {
                 <table className="w-full text-sm">
                   <caption className="sr-only">Vista previa de la importación</caption>
                   <thead>
-                    <tr className="text-left text-xs uppercase tracking-wider text-gray-500 border-b border-brand-border">
+                    <tr className="text-left text-xs uppercase tracking-wider text-gray-400 border-b border-brand-border">
                       <th scope="col" className="px-3 py-2 w-10" />
                       <th scope="col" className="px-3 py-2">
                         Título
@@ -382,7 +382,7 @@ export default function Import() {
                             )}
                             <div className="min-w-0">
                               <p className="text-white truncate max-w-[18rem]">{item.title ?? item.input}</p>
-                              <p className="text-xs text-gray-500 font-mono">{item.input}</p>
+                              <p className="text-xs text-gray-400 font-mono">{item.input}</p>
                             </div>
                           </div>
                         </td>
@@ -411,7 +411,7 @@ export default function Import() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-white font-bold">Trabajo de importación</h2>
-                <p className="text-xs text-gray-500 mt-0.5">
+                <p className="text-xs text-gray-400 mt-0.5">
                   {activeJob.source} · {activeJob.type === "movie" ? "películas" : "series"} ·{" "}
                   {new Date(activeJob.created_at).toLocaleString("es-ES")}
                 </p>
@@ -467,23 +467,23 @@ export default function Import() {
 
             <dl className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center">
               <div className="bg-brand-dark/40 rounded-lg p-3">
-                <dt className="text-xs text-gray-500">Importados</dt>
+                <dt className="text-xs text-gray-400">Importados</dt>
                 <dd className="text-lg font-bold text-emerald-400">{activeJob.imported}</dd>
               </div>
               <div className="bg-brand-dark/40 rounded-lg p-3">
-                <dt className="text-xs text-gray-500">Omitidos</dt>
+                <dt className="text-xs text-gray-400">Omitidos</dt>
                 <dd className="text-lg font-bold text-gray-300">{activeJob.skipped}</dd>
               </div>
               <div className="bg-brand-dark/40 rounded-lg p-3">
-                <dt className="text-xs text-gray-500">Fallidos</dt>
+                <dt className="text-xs text-gray-400">Fallidos</dt>
                 <dd className="text-lg font-bold text-red-400">{activeJob.failed}</dd>
               </div>
               <div className="bg-brand-dark/40 rounded-lg p-3">
-                <dt className="text-xs text-gray-500">Pendientes</dt>
+                <dt className="text-xs text-gray-400">Pendientes</dt>
                 <dd className="text-lg font-bold text-amber-400">{activeJob.pending}</dd>
               </div>
               <div className="bg-brand-dark/40 rounded-lg p-3">
-                <dt className="text-xs text-gray-500">Total</dt>
+                <dt className="text-xs text-gray-400">Total</dt>
                 <dd className="text-lg font-bold text-white">{activeJob.total}</dd>
               </div>
             </dl>
@@ -557,7 +557,7 @@ export default function Import() {
               <table className="w-full text-xs">
                 <caption className="sr-only">Historial de importaciones automáticas</caption>
                 <thead>
-                  <tr className="text-left text-gray-500 border-b border-brand-border">
+                  <tr className="text-left text-gray-400 border-b border-brand-border">
                     <th scope="col" className="px-2 py-2">
                       Fecha
                     </th>
@@ -602,7 +602,7 @@ export default function Import() {
           <h2 className="text-white font-bold">Historial de importaciones</h2>
 
           {!jobHistory || jobHistory.jobs.length === 0 ? (
-            <p className="text-sm text-gray-500">Todavía no hay importaciones registradas.</p>
+            <p className="text-sm text-gray-400">Todavía no hay importaciones registradas.</p>
           ) : (
             <ul className="space-y-2">
               {jobHistory.jobs.map((job) => (
@@ -614,7 +614,7 @@ export default function Import() {
                     {new Date(job.created_at).toLocaleString("es-ES")} ·{" "}
                     {job.type === "movie" ? "películas" : "series"} · {job.source}
                   </span>
-                  <span className="flex items-center gap-3 text-gray-500">
+                  <span className="flex items-center gap-3 text-gray-400">
                     <span>{job.total} elementos</span>
                     <span className="text-emerald-400">{job.imported} importados</span>
                     <span>{job.status}</span>

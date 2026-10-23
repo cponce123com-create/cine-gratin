@@ -54,7 +54,7 @@ function SagaPartCard({
           <img src={part.poster_url} alt={part.title} className="w-full h-full object-cover" loading="lazy" />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <span className="text-gray-600 text-xs px-2 text-center">{part.title}</span>
+            <span className="text-gray-400 text-xs px-2 text-center">{part.title}</span>
           </div>
         )}
 
@@ -96,7 +96,7 @@ function SagaPartCard({
       <div className="p-2.5">
         <p className="text-xs font-medium text-white truncate">{part.title}</p>
         <div className="flex items-center justify-between mt-1">
-          {part.year && <span className="text-[10px] text-gray-500">{part.year}</span>}
+          {part.year && <span className="text-[10px] text-gray-400">{part.year}</span>}
           {part.is_imported && <span className="text-[10px] text-green-400 font-medium">✓ Local</span>}
         </div>
       </div>
@@ -294,7 +294,7 @@ export default function AdminSagas() {
             {/* Search */}
             <div className="p-3 border-b border-brand-border">
               <div className="relative">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
                   type="text"
                   value={searchQuery}
@@ -310,7 +310,7 @@ export default function AdminSagas() {
               <button
                 onClick={() => setSortByCount(true)}
                 className={`text-xs font-semibold px-2.5 py-1 rounded-md transition-colors ${
-                  sortByCount ? "bg-brand-red/20 text-brand-red" : "text-gray-500 hover:text-gray-300"
+                  sortByCount ? "bg-brand-red/20 text-brand-red" : "text-gray-400 hover:text-gray-300"
                 }`}
               >
                 Por películas
@@ -318,7 +318,7 @@ export default function AdminSagas() {
               <button
                 onClick={() => setSortByCount(false)}
                 className={`text-xs font-semibold px-2.5 py-1 rounded-md transition-colors ${
-                  !sortByCount ? "bg-brand-red/20 text-brand-red" : "text-gray-500 hover:text-gray-300"
+                  !sortByCount ? "bg-brand-red/20 text-brand-red" : "text-gray-400 hover:text-gray-300"
                 }`}
               >
                 Alfabético
@@ -332,7 +332,7 @@ export default function AdminSagas() {
                   <Spinner />
                 </div>
               ) : filteredSagas.length === 0 ? (
-                <p className="text-gray-500 text-xs text-center py-8">
+                <p className="text-gray-400 text-xs text-center py-8">
                   {searchQuery ? "Sin resultados" : "No hay sagas"}
                 </p>
               ) : (
@@ -365,7 +365,7 @@ export default function AdminSagas() {
                             />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center">
-                              <span className="text-gray-600 text-[8px]">N/A</span>
+                              <span className="text-gray-400 text-[8px]">N/A</span>
                             </div>
                           )}
                         </div>
@@ -374,9 +374,9 @@ export default function AdminSagas() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5">
                             <span className="text-sm font-medium truncate">{saga.name}</span>
-                            {isCurated && <Lock size={11} className="text-gray-500 flex-shrink-0" />}
+                            {isCurated && <Lock size={11} className="text-gray-400 flex-shrink-0" />}
                           </div>
-                          <span className="text-xs text-gray-500">
+                          <span className="text-xs text-gray-400">
                             {saga.part_count} {saga.part_count === 1 ? "película" : "películas"}
                           </span>
                         </div>
@@ -391,7 +391,7 @@ export default function AdminSagas() {
                           type="button"
                           onClick={() => handleDeleteSaga(saga.id, saga.name)}
                           aria-label={`Eliminar la saga ${saga.name}`}
-                          className="p-1 rounded hover:bg-red-900/30 text-gray-500 hover:text-red-400 transition-colors flex-shrink-0 focus-visible:ring-2 focus-visible:ring-brand-red"
+                          className="p-1 rounded hover:bg-red-900/30 text-gray-400 hover:text-red-400 transition-colors flex-shrink-0 focus-visible:ring-2 focus-visible:ring-brand-red"
                           title="Eliminar saga"
                         >
                           <Trash2 size={14} aria-hidden="true" />
@@ -410,7 +410,7 @@ export default function AdminSagas() {
                   <div>
                     <label
                       htmlFor="new-collection-id"
-                      className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold block mb-1"
+                      className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold block mb-1"
                     >
                       TMDB Collection ID
                     </label>
@@ -426,7 +426,7 @@ export default function AdminSagas() {
                       href="https://www.themoviedb.org/collection/"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[10px] text-gray-600 hover:text-gray-400 mt-1 inline-block"
+                      className="text-[10px] text-gray-400 hover:text-white mt-1 inline-block"
                     >
                       https://www.themoviedb.org/collection/XXXXX
                     </a>
@@ -466,7 +466,7 @@ export default function AdminSagas() {
           {/* ── Center Panel — Saga Detail ── */}
           <div className="flex-1 min-w-0 overflow-y-auto">
             {!selectedId && (
-              <div className="flex items-center justify-center h-64 text-gray-500 text-sm">
+              <div className="flex items-center justify-center h-64 text-gray-400 text-sm">
                 Selecciona una saga para ver los detalles
               </div>
             )}

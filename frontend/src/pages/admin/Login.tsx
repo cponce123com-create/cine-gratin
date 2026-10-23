@@ -56,7 +56,7 @@ export default function AdminLogin() {
             <span className="text-brand-red font-black text-2xl tracking-tight">CINE</span>
             <span className="text-brand-gold font-black text-2xl tracking-tight">GRATIN</span>
           </div>
-          <p className="text-gray-500 text-xs tracking-widest uppercase">Panel de administración</p>
+          <p className="text-gray-400 text-xs tracking-widest uppercase">Panel de administración</p>
         </div>
 
         <div className="bg-brand-card border border-brand-border rounded-2xl p-8 shadow-2xl">

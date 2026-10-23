@@ -13,17 +13,33 @@ import { importByImdbId } from "../backend/src/jobs/auto-import";
  */
 const skipDatabase = process.env["SKIP_DATABASE_TESTS"] === "true";
 
+// Every path below has to answer 401 before doing any work: the list mirrors
+// the routes declared in `backend/src/routes`, so a new admin endpoint cannot
+// be added without protection.
 const ADMIN_PATHS = [
   "/api/admin/stats",
   "/api/admin/movies",
   "/api/admin/series",
   "/api/admin/sagas",
+  "/api/admin/sagas/1",
+  "/api/admin/sagas/backfill-tmdb-ids",
+  "/api/admin/sagas/1/refresh",
   "/api/admin/import-jobs",
+  "/api/admin/import-by-ids",
+  "/api/admin/import-by-tmdb-ids",
   "/api/admin/auto-import/status",
+  "/api/admin/auto-import/run",
+  "/api/admin/auto-import/toggle",
   "/api/admin/verify-vidsrc",
   "/api/admin/cleanup-no-vidsrc",
   "/api/admin/cleanup-missing-images",
   "/api/admin/tmdb-genres/movie",
+  "/api/admin/tmdb-discover",
+  "/api/admin/m3u-proxy",
+  "/api/admin/vidsrc-list",
+  "/api/admin/vidsrc-test",
+  "/api/admin/vidsrc-range",
+  "/api/admin/scan-networks",
 ];
 
 function adminToken(username = "admin"): string {
@@ -39,6 +55,20 @@ describe("API · rutas administrativas", () => {
 
   it.each(ADMIN_PATHS)("rechaza %s con un token inválido", async (path) => {
     const response = await request(app).get(path).set("Authorization", "Bearer token-invalido");
+    expect(response.status).toBe(401);
+  });
+
+  // Express matches routes ignoring the case, so `/API/ADMIN/...` reaches the
+  // same handler. The guards normalise the path or anyone could skip them
+  // (regression test: bypass confirmed and fixed).
+  it.each([
+    "/API/ADMIN/stats",
+    "/Api/Admin/stats",
+    "/api/ADMIN/import-jobs",
+    "/api/aDmIn/stats",
+    "/api/admin/STATS",
+  ])("rechaza la ruta administrativa %s escrita con otras mayúsculas", async (path) => {
+    const response = await request(app).get(path);
     expect(response.status).toBe(401);
   });
 

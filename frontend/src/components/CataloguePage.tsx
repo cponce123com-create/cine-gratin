@@ -454,9 +454,9 @@ export default function CataloguePage({ title, singular, plural, endpoint, media
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder={`Buscar ${singular}...`}
-              className="w-full bg-brand-surface border border-brand-border rounded-lg px-4 py-2.5 pl-10 text-white placeholder-gray-500 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red transition-colors"
+              className="w-full bg-brand-surface border border-brand-border rounded-lg px-4 py-2.5 pl-10 text-white placeholder-gray-400 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red transition-colors"
             />
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" aria-hidden="true">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" aria-hidden="true">
               <SearchIcon />
             </span>
             {search && (
@@ -467,7 +467,7 @@ export default function CataloguePage({ title, singular, plural, endpoint, media
                   updateParams({ q: null });
                 }}
                 aria-label={`Limpiar la búsqueda de ${plural}`}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
               >
                 &times;
               </button>
@@ -538,7 +538,7 @@ export default function CataloguePage({ title, singular, plural, endpoint, media
                 ))}
               </div>
 
-              <label className="ml-auto flex items-center gap-2 text-xs text-gray-500">
+              <label className="ml-auto flex items-center gap-2 text-xs text-gray-400">
                 <span>Ordenar por</span>
                 <select
                   value={`${sort}:${order}`}
@@ -651,7 +651,7 @@ export default function CataloguePage({ title, singular, plural, endpoint, media
                       {item.title}
                     </p>
                     <div className="flex items-center gap-2 mt-0.5">
-                      {item.year && <span className="text-xs text-gray-500">{item.year}</span>}
+                      {item.year && <span className="text-xs text-gray-400">{item.year}</span>}
                       {item.rating !== undefined && (
                         <span className="text-xs text-brand-gold">
                           &#9733; {Number(item.rating).toFixed(1)}

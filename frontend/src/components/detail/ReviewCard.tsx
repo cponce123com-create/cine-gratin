@@ -18,7 +18,7 @@ export function ReviewCard({ review }: { review: TmdbReview }) {
           </div>
           <div>
             <p className="text-white font-semibold text-sm">{review.author}</p>
-            {dateStr && <p className="text-gray-500 text-xs">{dateStr}</p>}
+            {dateStr && <p className="text-gray-400 text-xs">{dateStr}</p>}
           </div>
         </div>
         {review.rating !== null && review.rating !== undefined && (

@@ -42,7 +42,7 @@ function NoSignalIcon() {
   return (
     <svg
       viewBox="0 0 64 64"
-      className="w-16 h-16 text-gray-600"
+      className="w-16 h-16 text-gray-400"
       fill="none"
       stroke="currentColor"
       strokeWidth="2"
@@ -254,7 +254,7 @@ export default function HlsPlayer({ src, channelName, logo, onError }: HlsPlayer
           </div>
           <div className="text-center px-4">
             <p className="text-white text-sm font-semibold">Conectando al canal…</p>
-            <p className="text-gray-500 text-xs mt-1 truncate max-w-[240px]">{channelName}</p>
+            <p className="text-gray-400 text-xs mt-1 truncate max-w-[240px]">{channelName}</p>
           </div>
         </div>
       )}

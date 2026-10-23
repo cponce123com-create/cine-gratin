@@ -55,7 +55,7 @@ export default function ChannelRow({
           </p>
           <LiveBadge offline={isOffline} />
         </div>
-        <p className="text-[11px] text-gray-500 truncate">
+        <p className="text-[11px] text-gray-400 truncate">
           {channel.group}
           {channel.country ? ` · ${channel.country}` : ""}
         </p>

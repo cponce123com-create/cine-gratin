@@ -343,7 +343,7 @@ export default function VidsrcScanner() {
         <div className="space-y-6">
           <div>
             <h1 className="text-2xl font-black text-white">Escáner VIDSRC</h1>
-            <p className="text-gray-500 text-sm mt-0.5">
+            <p className="text-gray-400 text-sm mt-0.5">
               Comprueba el catálogo completo contra las listas de VIDSRC con reintentos, caché temporal y
               resultados protegidos frente a fallos parciales. {rows.length.toLocaleString()} títulos listos.
             </p>
@@ -419,7 +419,7 @@ export default function VidsrcScanner() {
                 <div className="flex justify-between text-xs text-gray-400">
                   <span>{phaseLabel()}</span>
                   {phase === "done" && (
-                    <span className="text-gray-500">
+                    <span className="text-gray-400">
                       {counts.moviesActive + (counts.seriesActive ?? 0)} activos ·{" "}
                       {counts.moviesInactive + (counts.seriesInactive ?? 0)} sin video
                     </span>
@@ -465,7 +465,7 @@ export default function VidsrcScanner() {
             )}
 
             {phase === "idle" && rows.length > 0 && !error && (
-              <p className="mt-3 text-xs text-gray-600">
+              <p className="mt-3 text-xs text-gray-400">
                 El servidor usa una copia temporal de las listas y solo marca títulos como no disponibles
                 cuando logra completar todas las páginas de ambos tipos.
               </p>
@@ -488,16 +488,16 @@ export default function VidsrcScanner() {
               <table className="w-full text-sm">
                 <thead className="sticky top-0 z-10 bg-brand-card">
                   <tr className="border-b border-brand-border">
-                    <th className="text-left px-5 py-3 text-gray-500 font-medium text-xs uppercase tracking-wider">
+                    <th className="text-left px-5 py-3 text-gray-400 font-medium text-xs uppercase tracking-wider">
                       Título
                     </th>
-                    <th className="text-center px-4 py-3 text-gray-500 font-medium text-xs uppercase tracking-wider">
+                    <th className="text-center px-4 py-3 text-gray-400 font-medium text-xs uppercase tracking-wider">
                       Tipo
                     </th>
-                    <th className="text-center px-4 py-3 text-gray-500 font-medium text-xs uppercase tracking-wider">
+                    <th className="text-center px-4 py-3 text-gray-400 font-medium text-xs uppercase tracking-wider">
                       IMDb
                     </th>
-                    <th className="text-center px-5 py-3 text-gray-500 font-medium text-xs uppercase tracking-wider">
+                    <th className="text-center px-5 py-3 text-gray-400 font-medium text-xs uppercase tracking-wider">
                       vidsrc.me
                     </th>
                   </tr>
@@ -505,7 +505,7 @@ export default function VidsrcScanner() {
                 <tbody>
                   {filtered.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="text-center py-16 text-gray-500 text-sm">
+                      <td colSpan={4} className="text-center py-16 text-gray-400 text-sm">
                         {loadingCatalog
                           ? "Cargando catálogo..."
                           : phase === "idle"
@@ -532,13 +532,13 @@ export default function VidsrcScanner() {
                             href={`https://www.imdb.com/title/${row.imdb_id}/`}
                             target="_blank"
                             rel="noreferrer"
-                            className="text-gray-500 hover:text-white font-mono text-xs transition-colors"
+                            className="text-gray-400 hover:text-white font-mono text-xs transition-colors"
                           >
                             {row.imdb_id}
                           </a>
                         </td>
                         <td className="px-5 py-3 text-center">
-                          {row.status === "pending" && <span className="text-gray-600 text-xs">—</span>}
+                          {row.status === "pending" && <span className="text-gray-400 text-xs">—</span>}
                           {row.status === "active" && (
                             <span className="inline-flex items-center gap-1 bg-green-900/30 text-green-400 text-xs font-semibold px-2.5 py-1 rounded-full border border-green-800/40">
                               <span className="w-1.5 h-1.5 rounded-full bg-green-400" /> Activo

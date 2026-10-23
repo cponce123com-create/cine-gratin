@@ -12,7 +12,7 @@ export function CastSection({ cast }: { cast: CastMember[] }) {
       <div className="mt-12">
         <h2 className="text-xl font-bold text-white mb-4">
           Reparto principal
-          <span className="ml-2 text-sm font-normal text-gray-500">{cast.length}</span>
+          <span className="ml-2 text-sm font-normal text-gray-400">{cast.length}</span>
         </h2>
         <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
           {cast.map((member) => (
@@ -35,7 +35,7 @@ export function CastSection({ cast }: { cast: CastMember[] }) {
               <p className="mt-1.5 text-xs font-bold text-white truncate group-hover:text-brand-red transition-colors">
                 {member.name}
               </p>
-              {member.character && <p className="text-[10px] text-gray-500 truncate">{member.character}</p>}
+              {member.character && <p className="text-[10px] text-gray-400 truncate">{member.character}</p>}
             </button>
           ))}
         </div>

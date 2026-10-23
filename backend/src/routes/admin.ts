@@ -53,7 +53,9 @@ const router: IRouter = Router();
 // so a blanket guard would also intercept the public routes registered after
 // it (sports, events, sagas) and answer 401 instead of letting them through.
 router.use((req, res, next) => {
-  if (!req.path.startsWith("/admin")) {
+  // Case-insensitive on purpose: Express matches the route ignoring the case,
+  // so the guard has to as well (see adminAuth).
+  if (!req.path.toLowerCase().startsWith("/admin")) {
     next();
     return;
   }
@@ -561,7 +563,8 @@ router.get("/admin/m3u-proxy", async (_req, res) => {
     }
     const text = await upstream.text();
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
-    res.setHeader("Cache-Control", "public, max-age=3600");
+    // Admin-only response: `public` would let a shared cache store it.
+    res.setHeader("Cache-Control", "private, max-age=3600");
     res.send(text);
   } catch (err) {
     logger.error({ err }, "M3U proxy failed");
@@ -620,14 +623,26 @@ router.post("/admin/cleanup-missing-images", async (req, res) => {
     let deletedMovies = 0;
     let deletedSeries = 0;
 
-    if (type === "movie" || type === "all") {
-      const result = await pool.query(`DELETE FROM movies WHERE ${missingPoster} RETURNING id`);
-      deletedMovies = result.rowCount || 0;
-    }
+    // A single transaction: if the second delete failed, the first one would
+    // already be applied and the summary would not match what was removed.
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      if (type === "movie" || type === "all") {
+        const result = await client.query(`DELETE FROM movies WHERE ${missingPoster} RETURNING id`);
+        deletedMovies = result.rowCount || 0;
+      }
 
-    if (type === "series" || type === "all") {
-      const result = await pool.query(`DELETE FROM cv_series WHERE ${missingPoster} RETURNING id`);
-      deletedSeries = result.rowCount || 0;
+      if (type === "series" || type === "all") {
+        const result = await client.query(`DELETE FROM cv_series WHERE ${missingPoster} RETURNING id`);
+        deletedSeries = result.rowCount || 0;
+      }
+      await client.query("COMMIT");
+    } catch (err) {
+      await client.query("ROLLBACK").catch(() => {});
+      throw err;
+    } finally {
+      client.release();
     }
 
     res.json({
@@ -968,10 +983,24 @@ router.post("/admin/cleanup-no-vidsrc", async (req, res) => {
       return;
     }
 
-    const movieResult = await pool.query(`DELETE FROM movies WHERE ${unavailable} RETURNING id`);
-    const seriesResult = await pool.query(`DELETE FROM cv_series WHERE ${unavailable} RETURNING id`);
-    const deletedMovies = movieResult.rowCount || 0;
-    const deletedSeries = seriesResult.rowCount || 0;
+    // A single transaction: a failure in the middle would leave the catalogue
+    // half cleaned (see cleanup-missing-images).
+    let deletedMovies = 0;
+    let deletedSeries = 0;
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const movieResult = await client.query(`DELETE FROM movies WHERE ${unavailable} RETURNING id`);
+      const seriesResult = await client.query(`DELETE FROM cv_series WHERE ${unavailable} RETURNING id`);
+      deletedMovies = movieResult.rowCount || 0;
+      deletedSeries = seriesResult.rowCount || 0;
+      await client.query("COMMIT");
+    } catch (err) {
+      await client.query("ROLLBACK").catch(() => {});
+      throw err;
+    } finally {
+      client.release();
+    }
     res.json({
       ok: true,
       summary: {

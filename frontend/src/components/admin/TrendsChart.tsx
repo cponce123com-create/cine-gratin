@@ -10,7 +10,7 @@ export default function TrendsChart({ data, title = "Tendencias (últimos 30 dí
     return (
       <div className="bg-brand-card border border-brand-border rounded-2xl p-6">
         <h2 className="text-white font-bold text-base mb-4">{title}</h2>
-        <div className="text-center text-gray-500 py-12">No hay datos de tendencias disponibles.</div>
+        <div className="text-center text-gray-400 py-12">No hay datos de tendencias disponibles.</div>
       </div>
     );
   }
@@ -44,7 +44,7 @@ export default function TrendsChart({ data, title = "Tendencias (últimos 30 dí
 
           return (
             <div key={idx} className="flex items-end gap-3">
-              <div className="text-xs text-gray-500 w-12 text-right">{formatDate(point.date)}</div>
+              <div className="text-xs text-gray-400 w-12 text-right">{formatDate(point.date)}</div>
               <div className="flex-1 flex items-end gap-2">
                 <div
                   className="bg-gradient-to-t from-brand-red to-red-500 rounded-t transition-all hover:opacity-80"
@@ -61,17 +61,17 @@ export default function TrendsChart({ data, title = "Tendencias (últimos 30 dí
       <div className="mt-6 pt-4 border-t border-brand-border">
         <div className="grid grid-cols-3 gap-4 text-center text-xs">
           <div>
-            <p className="text-gray-500">Mínimo</p>
+            <p className="text-gray-400">Mínimo</p>
             <p className="text-white font-bold">{minCount}</p>
           </div>
           <div>
-            <p className="text-gray-500">Promedio</p>
+            <p className="text-gray-400">Promedio</p>
             <p className="text-white font-bold">
               {Math.round(data.reduce((sum, d) => sum + d.count, 0) / data.length)}
             </p>
           </div>
           <div>
-            <p className="text-gray-500">Máximo</p>
+            <p className="text-gray-400">Máximo</p>
             <p className="text-white font-bold">{maxCount}</p>
           </div>
         </div>

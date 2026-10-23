@@ -239,7 +239,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     <>
       {NAV_GROUPS.map((group) => (
         <div key={group.title} className="mb-4">
-          <p className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-600">
+          <p className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400">
             {group.title}
           </p>
           <ul className="space-y-0.5">
@@ -347,7 +347,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             {navContent}
           </nav>
           <div className="px-4 pt-4 border-t border-brand-border mt-2 sm:hidden">
-            <Link to="/" className="text-xs text-gray-600 hover:text-gray-400 transition-colors">
+            <Link to="/" className="text-xs text-gray-400 hover:text-white transition-colors">
               ← Volver al sitio
             </Link>
           </div>

@@ -126,7 +126,7 @@ export default function MoviePlayer() {
           });
         });
     }
-  }, [imdbId, title]);
+  }, [imdbId, title, saveItem]);
 
   const src = SERVERS[activeServer].url(imdbId!);
 
@@ -194,7 +194,7 @@ export default function MoviePlayer() {
               <span className="hidden sm:inline">Pantalla completa</span>
             </button>
             <button
-              onClick={() => window.open(src, "_blank")}
+              onClick={() => window.open(src, "_blank", "noopener,noreferrer")}
               title="Abrir el video en el sitio externo para descargar"
               className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md border bg-white/5 border-white/10 text-white/60 hover:bg-white/15 hover:text-white hover:border-white/25 transition-all"
             >
@@ -208,7 +208,7 @@ export default function MoviePlayer() {
                   type: "movie",
                   server: String(activeServer),
                 });
-                window.open(`${BASE_URL}/api/download?${params}`, "_blank");
+                window.open(`${BASE_URL}/api/download?${params}`, "_blank", "noopener,noreferrer");
               }}
               title="Resolver y descargar el video directo (requiere yt-dlp en el servidor)"
               className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md border bg-white/5 border-white/10 text-white/60 hover:bg-white/15 hover:text-white hover:border-white/25 transition-all"

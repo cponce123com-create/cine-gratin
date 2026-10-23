@@ -58,7 +58,7 @@ export function MediaSection({
         <h2 className="text-xl font-bold text-white">
           Media
           {videos.length > 0 && (
-            <span className="ml-2 text-sm font-normal text-gray-500">{videos.length} vídeos</span>
+            <span className="ml-2 text-sm font-normal text-gray-400">{videos.length} vídeos</span>
           )}
         </h2>
         {allTabs.length > 1 && (
@@ -102,6 +102,7 @@ export function MediaSection({
               <button
                 key={i}
                 onClick={() => setLightbox(img.url_original)}
+                aria-label={`Ver ${activeTab === "posters" ? "cartel" : "imagen de fondo"} ${i + 1} ampliado`}
                 className="group overflow-hidden rounded-lg border border-brand-border hover:border-brand-red/60 transition-colors"
               >
                 <div className={activeTab === "posters" ? "aspect-[2/3]" : "aspect-video"}>
@@ -265,7 +266,7 @@ export function RecommendationsSection({
                   loading="lazy"
                 />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-gray-600 text-xs text-center px-2">
+                <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs text-center px-2">
                   {item.title}
                 </div>
               )}
@@ -278,7 +279,7 @@ export function RecommendationsSection({
             <p className="mt-1.5 text-xs font-semibold text-gray-200 truncate group-hover:text-white transition-colors">
               {item.title}
             </p>
-            {item.year && <p className="text-[10px] text-gray-500">{item.year}</p>}
+            {item.year && <p className="text-[10px] text-gray-400">{item.year}</p>}
           </Link>
         ))}
       </div>

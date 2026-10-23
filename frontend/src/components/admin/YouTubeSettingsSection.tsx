@@ -40,7 +40,7 @@ export default function YouTubeSettingsSection({ getSettings, saveSettings }: Pr
         <KeyIcon />
         <h2 className="text-white font-bold text-base">API Key de YouTube</h2>
       </div>
-      <p className="text-gray-500 text-sm">
+      <p className="text-gray-400 text-sm">
         Necesitas una API Key de{" "}
         <a
           href="https://console.cloud.google.com"
@@ -62,7 +62,7 @@ export default function YouTubeSettingsSection({ getSettings, saveSettings }: Pr
         />
         <button
           onClick={() => setShow((v) => !v)}
-          className="px-3 text-gray-500 hover:text-gray-300 border border-brand-border rounded-lg bg-brand-surface transition-colors text-xs"
+          className="px-3 text-gray-400 hover:text-gray-300 border border-brand-border rounded-lg bg-brand-surface transition-colors text-xs"
         >
           {show ? "Ocultar" : "Ver"}
         </button>

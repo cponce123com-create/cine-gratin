@@ -142,7 +142,7 @@ export default function AdminDashboard() {
           {/* Page header */}
           <div>
             <h1 className="text-2xl font-black text-white">Dashboard</h1>
-            <p className="text-gray-500 text-sm mt-0.5">Panel de administración de Cine Gratín</p>
+            <p className="text-gray-400 text-sm mt-0.5">Panel de administración de Cine Gratín</p>
           </div>
 
           {/* Global statistics cards */}
@@ -153,7 +153,7 @@ export default function AdminDashboard() {
           )}
 
           {statsLoading ? (
-            <div className="flex items-center gap-3 text-gray-500 text-sm">
+            <div className="flex items-center gap-3 text-gray-400 text-sm">
               <span className="w-4 h-4 rounded-full border-2 border-gray-600 border-t-gray-300 animate-spin flex-shrink-0" />
               Cargando estadísticas...
             </div>
@@ -196,7 +196,7 @@ export default function AdminDashboard() {
             <div className="flex items-start justify-between gap-4 mb-4">
               <div>
                 <h2 className="text-white font-bold text-base mb-1">Limpieza de catálogo</h2>
-                <p className="text-gray-500 text-sm">
+                <p className="text-gray-400 text-sm">
                   Elimina automáticamente todo el contenido que no tenga una imagen de póster válida.
                 </p>
               </div>
@@ -225,14 +225,14 @@ export default function AdminDashboard() {
             <div className="flex items-start justify-between gap-4 mb-6">
               <div>
                 <h2 className="text-white font-bold text-base mb-1">Auto-importación TMDB</h2>
-                <p className="text-gray-500 text-sm">
+                <p className="text-gray-400 text-sm">
                   Importa automáticamente películas y series desde TMDB cada día a las 03:00.
                 </p>
               </div>
               <button
                 onClick={loadStatus}
                 disabled={statusLoading}
-                className="text-gray-500 hover:text-white transition-colors disabled:opacity-40"
+                className="text-gray-400 hover:text-white transition-colors disabled:opacity-40"
                 title="Recargar estado"
               >
                 <RefreshIcon spinning={statusLoading} />
@@ -246,7 +246,7 @@ export default function AdminDashboard() {
             )}
 
             {statusLoading && !status ? (
-              <div className="flex items-center gap-3 text-gray-500 text-sm">
+              <div className="flex items-center gap-3 text-gray-400 text-sm">
                 <span className="w-4 h-4 rounded-full border-2 border-gray-600 border-t-gray-300 animate-spin flex-shrink-0" />
                 Cargando estado...
               </div>
@@ -258,7 +258,7 @@ export default function AdminDashboard() {
                     className={`w-2.5 h-2.5 rounded-full ${status?.enabled ? "bg-green-400" : "bg-gray-600"}`}
                   />
                   <span
-                    className={`text-sm font-semibold ${status?.enabled ? "text-green-400" : "text-gray-500"}`}
+                    className={`text-sm font-semibold ${status?.enabled ? "text-green-400" : "text-gray-400"}`}
                   >
                     {status?.enabled ? "Activado" : "Desactivado"}
                   </span>

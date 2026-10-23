@@ -18,9 +18,10 @@ const Carousel = memo(function Carousel({ title, items, type }: CarouselProps) {
 
   if (items.length === 0) return null;
 
-  // Limitar a 12 items inicialmente para mejorar el rendimiento
-  const visibleItems = items.slice(0, Math.min(visibleCount, 12));
-  const hasMore = Math.min(visibleCount, 12) < items.length;
+  // Se muestran PAGE_SIZE titulos y el boton "Ver mas" amplia el lote; antes el
+  // tope estaba fijado a 12, asi que el boton no anadio nunca nada.
+  const visibleItems = items.slice(0, visibleCount);
+  const hasMore = visibleCount < items.length;
 
   const scroll = (dir: "left" | "right") => {
     if (!scrollRef.current) return;

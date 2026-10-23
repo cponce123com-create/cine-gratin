@@ -212,8 +212,8 @@ export default function YouTubeChannelsSection({
         >
           <div className="min-w-0 flex-1">
             <p className="text-white font-semibold text-sm">{ch.name}</p>
-            <p className="text-gray-500 text-xs truncate">{ch.url}</p>
-            <p className="text-gray-600 text-xs">Keyword: {ch.keyword}</p>
+            <p className="text-gray-400 text-xs truncate">{ch.url}</p>
+            <p className="text-gray-400 text-xs">Keyword: {ch.keyword}</p>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0 ml-3">
             <button
@@ -248,13 +248,13 @@ export default function YouTubeChannelsSection({
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-brand-border bg-brand-surface/50">
-            <th className="text-left px-4 py-3 text-gray-500 text-xs uppercase tracking-wider font-medium">
+            <th className="text-left px-4 py-3 text-gray-400 text-xs uppercase tracking-wider font-medium">
               Canal
             </th>
-            <th className="text-left px-4 py-3 text-gray-500 text-xs uppercase tracking-wider font-medium hidden sm:table-cell">
+            <th className="text-left px-4 py-3 text-gray-400 text-xs uppercase tracking-wider font-medium hidden sm:table-cell">
               Keyword
             </th>
-            <th className="text-right px-4 py-3 text-gray-500 text-xs uppercase tracking-wider font-medium">
+            <th className="text-right px-4 py-3 text-gray-400 text-xs uppercase tracking-wider font-medium">
               Acciones
             </th>
           </tr>
@@ -264,7 +264,7 @@ export default function YouTubeChannelsSection({
             <tr key={ch.id} className="hover:bg-brand-surface/30 transition-colors">
               <td className="px-4 py-3">
                 <div className="text-gray-200 font-medium text-sm">{ch.name}</div>
-                <div className="text-gray-600 text-xs font-mono truncate max-w-[220px]">{ch.url}</div>
+                <div className="text-gray-400 text-xs font-mono truncate max-w-[220px]">{ch.url}</div>
               </td>
               <td className="px-4 py-3 hidden sm:table-cell">
                 <span className="text-xs bg-brand-surface border border-brand-border text-gray-400 px-2 py-1 rounded">
@@ -287,7 +287,7 @@ export default function YouTubeChannelsSection({
                   </button>
                   <button
                     onClick={() => handleDelete(ch.id)}
-                    className="p-1.5 text-gray-600 hover:text-red-400 transition-colors rounded-lg hover:bg-red-900/20"
+                    className="p-1.5 text-gray-400 hover:text-red-400 transition-colors rounded-lg hover:bg-red-900/20"
                   >
                     <TrashIcon />
                   </button>
@@ -312,7 +312,7 @@ export default function YouTubeChannelsSection({
     }
 
     if (channels.length === 0) {
-      return <p className="text-gray-500 text-sm text-center py-8">{emptyMessage}</p>;
+      return <p className="text-gray-400 text-sm text-center py-8">{emptyMessage}</p>;
     }
 
     return variant === "table" ? renderTable() : renderList();
@@ -327,7 +327,7 @@ export default function YouTubeChannelsSection({
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-white font-bold text-base mb-1">Canales de YouTube</h2>
-            <p className="text-gray-500 text-sm">{description}</p>
+            <p className="text-gray-400 text-sm">{description}</p>
           </div>
           {channels.length > 0 && (
             <button

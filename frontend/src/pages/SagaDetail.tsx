@@ -140,7 +140,7 @@ export default function SagaDetail() {
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-brand-surface">
-                          <span className="text-gray-500 text-xs px-2 text-center">{part.title}</span>
+                          <span className="text-gray-400 text-xs px-2 text-center">{part.title}</span>
                         </div>
                       )}
                       {part.vote_average > 0 && (
@@ -168,7 +168,7 @@ export default function SagaDetail() {
                   <p className="mt-2 text-xs text-gray-400 truncate px-0.5 group-hover:text-gray-200 transition-colors">
                     {part.title}
                   </p>
-                  {part.year && <p className="text-[10px] text-gray-600 px-0.5">{part.year}</p>}
+                  {part.year && <p className="text-[10px] text-gray-400 px-0.5">{part.year}</p>}
                 </Link>
               );
             }
@@ -187,7 +187,7 @@ export default function SagaDetail() {
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center bg-brand-surface">
-                        <span className="text-gray-500 text-xs px-2 text-center">{part.title}</span>
+                        <span className="text-gray-400 text-xs px-2 text-center">{part.title}</span>
                       </div>
                     )}
                     {/* Gray overlay */}
@@ -203,12 +203,12 @@ export default function SagaDetail() {
                     )}
 
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-gray-500 text-xs">No disponible</span>
+                      <span className="text-gray-400 text-xs">No disponible</span>
                     </div>
                   </div>
                 </div>
-                <p className="mt-2 text-xs text-gray-500 truncate px-0.5">{part.title}</p>
-                {part.year && <p className="text-[10px] text-gray-600 px-0.5">{part.year}</p>}
+                <p className="mt-2 text-xs text-gray-400 truncate px-0.5">{part.title}</p>
+                {part.year && <p className="text-[10px] text-gray-400 px-0.5">{part.year}</p>}
               </div>
             );
           })}

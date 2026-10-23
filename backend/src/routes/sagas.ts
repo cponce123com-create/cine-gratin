@@ -1,7 +1,9 @@
 ﻿import { Router, type Request, type Response } from "express";
+import rateLimit from "express-rate-limit";
 import { tmdbFetch } from "../lib/tmdb-client";
 import { pool } from "../lib/db";
 import { sendError } from "../lib/errors";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
@@ -169,14 +171,55 @@ async function findLocalMoviesByTmdbIds(tmdbIds: number[]): Promise<Map<number, 
 const sagaCache = { data: null as SagaItem[] | null, expires: 0 };
 const SAGA_CACHE_TTL_MS = 10 * 60 * 1000;
 
+// Cold requests are expensive: up to 30 TMDB calls plus writes to the database.
+// Only one of them runs at a time (the rest await the same promise) and each
+// client is limited, so a burst of visitors cannot drain the TMDB quota.
+let sagasInFlight: Promise<SagaItem[] | null> | null = null;
+
+const sagasLimit = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 10,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Demasiadas peticiones. Inténtalo en un minuto." },
+});
+
 // GET /api/sagas — list all sagas from cv_sagas, enriched with live TMDB data
-router.get("/sagas", async (_req: Request, res: Response) => {
+router.get("/sagas", sagasLimit, async (_req: Request, res: Response) => {
   if (sagaCache.data && sagaCache.expires > Date.now()) {
     res.setHeader("Cache-Control", "public, max-age=3600, stale-while-revalidate=86400");
     res.json(sagaCache.data);
     return;
   }
 
+  if (sagasInFlight) {
+    const shared = await sagasInFlight;
+    if (shared) {
+      res.setHeader("Cache-Control", "public, max-age=3600, stale-while-revalidate=86400");
+      res.json(shared);
+      return;
+    }
+  }
+
+  sagasInFlight = refreshSagas().finally(() => {
+    sagasInFlight = null;
+  });
+
+  const sagas = await sagasInFlight;
+  if (!sagas) {
+    res.status(502).json({ error: "No se pudieron cargar las sagas" });
+    return;
+  }
+
+  res.setHeader("Cache-Control", "public, max-age=3600, stale-while-revalidate=86400");
+  res.json(sagas);
+});
+
+/**
+ * Fetches every collection from TMDB, stores the result in memory and refresh
+ * the cached rows. Returns null when TMDB cannot be reached.
+ */
+async function refreshSagas(): Promise<SagaItem[] | null> {
   try {
     // Get all collection IDs from DB
     const dbResult = await pool.query("SELECT collection_id FROM cv_sagas ORDER BY part_count DESC");
@@ -237,12 +280,12 @@ router.get("/sagas", async (_req: Request, res: Response) => {
     sagaCache.data = sagas;
     sagaCache.expires = Date.now() + SAGA_CACHE_TTL_MS;
 
-    res.setHeader("Cache-Control", "public, max-age=3600, stale-while-revalidate=86400");
-    res.json(sagas);
+    return sagas;
   } catch (e) {
-    sendError(res, e);
+    logger.error({ err: e }, "No se pudieron refrescar las sagas");
+    return null;
   }
-});
+}
 
 // GET /api/sagas/:id — full collection detail with all parts
 // Each part includes local_id if the movie exists in the local DB.

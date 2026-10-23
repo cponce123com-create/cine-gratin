@@ -178,9 +178,9 @@ export default function Navbar() {
                   autoComplete="off"
                   aria-expanded={searchOpen && query.length > 0}
                   aria-controls="navbar-search-results"
-                  className="w-full bg-white/8 border border-white/10 rounded-full px-4 py-1.5 pl-9 text-white placeholder-gray-500 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red transition-colors"
+                  className="w-full bg-white/8 border border-white/10 rounded-full px-4 py-1.5 pl-9 text-white placeholder-gray-400 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red transition-colors"
                 />
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" aria-hidden="true">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" aria-hidden="true">
                   <SearchIcon />
                 </span>
                 {query && (
@@ -191,7 +191,7 @@ export default function Navbar() {
                       setSearchOpen(false);
                     }}
                     aria-label="Limpiar la búsqueda"
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white text-xs focus-visible:ring-2 focus-visible:ring-brand-red rounded"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white text-xs focus-visible:ring-2 focus-visible:ring-brand-red rounded"
                   >
                     &times;
                   </button>
@@ -212,7 +212,7 @@ export default function Navbar() {
                     <div className="w-5 h-5 rounded-full border-2 border-brand-red border-t-transparent animate-spin" />
                   </div>
                 ) : results.length === 0 ? (
-                  <p className="text-gray-500 text-sm text-center py-6">
+                  <p className="text-gray-400 text-sm text-center py-6">
                     {query.trim().length < 2 ? "Escribe al menos 2 caracteres" : "Sin resultados"}
                   </p>
                 ) : (
@@ -234,7 +234,7 @@ export default function Navbar() {
                           />
                           <div className="min-w-0">
                             <p className="text-white text-sm font-medium truncate">{r.item.title}</p>
-                            <p className="text-gray-500 text-xs">
+                            <p className="text-gray-400 text-xs">
                               {r.kind === "movie" ? "Película" : "Serie"} · {r.item.year ?? ""}
                             </p>
                           </div>
@@ -293,14 +293,16 @@ export default function Navbar() {
             <form onSubmit={handleSearchSubmit}>
               <div className="relative">
                 <input
+                  id="navbar-search-mobile"
                   autoFocus
                   type="text"
                   value={query}
                   onChange={(e) => handleQueryChange(e.target.value)}
                   placeholder="Buscar películas o series..."
-                  className="w-full bg-white/8 border border-white/15 rounded-full px-4 py-2 pl-9 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-white/30 transition-colors"
+                  aria-label="Buscar películas o series"
+                  className="w-full bg-white/8 border border-white/15 rounded-full px-4 py-2 pl-9 text-white placeholder-gray-400 text-sm focus:outline-none focus:border-white/30 transition-colors"
                 />
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
                   <SearchIcon />
                 </span>
                 {query && (
@@ -309,7 +311,7 @@ export default function Navbar() {
                     onClick={() => {
                       handleQueryChange("");
                     }}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white text-xs"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white text-xs"
                   >
                     &times;
                   </button>
@@ -325,7 +327,7 @@ export default function Navbar() {
                     <div className="w-5 h-5 rounded-full border-2 border-brand-red border-t-transparent animate-spin" />
                   </div>
                 ) : results.length === 0 ? (
-                  <p className="text-gray-500 text-sm text-center py-5">
+                  <p className="text-gray-400 text-sm text-center py-5">
                     {query.trim().length < 2 ? "Escribe al menos 2 caracteres" : "Sin resultados"}
                   </p>
                 ) : (
@@ -347,7 +349,7 @@ export default function Navbar() {
                           />
                           <div className="min-w-0">
                             <p className="text-white text-sm font-medium truncate">{r.item.title}</p>
-                            <p className="text-gray-500 text-xs">
+                            <p className="text-gray-400 text-xs">
                               {r.kind === "movie" ? "Película" : "Serie"} · {r.item.year ?? ""}
                             </p>
                           </div>

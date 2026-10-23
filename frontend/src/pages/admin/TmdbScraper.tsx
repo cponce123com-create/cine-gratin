@@ -479,7 +479,7 @@ export default function TmdbScraper() {
           {/* Header */}
           <div>
             <h1 className="text-2xl font-black text-white">Explorador TMDB</h1>
-            <p className="text-gray-500 text-sm mt-0.5">
+            <p className="text-gray-400 text-sm mt-0.5">
               Busca y filtra contenido de TMDB por género, año, idioma y más para importar directamente al
               catálogo.
             </p>
@@ -594,7 +594,7 @@ export default function TmdbScraper() {
             {/* Filter grid */}
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">
+                <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5 block">
                   Año desde
                 </label>
                 <input
@@ -608,7 +608,7 @@ export default function TmdbScraper() {
                 />
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">
+                <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5 block">
                   Año hasta
                 </label>
                 <input
@@ -622,7 +622,7 @@ export default function TmdbScraper() {
                 />
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">
+                <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5 block">
                   Ordenar por
                 </label>
                 <select
@@ -638,7 +638,7 @@ export default function TmdbScraper() {
                 </select>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">
+                <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5 block">
                   Idioma original
                 </label>
                 <select
@@ -654,7 +654,7 @@ export default function TmdbScraper() {
                 </select>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">
+                <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5 block">
                   Votos mínimos
                 </label>
                 <input
@@ -683,7 +683,7 @@ export default function TmdbScraper() {
             {/* Genres */}
             {genres.length > 0 && (
               <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 block">
+                <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2 block">
                   Géneros
                   {selectedGenres.length > 0 && (
                     <button
@@ -753,8 +753,8 @@ export default function TmdbScraper() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-baseline gap-2 min-w-0">
                     <span className="text-white font-bold">{totalResults.toLocaleString()}</span>
-                    <span className="text-gray-500 text-sm">resultados</span>
-                    <span className="text-gray-500 text-xs">
+                    <span className="text-gray-400 text-sm">resultados</span>
+                    <span className="text-gray-400 text-xs">
                       · {from}–{to} · bloque {page}/{totalPages}
                     </span>
                     <button
@@ -762,7 +762,7 @@ export default function TmdbScraper() {
                       onClick={() =>
                         filtersRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
                       }
-                      className="text-xs font-semibold text-gray-500 hover:text-white transition-colors"
+                      className="text-xs font-semibold text-gray-400 hover:text-white transition-colors"
                     >
                       ↑ Filtros
                     </button>
@@ -837,7 +837,7 @@ export default function TmdbScraper() {
                   ))}
                 </div>
               ) : visibleResults.length === 0 ? (
-                <div className="px-6 py-16 text-center text-gray-500 text-sm">
+                <div className="px-6 py-16 text-center text-gray-400 text-sm">
                   {results.length > 0
                     ? "Todos los resultados de este bloque ya están en el catálogo."
                     : "No se encontraron resultados para los filtros seleccionados."}
@@ -865,7 +865,7 @@ export default function TmdbScraper() {
                               loading="lazy"
                             />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center text-gray-600 text-xs">
+                            <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">
                               Sin imagen
                             </div>
                           )}
@@ -886,7 +886,7 @@ export default function TmdbScraper() {
                           {item.title}
                         </p>
                         <div className="flex items-center gap-1.5 mt-0.5">
-                          {item.year && <span className="text-gray-500 text-xs">{item.year}</span>}
+                          {item.year && <span className="text-gray-400 text-xs">{item.year}</span>}
                           {item.rating > 0 && (
                             <span className="text-brand-gold text-xs">★ {item.rating.toFixed(1)}</span>
                           )}

@@ -202,14 +202,14 @@ export default function SeriesDetail() {
                         loading="lazy"
                       />
                     ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center text-gray-500 text-sm font-bold">
+                      <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 text-sm font-bold">
                         <span>{season.season}</span>
                       </div>
                     )}
                   </div>
                   <p className="mt-1.5 text-xs font-semibold text-gray-200 truncate">{season.name}</p>
                   {season.episodes && (
-                    <p className="text-[10px] text-gray-500">{season.episodes} episodios</p>
+                    <p className="text-[10px] text-gray-400">{season.episodes} episodios</p>
                   )}
                 </div>
               ))}
@@ -232,7 +232,7 @@ export default function SeriesDetail() {
         {reviews.length > 0 && (
           <div className="mt-12">
             <h2 className="text-xl font-bold text-white mb-4">
-              Reseñas <span className="ml-2 text-sm font-normal text-gray-500">{reviews.length}</span>
+              Reseñas <span className="ml-2 text-sm font-normal text-gray-400">{reviews.length}</span>
             </h2>
             <div className="flex flex-col gap-4">
               {reviews.map((r, i) => (

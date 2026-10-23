@@ -60,9 +60,9 @@ function MatchesSection({ refreshKey }: { refreshKey: number }) {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-white font-bold text-base mb-1">
-            Partidos importados <span className="text-gray-500 font-normal text-sm">({matches.length})</span>
+            Partidos importados <span className="text-gray-400 font-normal text-sm">({matches.length})</span>
           </h2>
-          <p className="text-gray-500 text-sm">Todos los partidos guardados en la base de datos.</p>
+          <p className="text-gray-400 text-sm">Todos los partidos guardados en la base de datos.</p>
         </div>
         <div className="flex gap-2">
           <input
@@ -85,7 +85,7 @@ function MatchesSection({ refreshKey }: { refreshKey: number }) {
                 setSearch("");
                 setQuery("");
               }}
-              className="text-gray-500 hover:text-gray-300 text-sm transition-colors"
+              className="text-gray-400 hover:text-gray-300 text-sm transition-colors"
             >
               Limpiar
             </button>
@@ -98,7 +98,7 @@ function MatchesSection({ refreshKey }: { refreshKey: number }) {
           <span className="w-8 h-8 border-2 border-brand-red border-t-transparent rounded-full animate-spin block" />
         </div>
       ) : matches.length === 0 ? (
-        <div className="text-center py-8 text-gray-600 text-sm">
+        <div className="text-center py-8 text-gray-400 text-sm">
           {query ? "No se encontraron partidos con ese filtro." : "No hay partidos importados aún."}
         </div>
       ) : (
@@ -118,7 +118,7 @@ function MatchesSection({ refreshKey }: { refreshKey: number }) {
                 )}
                 <div className="flex-1 min-w-0">
                   <div className="text-gray-200 text-sm font-medium truncate">{m.title}</div>
-                  <div className="text-gray-600 text-xs flex gap-3 mt-0.5">
+                  <div className="text-gray-400 text-xs flex gap-3 mt-0.5">
                     <span>{m.channel_name}</span>
                     {m.published_at && <span>{new Date(m.published_at).toLocaleDateString("es-ES")}</span>}
                   </div>
@@ -128,13 +128,13 @@ function MatchesSection({ refreshKey }: { refreshKey: number }) {
                     href={`https://www.youtube.com/watch?v=${m.yt_id}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-xs text-gray-500 hover:text-brand-red transition-colors font-mono"
+                    className="text-xs text-gray-400 hover:text-brand-red transition-colors font-mono"
                   >
                     {m.yt_id}
                   </a>
                   <button
                     onClick={() => handleDelete(m.id)}
-                    className="p-1.5 text-gray-600 hover:text-red-400 transition-colors rounded-lg hover:bg-red-900/20"
+                    className="p-1.5 text-gray-400 hover:text-red-400 transition-colors rounded-lg hover:bg-red-900/20"
                   >
                     <TrashIcon />
                   </button>
@@ -158,7 +158,7 @@ export default function SportChannels() {
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-black text-white">⚽ Deportes — Partidos de Fútbol</h1>
-          <p className="text-gray-500 text-sm mt-0.5">
+          <p className="text-gray-400 text-sm mt-0.5">
             Importa partidos completos desde canales de YouTube automáticamente.
           </p>
         </div>

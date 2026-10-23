@@ -91,7 +91,7 @@ export default function TmdbTrailersSection() {
               <p className="mt-1.5 text-xs font-semibold text-gray-200 truncate group-hover:text-white transition-colors">
                 {item.title}
               </p>
-              <p className="text-[10px] text-gray-500 truncate">{item.trailer_name}</p>
+              <p className="text-[10px] text-gray-400 truncate">{item.trailer_name}</p>
             </button>
           ))}
         </div>

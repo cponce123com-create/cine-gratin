@@ -3,6 +3,7 @@ import { logger } from "./lib/logger";
 import { closePool, initDb } from "./lib/db";
 import { getConfig } from "./lib/config";
 import { startAutoImportCron } from "./jobs/auto-import";
+import { startRevocationMaintenance } from "./lib/session-store";
 import { reapStaleJobs, resumeQueuedJobs, startImportWorker } from "./lib/import-jobs";
 
 // ── Configuration ─────────────────────────────────────────────────────────────
@@ -60,6 +61,8 @@ async function main(): Promise<void> {
   server = app.listen(config.port, () => {
     logger.info({ port: config.port }, "Server listening");
     startAutoImportCron();
+    // Limpia cada día la lista de sesiones caducadas: solo crece con cada logout.
+    startRevocationMaintenance();
   });
 }
 

@@ -157,7 +157,7 @@ export default function MovieDetail() {
 
             {movie.director && (
               <p className="text-gray-400 text-sm mb-5">
-                <span className="text-gray-500">Director: </span>
+                <span className="text-gray-400">Director: </span>
                 {movie.director}
               </p>
             )}
@@ -203,7 +203,7 @@ export default function MovieDetail() {
         {reviews.length > 0 && (
           <div className="mt-12">
             <h2 className="text-xl font-bold text-white mb-4">
-              Reseñas <span className="ml-2 text-sm font-normal text-gray-500">{reviews.length}</span>
+              Reseñas <span className="ml-2 text-sm font-normal text-gray-400">{reviews.length}</span>
             </h2>
             <div className="flex flex-col gap-4">
               {reviews.map((r, i) => (

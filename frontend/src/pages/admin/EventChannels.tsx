@@ -63,7 +63,7 @@ function EventsSection() {
       {confirmDialog}
       <div>
         <h2 className="text-white font-bold text-base mb-1">Eventos Importados</h2>
-        <p className="text-gray-500 text-sm">{events.length} eventos disponibles (mínimo 30 minutos)</p>
+        <p className="text-gray-400 text-sm">{events.length} eventos disponibles (mínimo 30 minutos)</p>
       </div>
 
       {loading ? (
@@ -71,7 +71,7 @@ function EventsSection() {
           <div className="w-5 h-5 rounded-full border-2 border-brand-red border-t-transparent animate-spin mx-auto" />
         </div>
       ) : events.length === 0 ? (
-        <p className="text-gray-500 text-sm text-center py-8">No hay eventos importados.</p>
+        <p className="text-gray-400 text-sm text-center py-8">No hay eventos importados.</p>
       ) : (
         <div className="max-h-96 overflow-y-auto space-y-2">
           {events.map((event) => (
@@ -81,7 +81,7 @@ function EventsSection() {
             >
               <div className="min-w-0 flex-1">
                 <p className="text-white font-semibold text-sm line-clamp-1">{event.title}</p>
-                <p className="text-gray-500 text-xs">{event.channel_name}</p>
+                <p className="text-gray-400 text-xs">{event.channel_name}</p>
               </div>
               <button
                 onClick={() => handleDelete(event.id)}

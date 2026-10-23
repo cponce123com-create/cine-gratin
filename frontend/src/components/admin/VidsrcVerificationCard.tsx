@@ -86,7 +86,7 @@ export default function VidsrcVerificationCard() {
         <div className="flex items-start justify-between gap-4 mb-4">
           <div>
             <h2 className="text-white font-bold text-base mb-1">Verificar disponibilidad en VIDSRC</h2>
-            <p className="text-gray-500 text-sm">
+            <p className="text-gray-400 text-sm">
               Comprueba si cada título tiene video disponible en VIDSRC. Para escaneos grandes usa el{" "}
               <a href="/admin/vidsrc-scanner" className="text-brand-red hover:underline">
                 Escáner VIDSRC
@@ -134,11 +134,11 @@ export default function VidsrcVerificationCard() {
           <div className="mb-4 flex flex-wrap gap-4 bg-brand-surface border border-brand-border rounded-xl px-5 py-4">
             <div className="text-center">
               <p className="text-2xl font-black text-green-400">{counts.active}</p>
-              <p className="text-gray-500 text-xs mt-0.5">Activos</p>
+              <p className="text-gray-400 text-xs mt-0.5">Activos</p>
             </div>
             <div className="text-center">
               <p className="text-2xl font-black text-red-400">{counts.inactive}</p>
-              <p className="text-gray-500 text-xs mt-0.5">Sin video</p>
+              <p className="text-gray-400 text-xs mt-0.5">Sin video</p>
             </div>
           </div>
         )}

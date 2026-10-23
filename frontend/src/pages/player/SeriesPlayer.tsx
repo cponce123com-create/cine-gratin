@@ -3,7 +3,7 @@ import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { getSeriesById, trackSeriesView, BASE_URL } from "@/lib/api";
 import { useContinueWatching } from "@/hooks/useContinueWatching";
-import type { SeasonData } from "@/lib/types";
+import type { SeasonData, Series } from "@/lib/types";
 
 interface Server {
   label: string;
@@ -60,46 +60,51 @@ export default function SeriesPlayer() {
   const [totalSeasons, setTotalSeasons] = useState<number | null>(null);
   const [seasonsData, setSeasonsData] = useState<SeasonData[]>([]);
   const [tmdbId, setTmdbId] = useState<number | null>(null);
+  // Ficha de la serie pedida al servidor, indexada por IMDb id. Se guarda en
+  // estado para que "continuar viendo" pueda usarla al cambiar de episodio sin
+  // volver a descargar la ficha.
+  const [seriesByImdb, setSeriesByImdb] = useState<Record<string, Series>>({});
   const { saveItem } = useContinueWatching();
 
   useEffect(() => {
     if (imdbId) trackSeriesView(imdbId).catch(() => {});
   }, [imdbId]);
 
+  // La ficha solo se pide una vez por título: antes estaba en el mismo efecto
+  // que guardaba la posición, así que saltaba con cada cambio de episodio.
   useEffect(() => {
     if (!imdbId) return;
-    getSeriesById(imdbId)
+    const controller = new AbortController();
+    getSeriesById(imdbId, controller.signal)
       .then((s) => {
+        if (controller.signal.aborted) return;
+        setSeriesByImdb((prev) => ({ ...prev, [imdbId]: s }));
         const parsed = parseSeasons(s.seasons_data);
         setSeasonsData(parsed);
         setTotalSeasons(s.total_seasons ?? parsed.length ?? 1);
-
         if (s.tmdb_id) setTmdbId(s.tmdb_id);
-
-        // Save to continue watching
-        saveItem({
-          id: s.id,
-          imdbId: imdbId,
-          title: s.title,
-          type: "series",
-          poster_url: s.poster_url,
-          season,
-          episode,
-        });
       })
       .catch(() => {
+        if (controller.signal.aborted) return;
         setTotalSeasons(10);
-        // Fallback save
-        saveItem({
-          id: imdbId,
-          imdbId: imdbId,
-          title: title,
-          type: "series",
-          season,
-          episode,
-        });
       });
-  }, [imdbId, season, episode, title]);
+    return () => controller.abort();
+  }, [imdbId]);
+
+  // "Continuar viendo": posición del episodio, sin red.
+  useEffect(() => {
+    if (!imdbId) return;
+    const series = seriesByImdb[imdbId];
+    saveItem({
+      id: series?.id ?? imdbId,
+      imdbId,
+      title: series?.title ?? title,
+      type: "series",
+      poster_url: series?.poster_url,
+      season,
+      episode,
+    });
+  }, [imdbId, title, season, episode, seriesByImdb, saveItem]);
 
   const resolvedTotalSeasons = totalSeasons ?? 1;
   const episodesInSeason = seasonsData.find((s) => s.season === season)?.episodes ?? 30;
@@ -199,7 +204,7 @@ export default function SeriesPlayer() {
               <span className="hidden sm:inline">Pantalla completa</span>
             </button>
             <button
-              onClick={() => window.open(iframeSrc, "_blank")}
+              onClick={() => window.open(iframeSrc, "_blank", "noopener,noreferrer")}
               title="Abrir el video en el sitio externo para descargar"
               className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md border bg-white/5 border-white/10 text-white/60 hover:bg-white/15 hover:text-white hover:border-white/25 transition-all"
             >
@@ -215,7 +220,7 @@ export default function SeriesPlayer() {
                   season: String(season),
                   episode: String(episode),
                 });
-                window.open(`${BASE_URL}/api/download?${params}`, "_blank");
+                window.open(`${BASE_URL}/api/download?${params}`, "_blank", "noopener,noreferrer");
               }}
               title="Resolver y descargar el video directo (requiere yt-dlp en el servidor)"
               className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md border bg-white/5 border-white/10 text-white/60 hover:bg-white/15 hover:text-white hover:border-white/25 transition-all"

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 export interface ContinueWatchingItem {
   id: string | number;
@@ -28,7 +28,10 @@ export function useContinueWatching() {
     }
   }, []);
 
-  const saveItem = (item: Omit<ContinueWatchingItem, "updatedAt">) => {
+  // Memorizados con useCallback: los jugadores las usan en las dependencias de
+  // sus efectos. Con una referencia nueva en cada render, el efecto se volvería
+  // a ejecutar en bucle (saveItem llama a setItems con updatedAt: Date.now()).
+  const saveItem = useCallback((item: Omit<ContinueWatchingItem, "updatedAt">) => {
     const newItem: ContinueWatchingItem = { ...item, updatedAt: Date.now() };
 
     setItems((prev) => {
@@ -39,15 +42,15 @@ export function useContinueWatching() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
       return updated;
     });
-  };
+  }, []);
 
-  const removeItem = (imdbId: string) => {
+  const removeItem = useCallback((imdbId: string) => {
     setItems((prev) => {
       const updated = prev.filter((i) => i.imdbId !== imdbId);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
       return updated;
     });
-  };
+  }, []);
 
   return { items, saveItem, removeItem };
 }

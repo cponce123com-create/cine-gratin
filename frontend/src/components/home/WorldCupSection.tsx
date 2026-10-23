@@ -129,7 +129,7 @@ export default function WorldCupSection() {
         <h2 className="text-lg sm:text-xl font-bold text-white flex items-center gap-3">
           <span className="w-2 h-7 bg-brand-red rounded-full" />⚽ Mundial de Fútbol — Canales Deportivos
         </h2>
-        <span className="text-xs text-gray-500 bg-brand-surface/50 px-2.5 py-1 rounded-full border border-brand-border">
+        <span className="text-xs text-gray-400 bg-brand-surface/50 px-2.5 py-1 rounded-full border border-brand-border">
           {sportChannels.length} canales
         </span>
       </div>
@@ -146,7 +146,7 @@ export default function WorldCupSection() {
               className="inline-flex items-center gap-2 px-3 py-1.5 bg-brand-surface border border-brand-border rounded-lg text-xs text-gray-300 hover:text-white hover:border-gray-500 transition-colors"
             >
               {link.label}
-              <span className="text-gray-600">↗</span>
+              <span className="text-gray-400">↗</span>
             </a>
           ))}
         </div>
@@ -181,7 +181,7 @@ export default function WorldCupSection() {
                 </div>
                 <div className="min-w-0">
                   <p className="text-white font-bold text-sm truncate">{selectedChannel.name}</p>
-                  <p className="text-gray-500 text-xs truncate">{selectedChannel.group}</p>
+                  <p className="text-gray-400 text-xs truncate">{selectedChannel.group}</p>
                 </div>
               </div>
               <button
@@ -230,7 +230,7 @@ export default function WorldCupSection() {
                     <p className="text-sm font-semibold truncate max-w-[160px]">{ch.name}</p>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <span className="w-1.5 h-1.5 rounded-full bg-green-500/70" />
-                      <span className="text-[10px] text-gray-500 font-medium">En vivo</span>
+                      <span className="text-[10px] text-gray-400 font-medium">En vivo</span>
                     </div>
                   </div>
                 </button>

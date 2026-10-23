@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Helmet } from "react-helmet-async";
 import { toast } from "sonner";
 import { useIptvChannels } from "@/hooks/useIptv";
+import useIsDesktop from "@/hooks/useIsDesktop";
 import type { IptvSource } from "@/hooks/useIptv";
 import type { IptvChannel } from "@/lib/iptv-api";
 import HlsPlayer from "@/components/HlsPlayer";
@@ -12,6 +13,9 @@ import ChannelCard from "@/components/tv/ChannelCard";
 import { SkeletonRows, SkeletonCards } from "@/components/tv/ChannelSkeleton";
 
 export default function TvLive() {
+  // Un único layout a la vez: renderizar el móvil y el de escritorio juntos
+  // montaba dos reproductores HLS y duplicaba ids y encabezados.
+  const isDesktop = useIsDesktop(768);
   const [source, setSource] = useState<IptvSource>("peru");
   const [rawSearch, setRawSearch] = useState("");
   const [debouncedSearch, setDebounced] = useState("");
@@ -159,9 +163,9 @@ export default function TvLive() {
         value={rawSearch}
         onChange={(e) => setRawSearch(e.target.value)}
         placeholder="Buscar canal..."
-        className="w-full bg-brand-surface border border-brand-border rounded-lg px-4 py-2.5 pl-10 text-white placeholder-gray-500 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red transition-colors"
+        className="w-full bg-brand-surface border border-brand-border rounded-lg px-4 py-2.5 pl-10 text-white placeholder-gray-400 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red transition-colors"
       />
-      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" aria-hidden="true">
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" aria-hidden="true">
         <SearchIcon />
       </span>
       {rawSearch && (
@@ -169,7 +173,7 @@ export default function TvLive() {
           type="button"
           onClick={() => setRawSearch("")}
           aria-label="Limpiar la búsqueda de canales"
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white text-xl leading-none focus-visible:ring-2 focus-visible:ring-brand-red rounded"
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white text-xl leading-none focus-visible:ring-2 focus-visible:ring-brand-red rounded"
         >
           <span aria-hidden="true">&times;</span>
         </button>
@@ -191,7 +195,7 @@ export default function TvLive() {
               "flex-shrink-0 rounded-full text-xs font-medium py-1 px-2.5 border transition-colors whitespace-nowrap",
               selectedGroup === g
                 ? "bg-brand-gold/20 text-brand-gold border-brand-gold/50"
-                : "bg-transparent text-gray-500 border-brand-border hover:text-white hover:border-gray-500",
+                : "bg-transparent text-gray-400 border-brand-border hover:text-white hover:border-gray-500",
             ].join(" ")}
           >
             {g}
@@ -228,7 +232,7 @@ export default function TvLive() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-white font-bold text-sm truncate">{selectedChannel.name}</p>
-              <p className="text-gray-500 text-xs truncate">{selectedChannel.group}</p>
+              <p className="text-gray-400 text-xs truncate">{selectedChannel.group}</p>
             </div>
             <LiveBadge offline={offlineIds.has(selectedChannel.id)} />
           </div>
@@ -239,10 +243,10 @@ export default function TvLive() {
           style={{ aspectRatio: "16/9" }}
         >
           <div className="text-5xl opacity-20">📺</div>
-          <p className="text-gray-600 text-sm">Selecciona un canal para reproducir</p>
+          <p className="text-gray-400 text-sm">Selecciona un canal para reproducir</p>
         </div>
       )}
-      <p className="text-[10px] text-gray-600 text-center px-4 py-2 border-t border-brand-border/50">
+      <p className="text-[10px] text-gray-400 text-center px-4 py-2 border-t border-brand-border/50">
         Algunos canales pueden no estar disponibles por restricciones de red (CORS). Prueba otro canal.
       </p>
     </div>
@@ -311,68 +315,73 @@ export default function TvLive() {
         <title>TV en Vivo — Cine Gratín</title>
       </Helmet>
 
-      {/* MOBILE */}
-      <div className="md:hidden flex flex-col">
-        <div className="px-4 pt-4 pb-3 border-b border-brand-border">
-          <h1 className="text-2xl font-black text-white mb-3">📺 TV en Vivo</h1>
-          <div className="mb-3">{sourceTabs}</div>
-          {searchBox}
-        </div>
-        <div
-          ref={mobilePlayerRef}
-          className="sticky top-16 z-30 bg-brand-dark border-b border-brand-border shadow-2xl"
-        >
-          {playerSection}
-        </div>
-        {(groups.length > 1 || !isLoading) && (
-          <div className="px-3 pt-3 pb-2 space-y-2 border-b border-brand-border">
-            {groupPills}
-            {!isLoading && (
-              <p className="text-[11px] text-gray-600 px-1">
-                {availableCount} canal{availableCount !== 1 ? "es" : ""} disponible
-                {availableCount !== 1 ? "s" : ""}
-              </p>
-            )}
+      {/* MOBILE — only rendered on small viewports: rendering both layouts at
+          once would mount two HLS players and duplicate the ids/headings. */}
+      {!isDesktop && (
+        <div className="md:hidden flex flex-col">
+          <div className="px-4 pt-4 pb-3 border-b border-brand-border">
+            <h1 className="text-2xl font-black text-white mb-3">📺 TV en Vivo</h1>
+            <div className="mb-3">{sourceTabs}</div>
+            {searchBox}
           </div>
-        )}
-        {channelList(true)}
-      </div>
+          <div
+            ref={mobilePlayerRef}
+            className="sticky top-16 z-30 bg-brand-dark border-b border-brand-border shadow-2xl"
+          >
+            {playerSection}
+          </div>
+          {(groups.length > 1 || !isLoading) && (
+            <div className="px-3 pt-3 pb-2 space-y-2 border-b border-brand-border">
+              {groupPills}
+              {!isLoading && (
+                <p className="text-[11px] text-gray-400 px-1">
+                  {availableCount} canal{availableCount !== 1 ? "es" : ""} disponible
+                  {availableCount !== 1 ? "s" : ""}
+                </p>
+              )}
+            </div>
+          )}
+          {channelList(true)}
+        </div>
+      )}
 
       {/* DESKTOP */}
-      <div className="hidden md:block max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-        <div className="mb-5">
-          <div className="flex items-baseline gap-4 mb-3 flex-wrap">
-            <h1 className="text-3xl font-black text-white">📺 TV en Vivo</h1>
-            {!isLoading && (
-              <span className="text-gray-500 text-sm">
-                {availableCount} canal{availableCount !== 1 ? "es" : ""} disponible
-                {availableCount !== 1 ? "s" : ""}
-              </span>
-            )}
-          </div>
-          <div className="mb-4">{sourceTabs}</div>
-          <div className="flex flex-col gap-3">
-            <div className="max-w-sm">{searchBox}</div>
-            {groupPills}
-          </div>
-        </div>
-        <div className="flex gap-5">
-          <div className="w-80 xl:w-96 flex-shrink-0">
-            <div className="bg-brand-card border border-brand-border rounded-xl overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-brand-border bg-brand-surface/30">
-                <h2 className="text-sm font-bold text-white">Canales</h2>
-                {!isLoading && channels.length > 0 && (
-                  <span className="text-[10px] text-gray-600">{channels.length} resultados</span>
-                )}
-              </div>
-              {channelList(false)}
+      {isDesktop && (
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+          <div className="mb-5">
+            <div className="flex items-baseline gap-4 mb-3 flex-wrap">
+              <h1 className="text-3xl font-black text-white">📺 TV en Vivo</h1>
+              {!isLoading && (
+                <span className="text-gray-400 text-sm">
+                  {availableCount} canal{availableCount !== 1 ? "es" : ""} disponible
+                  {availableCount !== 1 ? "s" : ""}
+                </span>
+              )}
+            </div>
+            <div className="mb-4">{sourceTabs}</div>
+            <div className="flex flex-col gap-3">
+              <div className="max-w-sm">{searchBox}</div>
+              {groupPills}
             </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="sticky top-20">{playerSection}</div>
+          <div className="flex gap-5">
+            <div className="w-80 xl:w-96 flex-shrink-0">
+              <div className="bg-brand-card border border-brand-border rounded-xl overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-brand-border bg-brand-surface/30">
+                  <h2 className="text-sm font-bold text-white">Canales</h2>
+                  {!isLoading && channels.length > 0 && (
+                    <span className="text-[10px] text-gray-400">{channels.length} resultados</span>
+                  )}
+                </div>
+                {channelList(false)}
+              </div>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="sticky top-20">{playerSection}</div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

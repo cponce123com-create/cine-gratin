@@ -106,7 +106,7 @@ export default function Search() {
               {item.title}
             </p>
             <div className="flex items-center gap-2 mt-0.5">
-              {item.year && <span className="text-xs text-gray-500">{item.year}</span>}
+              {item.year && <span className="text-xs text-gray-400">{item.year}</span>}
               {item.rating !== undefined && (
                 <span className="text-xs text-brand-gold">&#9733; {Number(item.rating).toFixed(1)}</span>
               )}
@@ -137,10 +137,10 @@ export default function Search() {
               value={inputVal}
               onChange={(event) => setInputVal(event.target.value)}
               placeholder="Buscar películas y series..."
-              className="w-full bg-brand-surface border border-brand-border rounded-xl px-5 py-3 pl-12 text-white placeholder-gray-500 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red transition-colors"
+              className="w-full bg-brand-surface border border-brand-border rounded-xl px-5 py-3 pl-12 text-white placeholder-gray-400 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red transition-colors"
               autoFocus
             />
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" aria-hidden="true">
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" aria-hidden="true">
               <SearchIcon />
             </span>
             {inputVal && (
@@ -151,7 +151,7 @@ export default function Search() {
                   if (trimmed) navigate("/search");
                 }}
                 aria-label="Limpiar la búsqueda"
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white focus-visible:ring-2 focus-visible:ring-brand-red rounded"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white focus-visible:ring-2 focus-visible:ring-brand-red rounded"
               >
                 &times;
               </button>
@@ -166,7 +166,7 @@ export default function Search() {
               Resultados para <span className="text-brand-red">&ldquo;{trimmed}&rdquo;</span>
             </h1>
             {!loading && !hasError && (
-              <p className="text-gray-500 text-sm mt-1" aria-live="polite">
+              <p className="text-gray-400 text-sm mt-1" aria-live="polite">
                 {total} resultado{total !== 1 ? "s" : ""} encontrado{total !== 1 ? "s" : ""} en esta página
               </p>
             )}
@@ -217,7 +217,7 @@ export default function Search() {
         {hasError && !loading && (
           <div className="text-center py-20" role="alert">
             <p className="text-red-400 text-lg">{errorMessage ?? "No se pudo completar la búsqueda."}</p>
-            <p className="text-gray-600 text-sm mt-2">Inténtalo de nuevo en unos segundos.</p>
+            <p className="text-gray-400 text-sm mt-2">Inténtalo de nuevo en unos segundos.</p>
           </div>
         )}
 
@@ -225,7 +225,7 @@ export default function Search() {
         {!loading && !hasError && trimmed && !tooShort && total === 0 && (
           <div className="text-center py-20">
             <p className="text-gray-400 text-lg">No se encontraron resultados.</p>
-            <p className="text-gray-600 text-sm mt-2">Intenta con otro título o género.</p>
+            <p className="text-gray-400 text-sm mt-2">Intenta con otro título o género.</p>
             <button
               type="button"
               onClick={() => {
@@ -244,7 +244,7 @@ export default function Search() {
           <section className="mb-10" aria-label="Películas encontradas">
             {tab === "todas" && (
               <h2 className="text-lg font-bold text-white mb-4">
-                Películas <span className="text-gray-500 font-normal text-sm">({movies.length})</span>
+                Películas <span className="text-gray-400 font-normal text-sm">({movies.length})</span>
               </h2>
             )}
             {renderGrid(movies, "/pelicula")}
@@ -256,7 +256,7 @@ export default function Search() {
           <section aria-label="Series encontradas">
             {tab === "todas" && (
               <h2 className="text-lg font-bold text-white mb-4">
-                Series <span className="text-gray-500 font-normal text-sm">({series.length})</span>
+                Series <span className="text-gray-400 font-normal text-sm">({series.length})</span>
               </h2>
             )}
             {renderGrid(series, "/serie")}

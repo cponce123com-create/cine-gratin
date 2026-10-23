@@ -161,7 +161,7 @@ export default function Sports() {
               className="inline-flex items-center gap-2 px-3 py-1.5 bg-brand-surface border border-brand-border rounded-lg text-xs text-gray-300 hover:text-white hover:border-gray-500 transition-colors"
             >
               {link.label}
-              <span className="text-gray-600">↗</span>
+              <span className="text-gray-400">↗</span>
             </a>
           ))}
         </div>
@@ -201,7 +201,7 @@ export default function Sports() {
                       </div>
                       <div className="min-w-0">
                         <p className="text-white font-bold text-sm truncate">{selectedIptvChannel.name}</p>
-                        <p className="text-gray-500 text-xs truncate">{selectedIptvChannel.group}</p>
+                        <p className="text-gray-400 text-xs truncate">{selectedIptvChannel.group}</p>
                       </div>
                     </div>
                     <button
@@ -220,7 +220,7 @@ export default function Sports() {
               <h2 className="text-xl font-bold text-white flex items-center gap-3">
                 <span className="w-2 h-7 bg-brand-red rounded-full" />⚽ Mundial de Fútbol — Canales en Vivo
               </h2>
-              <span className="text-xs text-gray-500 bg-brand-surface/50 px-2.5 py-1 rounded-full border border-brand-border">
+              <span className="text-xs text-gray-400 bg-brand-surface/50 px-2.5 py-1 rounded-full border border-brand-border">
                 {sportChannels.length} canales
               </span>
             </div>
@@ -262,7 +262,7 @@ export default function Sports() {
                           <p className="text-sm font-semibold truncate max-w-[160px]">{ch.name}</p>
                           <div className="flex items-center gap-1.5 mt-0.5">
                             <span className="w-1.5 h-1.5 rounded-full bg-green-500/70" />
-                            <span className="text-[10px] text-gray-500 font-medium">En vivo</span>
+                            <span className="text-[10px] text-gray-400 font-medium">En vivo</span>
                           </div>
                         </div>
                       </button>
@@ -281,7 +281,7 @@ export default function Sports() {
         {/* Separator */}
         <div className="flex items-center gap-4 mb-8">
           <div className="h-px flex-1 bg-brand-border" />
-          <span className="text-xs text-gray-600 font-medium">VIDEOS DE EVENTOS DEPORTIVOS</span>
+          <span className="text-xs text-gray-400 font-medium">VIDEOS DE EVENTOS DEPORTIVOS</span>
           <div className="h-px flex-1 bg-brand-border" />
         </div>
 
@@ -297,9 +297,9 @@ export default function Sports() {
               value={ytSearch}
               onChange={(e) => setYtSearch(e.target.value)}
               placeholder="Buscar evento..."
-              className="w-full bg-brand-surface border border-brand-border rounded-lg px-4 py-2.5 pl-10 text-white placeholder-gray-500 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red transition-colors"
+              className="w-full bg-brand-surface border border-brand-border rounded-lg px-4 py-2.5 pl-10 text-white placeholder-gray-400 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red transition-colors"
             />
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" aria-hidden="true">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" aria-hidden="true">
               <SearchIcon />
             </span>
             {ytSearch && (
@@ -307,7 +307,7 @@ export default function Sports() {
                 type="button"
                 onClick={() => setYtSearch("")}
                 aria-label="Limpiar la búsqueda de eventos deportivos"
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white focus-visible:ring-2 focus-visible:ring-brand-red rounded"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white focus-visible:ring-2 focus-visible:ring-brand-red rounded"
               >
                 <span aria-hidden="true">&times;</span>
               </button>
@@ -397,9 +397,9 @@ export default function Sports() {
                     {item.title}
                   </p>
                   <div className="flex items-center gap-2 mt-1">
-                    <span className="text-xs text-gray-500 font-medium">{item.channel_name}</span>
+                    <span className="text-xs text-gray-400 font-medium">{item.channel_name}</span>
                     {item.published_at && (
-                      <span className="text-[10px] text-gray-600">
+                      <span className="text-[10px] text-gray-400">
                         • {new Date(item.published_at).toLocaleDateString()}
                       </span>
                     )}

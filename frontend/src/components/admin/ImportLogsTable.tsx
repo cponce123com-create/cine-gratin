@@ -22,7 +22,7 @@ export default function ImportLogsTable({ logs, loading }: { logs: AutoImportLog
       </div>
 
       {logs.length === 0 && !loading ? (
-        <div className="px-6 py-12 text-center text-gray-500 text-sm">
+        <div className="px-6 py-12 text-center text-gray-400 text-sm">
           No hay registros de importación aún.
         </div>
       ) : (
@@ -30,19 +30,19 @@ export default function ImportLogsTable({ logs, loading }: { logs: AutoImportLog
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-brand-border">
-                <th className="text-left px-6 py-3 text-gray-500 font-medium text-xs uppercase tracking-wider">
+                <th className="text-left px-6 py-3 text-gray-400 font-medium text-xs uppercase tracking-wider">
                   Fecha
                 </th>
-                <th className="text-center px-4 py-3 text-gray-500 font-medium text-xs uppercase tracking-wider">
+                <th className="text-center px-4 py-3 text-gray-400 font-medium text-xs uppercase tracking-wider">
                   Películas
                 </th>
-                <th className="text-center px-4 py-3 text-gray-500 font-medium text-xs uppercase tracking-wider">
+                <th className="text-center px-4 py-3 text-gray-400 font-medium text-xs uppercase tracking-wider">
                   Series
                 </th>
-                <th className="text-center px-4 py-3 text-gray-500 font-medium text-xs uppercase tracking-wider">
+                <th className="text-center px-4 py-3 text-gray-400 font-medium text-xs uppercase tracking-wider">
                   Revisados
                 </th>
-                <th className="text-center px-4 py-3 text-gray-500 font-medium text-xs uppercase tracking-wider">
+                <th className="text-center px-4 py-3 text-gray-400 font-medium text-xs uppercase tracking-wider">
                   Estado
                 </th>
               </tr>

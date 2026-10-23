@@ -20,7 +20,7 @@ export default function StatsCard({ title, value, subtitle, icon, color = "blue"
         <div>
           <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-2">{title}</p>
           <p className="text-3xl font-black text-white">{value.toLocaleString()}</p>
-          {subtitle && <p className="text-xs text-gray-500 mt-1">{subtitle}</p>}
+          {subtitle && <p className="text-xs text-gray-400 mt-1">{subtitle}</p>}
         </div>
         {icon && <div className="text-2xl opacity-50">{icon}</div>}
       </div>

@@ -40,7 +40,10 @@ export async function isAuthorized(req: Request): Promise<boolean> {
  * Rejects with 401 when no valid session is present.
  */
 export async function adminAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
-  if (!req.path.startsWith("/admin")) {
+  // Express matches routes ignoring the case, so `/API/ADMIN/stats` reaches the
+  // same handler as `/api/admin/stats` while `req.path` keeps the original
+  // casing. Comparing without normalising would let anyone skip this guard.
+  if (!req.path.toLowerCase().startsWith("/admin")) {
     next();
     return;
   }

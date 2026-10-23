@@ -61,7 +61,7 @@ export default function SagasSection() {
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-brand-surface">
-                    <span className="text-gray-500 text-xs">{saga.name}</span>
+                    <span className="text-gray-400 text-xs">{saga.name}</span>
                   </div>
                 )}
               </div>

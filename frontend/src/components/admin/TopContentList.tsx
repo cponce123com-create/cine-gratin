@@ -14,7 +14,7 @@ export default function TopContentList({ title, items, type }: TopContentListPro
       </div>
 
       {items.length === 0 ? (
-        <div className="px-6 py-12 text-center text-gray-500 text-sm">
+        <div className="px-6 py-12 text-center text-gray-400 text-sm">
           No hay {type === "movies" ? "películas" : "series"} aún.
         </div>
       ) : (
@@ -22,13 +22,13 @@ export default function TopContentList({ title, items, type }: TopContentListPro
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-brand-border">
-                <th className="text-left px-6 py-3 text-gray-500 font-medium text-xs uppercase tracking-wider">
+                <th className="text-left px-6 py-3 text-gray-400 font-medium text-xs uppercase tracking-wider">
                   Posición
                 </th>
-                <th className="text-left px-6 py-3 text-gray-500 font-medium text-xs uppercase tracking-wider">
+                <th className="text-left px-6 py-3 text-gray-400 font-medium text-xs uppercase tracking-wider">
                   Título
                 </th>
-                <th className="text-right px-6 py-3 text-gray-500 font-medium text-xs uppercase tracking-wider">
+                <th className="text-right px-6 py-3 text-gray-400 font-medium text-xs uppercase tracking-wider">
                   Vistas
                 </th>
               </tr>

@@ -65,13 +65,13 @@ export function ActorModal({ personId, onClose }: { personId: number; onClose: (
               <div className="p-4 space-y-3">
                 {person.known_for_department && (
                   <div>
-                    <p className="text-gray-500 text-[11px] uppercase tracking-wider">Conocido por</p>
+                    <p className="text-gray-400 text-[11px] uppercase tracking-wider">Conocido por</p>
                     <p className="text-white text-sm font-semibold">{person.known_for_department}</p>
                   </div>
                 )}
                 {person.birthday && (
                   <div>
-                    <p className="text-gray-500 text-[11px] uppercase tracking-wider">Nacimiento</p>
+                    <p className="text-gray-400 text-[11px] uppercase tracking-wider">Nacimiento</p>
                     <p className="text-white text-sm">
                       {new Date(person.birthday).toLocaleDateString("es-MX", {
                         year: "numeric",
@@ -84,7 +84,7 @@ export function ActorModal({ personId, onClose }: { personId: number; onClose: (
                 )}
                 {person.deathday && (
                   <div>
-                    <p className="text-gray-500 text-[11px] uppercase tracking-wider">Fallecimiento</p>
+                    <p className="text-gray-400 text-[11px] uppercase tracking-wider">Fallecimiento</p>
                     <p className="text-white text-sm">
                       {new Date(person.deathday).toLocaleDateString("es-MX", {
                         year: "numeric",
@@ -96,7 +96,7 @@ export function ActorModal({ personId, onClose }: { personId: number; onClose: (
                 )}
                 {person.place_of_birth && (
                   <div>
-                    <p className="text-gray-500 text-[11px] uppercase tracking-wider">Lugar de nacimiento</p>
+                    <p className="text-gray-400 text-[11px] uppercase tracking-wider">Lugar de nacimiento</p>
                     <p className="text-white text-sm">{person.place_of_birth}</p>
                   </div>
                 )}
@@ -108,7 +108,7 @@ export function ActorModal({ personId, onClose }: { personId: number; onClose: (
 
               {person.biography && (
                 <div className="mb-5">
-                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Biografía</h3>
+                  <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Biografía</h3>
                   <p className="text-gray-300 text-sm leading-relaxed line-clamp-6 hover:line-clamp-none transition-all cursor-pointer">
                     {person.biography}
                   </p>
@@ -117,7 +117,7 @@ export function ActorModal({ personId, onClose }: { personId: number; onClose: (
 
               {person.known_for.length > 0 && (
                 <div className="mb-5">
-                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">
+                  <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">
                     Conocido por
                   </h3>
                   <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
@@ -132,13 +132,13 @@ export function ActorModal({ personId, onClose }: { personId: number; onClose: (
                               loading="lazy"
                             />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center text-gray-600 text-[10px] text-center px-1">
+                            <div className="w-full h-full flex items-center justify-center text-gray-400 text-[10px] text-center px-1">
                               {work.title}
                             </div>
                           )}
                         </div>
                         <p className="text-[10px] text-gray-300 truncate leading-tight">{work.title}</p>
-                        {work.year && <p className="text-[10px] text-gray-600">{work.year}</p>}
+                        {work.year && <p className="text-[10px] text-gray-400">{work.year}</p>}
                       </div>
                     ))}
                   </div>
@@ -147,9 +147,9 @@ export function ActorModal({ personId, onClose }: { personId: number; onClose: (
 
               {person.all_credits.length > 0 && (
                 <div>
-                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                  <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
                     Interpretación{" "}
-                    <span className="font-normal text-gray-600">({person.all_credits.length})</span>
+                    <span className="font-normal text-gray-400">({person.all_credits.length})</span>
                   </h3>
                   <div className="space-y-1">
                     {creditsToShow.map((c, i) => (
@@ -157,16 +157,16 @@ export function ActorModal({ personId, onClose }: { personId: number; onClose: (
                         key={i}
                         className="flex items-center gap-3 py-1.5 border-b border-brand-border/30 last:border-0"
                       >
-                        <span className="text-gray-600 text-xs w-10 shrink-0 text-right">
+                        <span className="text-gray-400 text-xs w-10 shrink-0 text-right">
                           {c.year || "—"}
                         </span>
                         <p className="text-sm text-white font-medium flex-1 truncate">{c.title}</p>
                         {c.character && (
-                          <p className="text-xs text-gray-500 shrink-0 truncate max-w-[120px]">
+                          <p className="text-xs text-gray-400 shrink-0 truncate max-w-[120px]">
                             como {c.character}
                           </p>
                         )}
-                        <span className="text-[10px] text-gray-600 shrink-0 uppercase">
+                        <span className="text-[10px] text-gray-400 shrink-0 uppercase">
                           {c.media_type === "tv" ? "Serie" : "Película"}
                         </span>
                       </div>

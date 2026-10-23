@@ -6,6 +6,7 @@
  * keeps a small table of revoked session identifiers, which makes the logout
  * effective immediately and across every instance of the service.
  */
+import cron from "node-cron";
 import { pool } from "./db";
 import { logger } from "./logger";
 import type { SessionClaims } from "./auth-utils";
@@ -41,9 +42,15 @@ export async function isSessionRevoked(jti: string | undefined): Promise<boolean
     );
     return rows.length > 0;
   } catch (err) {
-    // If the table is not available yet (first boot), the session is accepted:
-    // the request is still validated by the signature and the expiry.
-    logger.warn({ err }, "Could not check the revocation list");
+    // The revocation list only exists after the migrations run: on the very
+    // first boot the session is accepted (the signature and the expiry are
+    // still verified). Any other failure is treated as revoked — a fail-closed
+    // check, so an unavailable database cannot resurrect a logged-out session.
+    if ((err as { code?: string }).code !== "42P01") {
+      logger.error({ err }, "Could not check the revocation list: rejecting the session");
+      return true;
+    }
+    logger.warn({ err }, "Revocation list missing, accepting the session");
     return false;
   }
 }
@@ -57,4 +64,22 @@ export async function purgeExpiredRevocations(): Promise<number> {
     logger.warn({ err }, "Could not purge the revocation list");
     return 0;
   }
+}
+
+/**
+ * Schedules the daily cleanup of the revocation list.
+ *
+ * Without it the table only grows, one row per logout, and the check of every
+ * authenticated request would get slower over time.
+ */
+export function startRevocationMaintenance(): void {
+  cron.schedule("30 3 * * *", async () => {
+    try {
+      const purged = await purgeExpiredRevocations();
+      if (purged > 0) logger.info({ purged }, "Revocation list purged");
+    } catch (err) {
+      logger.error({ err }, "Revocation list purge failed");
+    }
+  });
+  logger.info("Session maintenance scheduled (daily at 03:30)");
 }

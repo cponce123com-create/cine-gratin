@@ -182,7 +182,7 @@ export default function EditMediaModal({ item, type, onClose, onSaved }: EditMed
             type="button"
             onClick={onClose}
             aria-label="Cerrar"
-            className="text-gray-500 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-brand-red rounded p-1"
+            className="text-gray-400 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-brand-red rounded p-1"
           >
             <X className="w-6 h-6" aria-hidden="true" />
           </button>
@@ -196,7 +196,7 @@ export default function EditMediaModal({ item, type, onClose, onSaved }: EditMed
         >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label htmlFor="edit-title" className="text-xs font-bold text-gray-500 uppercase">
+              <label htmlFor="edit-title" className="text-xs font-bold text-gray-400 uppercase">
                 Título
               </label>
               <input
@@ -215,7 +215,7 @@ export default function EditMediaModal({ item, type, onClose, onSaved }: EditMed
               )}
             </div>
             <div className="space-y-1">
-              <label htmlFor="edit-year" className="text-xs font-bold text-gray-500 uppercase">
+              <label htmlFor="edit-year" className="text-xs font-bold text-gray-400 uppercase">
                 Año
               </label>
               <input
@@ -237,7 +237,7 @@ export default function EditMediaModal({ item, type, onClose, onSaved }: EditMed
           </div>
 
           <div className="space-y-1">
-            <label htmlFor="edit-synopsis" className="text-xs font-bold text-gray-500 uppercase">
+            <label htmlFor="edit-synopsis" className="text-xs font-bold text-gray-400 uppercase">
               Sinopsis
             </label>
             <textarea
@@ -250,7 +250,7 @@ export default function EditMediaModal({ item, type, onClose, onSaved }: EditMed
           </div>
 
           <div className="space-y-1">
-            <label htmlFor="edit-genres" className="text-xs font-bold text-gray-500 uppercase">
+            <label htmlFor="edit-genres" className="text-xs font-bold text-gray-400 uppercase">
               Géneros (separados por coma)
             </label>
             <input
@@ -263,7 +263,7 @@ export default function EditMediaModal({ item, type, onClose, onSaved }: EditMed
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label htmlFor="edit-poster" className="text-xs font-bold text-gray-500 uppercase">
+              <label htmlFor="edit-poster" className="text-xs font-bold text-gray-400 uppercase">
                 URL del póster
               </label>
               <input
@@ -281,7 +281,7 @@ export default function EditMediaModal({ item, type, onClose, onSaved }: EditMed
               )}
             </div>
             <div className="space-y-1">
-              <label htmlFor="edit-background" className="text-xs font-bold text-gray-500 uppercase">
+              <label htmlFor="edit-background" className="text-xs font-bold text-gray-400 uppercase">
                 URL del fondo
               </label>
               <input

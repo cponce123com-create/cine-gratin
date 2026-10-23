@@ -117,7 +117,7 @@ export default function Player() {
         <div className="flex-1 flex items-center justify-center px-6">
           <div className="text-center max-w-md">
             <p className="text-red-400 text-lg mb-2">Origen de reproducción no permitido</p>
-            <p className="text-gray-500 text-sm mb-4">
+            <p className="text-gray-400 text-sm mb-4">
               La URL solicitada no pertenece a ninguno de los proveedores de streaming compatibles.
             </p>
             <button

@@ -13,7 +13,7 @@ export default function Footer() {
 
           {/* Disclaimer + copyright */}
           <div className="text-center sm:text-right">
-            <p className="text-gray-600 text-xs leading-relaxed max-w-sm">
+            <p className="text-gray-400 text-xs leading-relaxed max-w-sm">
               El contenido multimedia es provisto por servicios externos. No almacenamos ni distribuimos
               archivos de video.
             </p>

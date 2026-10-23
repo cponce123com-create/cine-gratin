@@ -45,7 +45,7 @@ export default function AdminPagination({
       aria-label="Paginación"
       className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1"
     >
-      <p className="text-xs text-gray-500" aria-live="polite">
+      <p className="text-xs text-gray-400" aria-live="polite">
         Mostrando <span className="text-gray-300 font-medium">{from}</span>–
         <span className="text-gray-300 font-medium">{to}</span> de{" "}
         <span className="text-gray-300 font-medium">{total}</span> {itemLabel}
@@ -53,7 +53,7 @@ export default function AdminPagination({
 
       <div className="flex items-center gap-2">
         {onLimitChange && (
-          <label className="flex items-center gap-1.5 text-xs text-gray-500">
+          <label className="flex items-center gap-1.5 text-xs text-gray-400">
             <span>{limitLabel}</span>
             <select
               value={limit}

@@ -199,7 +199,7 @@ export default function MediaManager({
       <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-white">{title}</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
+          <p className="text-sm text-gray-400 mt-0.5">
             {total} {total === 1 ? singular : plural} en el catálogo
           </p>
         </div>
@@ -218,7 +218,7 @@ export default function MediaManager({
         className="bg-brand-card border border-brand-border rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3"
       >
         <div className="lg:col-span-2">
-          <label htmlFor={`${mediaType}-search`} className="block text-xs text-gray-500 mb-1">
+          <label htmlFor={`${mediaType}-search`} className="block text-xs text-gray-400 mb-1">
             Buscar por título o IMDb
           </label>
           <input
@@ -232,7 +232,7 @@ export default function MediaManager({
         </div>
 
         <div>
-          <label htmlFor={`${mediaType}-genre`} className="block text-xs text-gray-500 mb-1">
+          <label htmlFor={`${mediaType}-genre`} className="block text-xs text-gray-400 mb-1">
             Género
           </label>
           <select
@@ -251,7 +251,7 @@ export default function MediaManager({
         </div>
 
         <div>
-          <label htmlFor={`${mediaType}-vidsrc`} className="block text-xs text-gray-500 mb-1">
+          <label htmlFor={`${mediaType}-vidsrc`} className="block text-xs text-gray-400 mb-1">
             Disponibilidad
           </label>
           <select
@@ -269,7 +269,7 @@ export default function MediaManager({
         </div>
 
         <div>
-          <label htmlFor={`${mediaType}-import`} className="block text-xs text-gray-500 mb-1">
+          <label htmlFor={`${mediaType}-import`} className="block text-xs text-gray-400 mb-1">
             Origen
           </label>
           <select
@@ -355,7 +355,7 @@ export default function MediaManager({
             <table className="w-full text-sm">
               <caption className="sr-only">{title}</caption>
               <thead>
-                <tr className="text-left text-xs uppercase tracking-wider text-gray-500 border-b border-brand-border">
+                <tr className="text-left text-xs uppercase tracking-wider text-gray-400 border-b border-brand-border">
                   <th scope="col" className="px-3 py-3 w-10">
                     <input
                       type="checkbox"
@@ -458,7 +458,7 @@ export default function MediaManager({
                           )}
                           <div className="min-w-0">
                             <p className="text-white font-medium truncate max-w-[16rem]">{item.title}</p>
-                            <p className="text-xs text-gray-500 truncate">{item.imdb_id ?? "—"}</p>
+                            <p className="text-xs text-gray-400 truncate">{item.imdb_id ?? "—"}</p>
                           </div>
                         </div>
                       </td>
@@ -499,7 +499,7 @@ export default function MediaManager({
                             className={`p-1.5 rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-brand-red ${
                               item.featured
                                 ? "text-brand-gold hover:text-amber-300"
-                                : "text-gray-600 hover:text-brand-gold"
+                                : "text-gray-400 hover:text-brand-gold"
                             }`}
                           >
                             <Star className="w-4 h-4" aria-hidden="true" />
@@ -510,7 +510,7 @@ export default function MediaManager({
                             rel="noopener noreferrer"
                             aria-label={`Ver ${item.title} en el sitio`}
                             title="Ver en el sitio"
-                            className="p-1.5 rounded-md text-gray-600 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-brand-red"
+                            className="p-1.5 rounded-md text-gray-400 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-brand-red"
                           >
                             <Eye className="w-4 h-4" aria-hidden="true" />
                           </Link>
@@ -519,7 +519,7 @@ export default function MediaManager({
                             onClick={() => setEditing(item)}
                             aria-label={`Editar ${item.title}`}
                             title="Editar"
-                            className="p-1.5 rounded-md text-gray-600 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-brand-red"
+                            className="p-1.5 rounded-md text-gray-400 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-brand-red"
                           >
                             <Edit2 className="w-4 h-4" aria-hidden="true" />
                           </button>
@@ -528,7 +528,7 @@ export default function MediaManager({
                             onClick={() => setConfirmDelete(item)}
                             aria-label={`Eliminar ${item.title}`}
                             title="Eliminar"
-                            className="p-1.5 rounded-md text-gray-600 hover:text-red-400 transition-colors focus-visible:ring-2 focus-visible:ring-brand-red"
+                            className="p-1.5 rounded-md text-gray-400 hover:text-red-400 transition-colors focus-visible:ring-2 focus-visible:ring-brand-red"
                           >
                             <Trash2 className="w-4 h-4" aria-hidden="true" />
                           </button>
@@ -578,7 +578,7 @@ export default function MediaManager({
             Se eliminarán {selected.size} {selected.size === 1 ? singular : plural} del catálogo. Esta acción
             no se puede deshacer.
             {selectedItems.length > 0 && (
-              <ul className="mt-3 max-h-32 overflow-y-auto text-xs text-gray-500 space-y-1">
+              <ul className="mt-3 max-h-32 overflow-y-auto text-xs text-gray-400 space-y-1">
                 {selectedItems.map((item) => (
                   <li key={String(item.id)}>· {item.title}</li>
                 ))}

@@ -17,6 +17,7 @@ import {
   verifyPassword,
 } from "../lib/auth-utils";
 import { getConfig } from "../lib/config";
+import { tmdbFetch } from "../lib/tmdb-client";
 
 const router = Router();
 
@@ -869,10 +870,9 @@ router.get(
         const row = rows[i] as { id: string; imdb_id: string; title: string };
 
         try {
-          const findRes = await fetch(
-            `https://api.themoviedb.org/3/find/${encodeURIComponent(row.imdb_id)}?external_source=imdb_id&api_key=${getConfig().tmdbApiKey ?? ""}`,
-            { signal: AbortSignal.timeout(12_000) },
-          );
+          // tmdbFetch centraliza la clave, el timeout y los reintentos: no hace
+          // falta construir URLs con la clave a mano.
+          const findRes = await tmdbFetch(`/find/${encodeURIComponent(row.imdb_id)}?external_source=imdb_id`);
           if (!findRes.ok) {
             skipped++;
             continue;
@@ -889,15 +889,11 @@ router.get(
             continue;
           }
 
+          // Reparto y palabras clave en paralelo: alimentan la ficha y la
+          // búsqueda semántica del catálogo.
           const [creditsRes, keywordsRes] = await Promise.all([
-            fetch(
-              `https://api.themoviedb.org/3/${type === "series" ? "tv" : "movie"}/${tmdbId}/credits?language=es-MX&api_key=${getConfig().tmdbApiKey ?? ""}`,
-              { signal: AbortSignal.timeout(12_000) },
-            ),
-            fetch(
-              `https://api.themoviedb.org/3/${type === "series" ? "tv" : "movie"}/${tmdbId}/keywords?api_key=${getConfig().tmdbApiKey ?? ""}`,
-              { signal: AbortSignal.timeout(12_000) },
-            ),
+            tmdbFetch(`/${type === "series" ? "tv" : "movie"}/${tmdbId}/credits?language=es-MX`),
+            tmdbFetch(`/${type === "series" ? "tv" : "movie"}/${tmdbId}/keywords`),
           ]);
           if (!creditsRes.ok) {
             skipped++;
